@@ -37,7 +37,7 @@ git clone <repo-url> ~/.dotfiles
 
 ```bash
 cd ~/.dotfiles
-stow zsh bash vim git nvim ssh karabiner gh claude
+stow zsh bash vim git nvim ssh karabiner gh
 ```
 
 ### 4. 시크릿 복원
@@ -56,7 +56,13 @@ chmod 600 ~/.secrets.zsh
 
 > 1Password에서 값 꺼내서 채우기
 
-### 5. 나머지 수동 설정
+### 5. Claude Code 환경 설정
+
+`claude` 패키지는 토큰 포함 위험으로 dotfiles에서 제외됨. 별도 가이드 참조:
+
+→ [`~/.claude/SETUP.md`](~/.claude/SETUP.md)
+
+### 6. 나머지 수동 설정
 
 ```bash
 # Oh-My-Zsh 설치 (zsh plugins 의존)
