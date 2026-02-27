@@ -229,6 +229,7 @@ alias vimkuber="cd ~/workspace/riiid/kubernetes && vim ."
 alias vimtf="cd ~/workspace/riiid/terraform && vim ."
 alias vimkuberchart="cd ~/workspace/riiid/kubernetes-charts/ $$ vim ."
 alias ob='cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/obsidian_home/ch_home/ && nvim .'
+alias HOME="cd $HOME"
 
 source ~/powerlevel10k/powerlevel10k.zsh-theme
 
