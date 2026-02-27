@@ -1,0 +1,61 @@
+[user]
+	name = changhwanK
+	email = devchanghwan@gmail.com
+[alias]
+	# ch = "!git checkout $(git branch | fzf)"
+	bb = "! # Branch tools. Type 'git bb help' ; \n\
+        f() { \n\
+            if [ $# = 0 ]; then \
+                git checkout $(git branch -vv | grep -v '^\\*' | fzf | awk '{print $1}'); \
+            elif [ $1 = 'help' ]; then \
+                echo 'git bb           : Select and checkout branch'; \
+                echo 'git bb c, clean  : Clean all merged branches'; \
+                echo 'git bb d, D      : Delete seleted branches(D: force)'; \
+                echo 'git bb l, list   : List branches excluding the current branch'; \
+                echo 'git bb m, merged : List merged branches excluding the current and master branches'; \
+            elif [ $1 = 'd' -o $1 = 'D' ]; then \
+                git branch -$1 $(git bb list | fzf -m); \
+            elif [ $1 = 'clean' -o $1 = 'c' ]; then \
+                git branch -d $(git bb merged); \
+            elif [ $1 = 'list' -o $1 = 'l' ]; then \
+                git branch | grep -v '^\\*'; \
+            elif [ $1 = 'merged' -o $1 = 'm' ]; then \
+                git branch --merged | grep -v '^\\*\\|\\<master$'; \
+            else \
+                git bb help; \
+            fi; \
+        }; f"
+	
+    bselect = "! # select branch with preview; \n\
+        f() { \
+            _height=$(stty size | awk '{print $1}');\
+            git branch | egrep -v '^\\*' | fzf --preview \"git lg {1} | head -n $_height\"; \
+        }; f"
+	ch = "!git checkout $(git bselect)"
+
+    ps = push
+	cm = commit -m
+	st = status
+	br = branch
+	df = diff
+	log = log --graph --oneline --decorate --all --color
+    lg = log --graph --all --pretty=format:'%C(yellow) %h %C(reset)%C(green)%ad %C(blue)%an %C(reset) : %C(bold cyan)%d%C(reset) %C(white)%s' --date=short 
+
+    [push]
+        default = current
+	autoSetupRemote = true
+    [init]
+        defaultBranch = main
+[core]
+	pager = delta
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true
+    dark = true      # or light = true, or omit for auto-detection
+    side-by-side = true
+    line-numbers = true
+[merge]
+	conflictStyle = zdiff3

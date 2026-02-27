@@ -1,0 +1,9 @@
+.DS_Store
+*.swp
+*.swo
+*~
+*.bak
+__pycache__/
+*.pyc
+*.error.log
+.secrets.zsh
