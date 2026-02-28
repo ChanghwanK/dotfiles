@@ -7,5 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #2382 | 11:11 AM | 🔵 | File Explorer Keybinding Configuration in keymaps.lua | ~330 |
 | #2376 | 11:10 AM | 🔵 | File Explorer Keybinding Configuration in Neovim | ~90 |
 </claude-mem-context>

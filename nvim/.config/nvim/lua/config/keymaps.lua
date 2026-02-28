@@ -5,6 +5,14 @@ local mapKey = require("utils.keyMapper").mapKey
 -- mapKey('<leader>ee', ':Neotree focus<cr>', 'n', { desc = "파일 탐색기로 포커스" })
 -- mapKey('<leader>eb', '<C-w>p', 'n', { desc = "버퍼로 포커스 (탐색기 → 에디터)" })
 mapKey('<leader>e', function() Snacks.picker.explorer({ cwd = vim.fn.getcwd() }) end, 'n', { desc = "파일 탐색기 토글" })
+mapKey('<leader>E', function()
+  local explorer = Snacks.picker.get({ source = "explorer" })[1]
+  if explorer then
+    explorer:focus("list")
+  else
+    Snacks.picker.explorer({ cwd = vim.fn.getcwd() })
+  end
+end, 'n', { desc = "파일 탐색기로 포커스" })
 
 -- indent (들여쓰기 후 선택 영역 유지)
 mapKey('<', '<gv', 'v', { desc = "왼쪽 들여쓰기" })
