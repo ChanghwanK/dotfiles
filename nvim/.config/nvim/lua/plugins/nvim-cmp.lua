@@ -3,13 +3,16 @@ return {
     lazy = false,
     version = "*",
     dependencies = {
-        {
-            "L3MON4D3/LuaSnip",
-            dependencies = { "rafamadriz/friendly-snippets" },
-            config = function()
-                require("luasnip.loaders.from_vscode").lazy_load()
-            end,
-        },
+        -- LuaSnip 제거: blink.cmp 내장 vim.snippet 엔진 사용 (Neovim 0.10+)
+        -- rollback: 아래 주석 해제 후 snippets.preset = "luasnip" 으로 변경
+        -- {
+        --     "L3MON4D3/LuaSnip",
+        --     dependencies = { "rafamadriz/friendly-snippets" },
+        --     config = function()
+        --         require("luasnip.loaders.from_vscode").lazy_load()
+        --     end,
+        -- },
+        "rafamadriz/friendly-snippets", -- blink.cmp 내장 snippets source가 자동 로드
     },
     opts = {
         keymap = {
@@ -36,7 +39,7 @@ return {
             ["<S-Tab>"] = { "snippet_backward", "select_prev", "fallback" },
         },
         snippets = {
-            preset = "luasnip",
+            preset = "default", -- vim.snippet 내장 엔진 사용 (Neovim 0.10+), rollback 시 "luasnip"
         },
         sources = {
             default = { "lsp", "path", "snippets", "buffer" },

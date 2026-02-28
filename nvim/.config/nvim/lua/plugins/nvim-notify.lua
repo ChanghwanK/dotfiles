@@ -1,5 +1,6 @@
 return {
   "rcarriga/nvim-notify",
+  enabled = false, -- snacks.notifier가 vim.notify를 담당하므로 비활성화 (충돌 방지)
   config = function()
     local notify = require("notify")
     

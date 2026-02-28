@@ -33,10 +33,14 @@ mapKey('<leader>nd', function() require("notify").dismiss({ silent = true, pendi
   { desc = '모든 알림 닫기' })
 
 -- 버퍼 이동 (Shift + h / Shift + l)
-mapKey('<S-h>', ':BufferLineCyclePrev<CR>', 'n', { desc = "이전 버퍼로 이동" })
-mapKey('<S-l>', ':BufferLineCycleNext<CR>', 'n', { desc = "다음 버퍼로 이동" })
+mapKey('<S-h>', ':BufferPrevious<CR>', 'n', { desc = "이전 버퍼로 이동" })
+mapKey('<S-l>', ':BufferNext<CR>', 'n', { desc = "다음 버퍼로 이동" })
 mapKey('<leader>bd', function() Snacks.bufdelete() end, 'n', { desc = "현재 버퍼 닫기" })
 mapKey('<C-w>', function() Snacks.bufdelete() end, 'n', { desc = "현재 버퍼 닫기" })
+mapKey('<leader>bo', function() Snacks.bufdelete.other() end, 'n', { desc = "다른 버퍼 모두 닫기 (현재 제외)" })
+mapKey('<leader>ba', function() Snacks.bufdelete.all() end, 'n', { desc = "버퍼 모두 닫기" })
+mapKey('<leader>bl', ':BufferCloseBuffersLeft<CR>', 'n', { desc = "왼쪽 버퍼 모두 닫기" })
+mapKey('<leader>br', ':BufferCloseBuffersRight<CR>', 'n', { desc = "오른쪽 버퍼 모두 닫기" })
 
 -- blamer.nvim (인라인 Git Blame, VSCode GitLens 스타일)
 mapKey('<leader>gb', ':BlamerToggle<CR>', 'n', { desc = "Git Blame 인라인 토글" })

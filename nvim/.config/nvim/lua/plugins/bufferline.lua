@@ -1,6 +1,7 @@
 -- lua/plugins/bufferline.lua
 return {
   "akinsho/bufferline.nvim",
+  enabled = false, -- barbar.nvim으로 교체. 롤백 시 이 줄 제거
   event = "VeryLazy",
   dependencies = { "nvim-tree/nvim-web-devicons" },
   version = "*",
@@ -17,16 +18,15 @@ return {
         style = "icon",
       },
 
-      -- [비활성화] neo-tree offset — 롤백 시 아래 주석 해제
-      -- offsets = {
-      --   {
-      --     filetype = "neo-tree",
-      --     text = "File Explorer",
-      --     highlight = "Directory",
-      --     text_align = "left",
-      --     separator = true,
-      --   },
-      -- },
+      offsets = {
+        {
+          filetype = "snacks_layout_box",
+          text = "Explorer",
+          highlight = "Directory",
+          text_align = "left",
+          separator = true,
+        },
+      },
     },
 
     highlights = {

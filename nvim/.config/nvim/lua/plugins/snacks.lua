@@ -81,5 +81,6 @@ return {
     mapKey('<leader>fg', function() Snacks.picker.grep({ hidden = true }) end, "n", { desc = "Live Grep" })
     mapKey('<leader>fb', function() Snacks.picker.buffers() end, "n", { desc = "Buffers" })
     mapKey('<leader>fh', function() Snacks.picker.help() end, "n", { desc = "Help Tags" })
+    mapKey('<leader>fi', function() Snacks.picker.lsp_implementations() end, "n", { desc = "LSP Implementations" })
   end,
 }

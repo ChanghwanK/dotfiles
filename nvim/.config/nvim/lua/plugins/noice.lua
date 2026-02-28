@@ -3,7 +3,6 @@ return {
     event = "VeryLazy",
     dependencies = {
       "MunifTanjim/nui.nvim",
-      "rcarriga/nvim-notify", -- 이미 설치되어 있다면 생략 가능하지만 명시하는 것이 좋음
     },
     opts = {
       lsp = {
