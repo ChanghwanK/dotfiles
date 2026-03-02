@@ -21,13 +21,7 @@ return {
     dashboard = {
       enabled = true,
       preset = {
-        header = [[
-  ███╗   ██╗███████╗ ██████╗ ██╗   ██╗██╗███╗   ███╗
-  ████╗  ██║██╔════╝██╔═══██╗██║   ██║██║████╗ ████║
-  ██╔██╗ ██║█████╗  ██║   ██║██║   ██║██║██╔████╔██║
-  ██║╚██╗██║██╔══╝  ██║   ██║╚██╗ ██╔╝██║██║╚██╔╝██║
-  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║
-  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝]],
+        header = "",
         keys = {
           { icon = " ", key = "e", desc = "새 파일",      action = ":ene | startinsert" },
           { icon = " ", key = "f", desc = "파일 찾기",    action = function() Snacks.picker.files({ hidden = true }) end },
@@ -60,7 +54,36 @@ return {
     },
   },
   config = function(_, opts)
+    local header_large = [[
+  ███╗   ██╗███████╗ ██████╗ ██╗   ██╗██╗███╗   ███╗
+  ████╗  ██║██╔════╝██╔═══██╗██║   ██║██║████╗ ████║
+  ██╔██╗ ██║█████╗  ██║   ██║██║   ██║██║██╔████╔██║
+  ██║╚██╗██║██╔══╝  ██║   ██║╚██╗ ██╔╝██║██║╚██╔╝██║
+  ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║
+  ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝]]
+    local header_small = [[
+  ╔╗╔╔═╗╔═╗╦  ╦╦╔╦╗
+  ║║║║╣ ║ ║╚╗╔╝║║║║
+  ╝╚╝╚═╝╚═╝ ╚╝ ╩╩ ╩]]
+
+    opts.dashboard.preset.header = vim.o.columns >= 55 and header_large or header_small
     require("snacks").setup(opts)
+
+    -- VimResized 시 대시보드 헤더 갱신
+    vim.api.nvim_create_autocmd("VimResized", {
+      callback = function()
+        local new_header = vim.o.columns >= 55 and header_large or header_small
+        if Snacks.config.dashboard.preset.header ~= new_header then
+          Snacks.config.dashboard.preset.header = new_header
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].filetype == "snacks_dashboard" then
+              vim.schedule(function() Snacks.dashboard() end)
+              break
+            end
+          end
+        end
+      end,
+    })
 
     local mapKey = require("utils.keyMapper").mapKey
     -- [추가] 스크래치 패드 토글 (Leader + s)

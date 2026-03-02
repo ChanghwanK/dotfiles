@@ -27,6 +27,9 @@ mapKey('<A-e>', '<C-o>e', 'i', { desc = "단어 맨 뒤로" })
 -- 복사(y) 후 커서가 시작점으로 튀지 않고 제자리(선택 끝)에 유지되게 함
 vim.keymap.set("v", "y", "ygv<Esc>", { desc = "선택 영역 복사 (커서 유지)" })
 
+-- Visual mode에서 p 시 교체된 텍스트를 black hole 레지스터로 보내 반복 붙여넣기 가능
+vim.keymap.set("x", "p", '"_dP', { desc = "붙여넣기 (레지스터 유지)" })
+
 -- Cmd+C / Cmd+V: macOS 스타일 복사/붙여넣기
 vim.keymap.set('n', '<D-c>', '"+yy',        { desc = 'Cmd+C: 현재 줄 복사' })
 vim.keymap.set('v', '<D-c>', '"+y',         { desc = 'Cmd+C: 선택 영역 복사' })
