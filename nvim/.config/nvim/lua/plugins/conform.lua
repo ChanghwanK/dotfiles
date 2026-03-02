@@ -22,7 +22,7 @@ return {
                 lua = { "stylua" },
                 
                 -- Go
-                go = { "gofmt", "goimports" },
+                go = { "gofmt" },
                 
                 -- Terraform
                 terraform = { "terraform_fmt" },

@@ -24,8 +24,9 @@ return {
     enabled = vim.g.nvim_theme == "catppuccin",
     config = function()
       require("catppuccin").setup({
-        flavour = "mocha", -- latte, frappe, macchiato, mocha
-        transparent_background = false,
+        flavour = "macchiato", -- latte, frappe, macchiato, mocha
+        transparent_background = true,
+        float = { transparent = true },
         term_colors = true,
         integrations = {
           cmp = true,
@@ -33,6 +34,7 @@ return {
           nvimtree = true,
           treesitter = true,
           telescope = true,
+          snacks = { enabled = true },
           indent_blankline = {
             enabled = true,
             scope_color = "lavender",
@@ -53,13 +55,13 @@ return {
       require("onedarkpro").setup({
         -- 옵션 설정 (필요에 따라 주석 해제하여 사용)
         options = {
-          transparency = false,         -- 배경 투명하게 (true/false)
+          transparency = true,          -- 배경 투명하게 (true/false)
           cursorline = true,            -- 커서 라인 강조
           lualine_transparency = false, -- lualine 투명하게
         },
         styles = {
-          comments = "italic",      -- 주석을 이탤릭체로
-          keywords = "bold,italic", -- 키워드를 굵고 이탤릭체로
+          comments = "italic", -- 주석을 이탤릭체로
+          keywords = "NONE",
         },
         highlights = {
           -- Visual: 비주얼 모드 선택 영역 (이전 질문)
@@ -72,10 +74,17 @@ return {
           -- (혹시 구버전 플러그인을 쓸 경우를 대비한 호환성 설정)
           IndentBlanklineChar = { fg = "#3E4452" },
           IndentBlanklineContextChar = { fg = "#E06C75" },
+
+          -- -- 함수/메서드 호출 강조 (Treesitter + LSP semantic tokens)
+          -- ["@function.call"] = { fg = "#E5C07B" },
+          -- ["@method.call"] = { fg = "#E5C07B" },
+          -- -- LSP semantic tokens (pyright 등이 treesitter를 덮어쓰는 경우 대비)
+          -- ["@lsp.type.function"] = { fg = "#E5C07B" },
+          -- ["@lsp.type.method"] = { fg = "#E5C07B" },
         }
       })
       -- 테마 적용 (변형: "onedark", "onelight", "onedark_vivid", "onedark_dark")
-      vim.cmd("colorscheme onedark_vivid")
+      vim.cmd("colorscheme onedark_dark")
     end,
   },
   {
