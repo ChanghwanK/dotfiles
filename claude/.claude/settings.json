@@ -1,0 +1,58 @@
+{
+  "env": {
+    "ENABLE_TOOL_SEARCH": "auto:5"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(kubectl config use-context:*)",
+      "Bash($HOME/.claude/scripts/notify-slack.sh *)"
+    ]
+  },
+  "model": "opusplan",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(cat | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))\"); if printf '%s' \"$cmd\" | grep -qE 'kubectl[[:space:]]+(edit|delete)'; then printf 'BLOCKED: kubectl edit/delete bypasses GitOps and will be reverted by ArgoCD. Modify YAML files in Git instead.\\n' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/notify-plan-done.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/scripts/notify-on-stop.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "python3 $HOME/.claude/statusline.py"
+  },
+  "enabledPlugins": {
+    "claude-mem@thedotmack": true,
+    "devops:istio-troubleshooting@socraai-devops-skills": true,
+    "devops:helm-chart@socraai-devops-skills": true,
+    "devops:pod-crash@socraai-devops-skills": true,
+    "devops:socra-infra-design@socraai-devops-skills": true
+  },
+  "skipDangerousModePermissionPrompt": true
+}

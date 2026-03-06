@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "grafana": {
+      "type": "stdio",
+      "command": "$HOME/.claude/scripts/mcp-grafana.sh"
+    },
+    "slack": {
+      "type": "stdio",
+      "command": "$HOME/.claude/scripts/mcp-slack.sh"
+    },
+    "github": {
+      "type": "stdio",
+      "command": "$HOME/.claude/scripts/mcp-github.sh"
+    },
+    "terraform": {
+      "type": "stdio",
+      "command": "podman",
+      "args": [
+        "run", "-i", "--rm",
+        "hashicorp/terraform-mcp-server:0.4.0",
+        "stdio", "--toolsets=registry"
+      ],
+      "env": {
+        "ENABLE_TF_OPERATIONS": "false"
+      }
+    },
+    "notion-personal": {
+      "type": "stdio",
+      "command": "$HOME/.claude/scripts/mcp-notion-personal.sh"
+    }
+  }
+}

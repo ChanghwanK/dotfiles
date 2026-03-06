@@ -7,5 +7,30 @@ __pycache__/
 *.pyc
 *.error.log
 .secrets.zsh
-**/CLAUDE.md
+CLAUDE.md
 
+# claude 런타임 파일 제외
+claude/.claude/cache/
+claude/.claude/transcripts/
+claude/.claude/history.jsonl
+claude/.claude/plugins/
+claude/.claude/backups/
+claude/.claude/session-env/
+claude/.claude/tmp/
+claude/.claude/todos/
+claude/.claude/plans/
+claude/.claude/projects/
+claude/.claude/stats-cache.json
+claude/.claude/cost_tracker.json
+claude/.claude/statsig/
+claude/.claude/usage-data/
+claude/.claude/debug/
+claude/.claude/ide/
+claude/.claude/telemetry/
+claude/.claude/file-history/
+claude/.claude/shell-snapshots/
+claude/.claude/skills/.backups/
+claude/.claude/paste-cache/
+claude/.claude/mcp-needs-auth-cache.json
+claude/.claude/tasks/
+claude/.claude/docs/
