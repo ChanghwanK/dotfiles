@@ -14,15 +14,5 @@ return {
       preset = "slanted",
       separator_at_end = true,
     },
-    sidebar_filetypes = {
-      snacks_layout_box = {
-        text = "Explorer",
-        align = "left",
-      },
-    },
   },
-  config = function(_, opts)
-    require("barbar").setup(opts)
-
-  end,
 }

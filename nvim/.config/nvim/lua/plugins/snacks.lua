@@ -15,6 +15,19 @@ return {
       sources = {
         explorer = {
           hidden = true,
+          watch = true, -- 외부 프로세스가 파일 생성/삭제 시 자동 반영
+          on_show = function(picker)
+            vim.schedule(function()
+              local win = picker.layout.root.win
+              if win and vim.api.nvim_win_is_valid(win) then
+                local width = vim.api.nvim_win_get_width(win)
+                require("barbar.api").set_offset(width + 1, "Explorer", nil, "left")
+              end
+            end)
+          end,
+          on_close = function()
+            require("barbar.api").set_offset(0, "", nil, "left")
+          end,
         },
       },
     },
@@ -23,6 +36,7 @@ return {
       preset = {
         header = "",
         keys = {
+          { icon = " ", key = "r", desc = "세션 복원",    action = function() require("persistence").load() end },
           { icon = " ", key = "e", desc = "새 파일",      action = ":ene | startinsert" },
           { icon = " ", key = "f", desc = "파일 찾기",    action = function() Snacks.picker.files({ hidden = true }) end },
           { icon = " ", key = "g", desc = "최근 파일",    action = function() Snacks.picker.recent() end },
@@ -102,8 +116,27 @@ return {
     -- Picker (telescope 대체)
     mapKey('<leader>ff', function() Snacks.picker.files({ hidden = true }) end, "n", { desc = "Find Files" })
     mapKey('<leader>fg', function() Snacks.picker.grep({ hidden = true }) end, "n", { desc = "Live Grep" })
-    mapKey('<leader>fb', function() Snacks.picker.buffers() end, "n", { desc = "Buffers" })
+    mapKey('<leader>bf', function() Snacks.picker.buffers() end, "n", { desc = "Buffers" })
     mapKey('<leader>fh', function() Snacks.picker.help() end, "n", { desc = "Help Tags" })
     mapKey('<leader>fi', function() Snacks.picker.lsp_implementations() end, "n", { desc = "LSP Implementations" })
+
+    -- 마지막 버퍼를 닫으면 대시보드 표시
+    vim.api.nvim_create_autocmd("BufDelete", {
+      callback = function(ev)
+        -- dashboard 버퍼 삭제 시 무시 (explorer confirm 시 충돌 방지)
+        if vim.bo[ev.buf].filetype == "snacks_dashboard" then
+          return
+        end
+        vim.schedule(function()
+          -- 이름 있는 버퍼만 카운트 (Neovim 자동 생성 [No Name] 제외)
+          local real_bufs = vim.tbl_filter(function(b)
+            return vim.bo[b].buflisted and vim.api.nvim_buf_get_name(b) ~= ""
+          end, vim.api.nvim_list_bufs())
+          if #real_bufs == 0 then
+            Snacks.dashboard()
+          end
+        end)
+      end,
+    })
   end,
 }

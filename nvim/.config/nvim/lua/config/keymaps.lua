@@ -43,11 +43,11 @@ mapKey('<leader>nh', function() Snacks.notifier.show_history() end, 'n', { desc 
 mapKey('<leader>nd', function() require("notify").dismiss({ silent = true, pending = true }) end, 'n',
   { desc = '모든 알림 닫기' })
 
--- 버퍼 이동 (Shift + h / Shift + l)
+-- 버퍼 이동 (Shift + h/l) — C-S-[/] 는 tmux가 가로채므로 S-h/l 사용
 mapKey('<S-h>', ':BufferPrevious<CR>', 'n', { desc = "이전 버퍼로 이동" })
 mapKey('<S-l>', ':BufferNext<CR>', 'n', { desc = "다음 버퍼로 이동" })
-mapKey('<leader>bd', function() Snacks.bufdelete() end, 'n', { desc = "현재 버퍼 닫기" })
-mapKey('<C-w>', function() Snacks.bufdelete() end, 'n', { desc = "현재 버퍼 닫기" })
+mapKey('<leader>bd', function() pcall(Snacks.bufdelete) end, 'n', { desc = "현재 버퍼 닫기" })
+mapKey('<C-w>', function() pcall(Snacks.bufdelete) end, 'n', { desc = "현재 버퍼 닫기" })
 mapKey('<leader>bo', function() Snacks.bufdelete.other() end, 'n', { desc = "다른 버퍼 모두 닫기 (현재 제외)" })
 mapKey('<leader>ba', function() Snacks.bufdelete.all() end, 'n', { desc = "버퍼 모두 닫기" })
 mapKey('<leader>bl', ':BufferCloseBuffersLeft<CR>', 'n', { desc = "왼쪽 버퍼 모두 닫기" })

@@ -7,7 +7,7 @@ return {
             -- 파서 설치 (이미 설치된 경우 무시됨)
             require("nvim-treesitter").install({
                 "lua", "vim", "vimdoc", "query",
-                "python", "go", "rust", "c",
+                "python", "go", "gotmpl", "rust", "c",
                 "javascript", "typescript", "tsx",
                 "html", "css", "json", "yaml", "toml",
                 "terraform", "bash", "dockerfile",

@@ -28,6 +28,9 @@ opt.relativenumber = true
 opt.termguicolors = true
 opt.signcolumn = "yes"
 
+-- 세션 저장 시 포함할 항목 (persistence.nvim이 사용)
+opt.sessionoptions = "buffers,curdir,folds,tabpages,winsize"
+
 -- etc
 opt.encoding = "UTF-8"
 opt.cmdheight = 1
@@ -56,6 +59,19 @@ else
   -- - "non-ascii" 폰트를 nonicons로 설정 (iTerm2)
   -- - Kitty의 경우: symbol_map U+f101-U+f25c nonicons
 end
+
+-- Helm 템플릿 filetype 감지: templates/ 하위 yaml/tpl/txt 파일을 helm으로 인식
+vim.filetype.add({
+  pattern = {
+    [".*/templates/.*%.yaml"] = "helm",
+    [".*/templates/.*%.yml"] = "helm",
+    [".*/templates/.*%.tpl"] = "helm",
+    ["helmfile.*%.yaml"] = "helm",
+  },
+})
+
+-- helm filetype에 gotmpl treesitter 파서 매핑
+vim.treesitter.language.register("gotmpl", "helm")
 
 -- 입력 모드(Insert)에서 나갈 때(Leave) 자동으로 파일 저장
 vim.api.nvim_create_autocmd("InsertLeave", {

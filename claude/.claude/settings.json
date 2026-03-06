@@ -49,10 +49,7 @@
   },
   "enabledPlugins": {
     "claude-mem@thedotmack": true,
-    "devops:istio-troubleshooting@socraai-devops-skills": true,
-    "devops:helm-chart@socraai-devops-skills": true,
-    "devops:pod-crash@socraai-devops-skills": true,
-    "devops:socra-infra-design@socraai-devops-skills": true
+    "devops@socraai-devops-skills": true
   },
   "skipDangerousModePermissionPrompt": true
 }

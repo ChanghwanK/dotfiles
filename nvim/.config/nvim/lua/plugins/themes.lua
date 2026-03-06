@@ -28,6 +28,33 @@ return {
         transparent_background = true,
         float = { transparent = true },
         term_colors = true,
+        custom_highlights = function(colors)
+          return {
+            -- Helm/Go template {{ }} 내부를 노란색으로 하이라이팅
+            ["@punctuation.bracket.gotmpl"] = { fg = colors.yellow },   -- {{ }} {{- -}}
+            ["@punctuation.delimiter.gotmpl"] = { fg = colors.yellow }, -- . ,
+            ["@variable.gotmpl"] = { fg = colors.yellow },             -- $var
+            ["@variable.member.gotmpl"] = { fg = colors.yellow },      -- .Values.xxx 필드 체인
+            ["@function.gotmpl"] = { fg = colors.yellow },             -- 함수 호출 (include 등)
+            ["@function.builtin.gotmpl"] = { fg = colors.yellow },     -- len, eq, print 등
+            ["@keyword.conditional.gotmpl"] = { fg = colors.yellow, style = { "italic" } }, -- if, else, end, with
+            ["@keyword.repeat.gotmpl"] = { fg = colors.yellow, style = { "italic" } },     -- range, break, continue
+            ["@keyword.directive.gotmpl"] = { fg = colors.yellow, style = { "italic" } },  -- block, define
+            ["@keyword.directive.define.gotmpl"] = { fg = colors.yellow, style = { "italic" } },
+            ["@operator.gotmpl"] = { fg = colors.yellow },             -- | = :=
+            ["@string.gotmpl"] = { fg = colors.yellow },               -- "string"
+            ["@string.special.symbol.gotmpl"] = { fg = colors.yellow },
+            ["@number.gotmpl"] = { fg = colors.yellow },               -- 숫자
+            ["@number.float.gotmpl"] = { fg = colors.yellow },
+            ["@boolean.gotmpl"] = { fg = colors.yellow },              -- true, false
+            ["@constant.builtin.gotmpl"] = { fg = colors.yellow },     -- nil
+            ["@comment.gotmpl"] = { fg = colors.overlay0, style = { "italic" } }, -- 주석은 회색 유지
+            -- LSP 참조 하이라이트: VS Code 스타일 링크 (밑줄 + 배경)
+            LspReferenceText = { bg = colors.surface1, style = { "underline" } },
+            LspReferenceRead = { bg = colors.surface1, style = { "underline" } },
+            LspReferenceWrite = { bg = colors.surface1, style = { "underline", "bold" } },
+          }
+        end,
         integrations = {
           cmp = true,
           gitsigns = true,
@@ -35,6 +62,7 @@ return {
           treesitter = true,
           telescope = true,
           snacks = { enabled = true },
+          render_markdown = true,
           indent_blankline = {
             enabled = true,
             scope_color = "lavender",

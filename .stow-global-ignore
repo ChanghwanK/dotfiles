@@ -2,3 +2,6 @@
 \.gitignore
 \.stow-global-ignore
 README\.md
+Makefile
+scripts
+brew

@@ -34,3 +34,4 @@ claude/.claude/paste-cache/
 claude/.claude/mcp-needs-auth-cache.json
 claude/.claude/tasks/
 claude/.claude/docs/
+tmux/.config/tmux/plugins/*

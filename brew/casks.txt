@@ -1,0 +1,11 @@
+1password-cli
+aws-vpn-client
+claude-code
+codex
+font-noto-sans-cjk-kr
+iterm2
+maccy
+obsidian
+openlens
+podman-desktop
+session-manager-plugin

@@ -6,88 +6,77 @@ changhwan의 macOS 개발 환경 설정 파일 모음. GNU Stow로 심볼릭 링
 
 ```
 ~/.dotfiles/
-├── bash/         # .bashrc, .profile
-├── gh/           # GitHub CLI 설정
-├── git/          # .gitconfig, global .gitignore
-├── karabiner/    # Karabiner-Elements 키 매핑
-├── nvim/         # Neovim 설정 (lazy.nvim 기반)
-├── ssh/          # SSH config
-├── vim/          # .vimrc
-└── zsh/          # .zshrc, .zshenv, .zprofile, .p10k.zsh
+├── Makefile
+├── brew/
+│   ├── formulae.txt            # brew install 대상
+│   └── casks.txt               # brew install --cask 대상
+├── scripts/
+│   ├── lib.sh                  # 공통 헬퍼
+│   ├── bootstrap.sh            # 전체 부트스트랩
+│   ├── 01-xcode.sh             # Xcode CLI tools
+│   ├── 02-homebrew.sh          # Homebrew + 패키지
+│   ├── 03-dotfiles.sh          # stow 심볼릭 링크
+│   ├── 04-omz.sh               # Oh-My-Zsh + 플러그인
+│   ├── 05-runtimes.sh          # pyenv, nvm, bun
+│   └── 06-claude.sh            # Claude Code 설정
+├── bash/                       # .bashrc, .profile
+├── gh/                         # GitHub CLI 설정
+├── git/                        # .gitconfig, global .gitignore
+├── karabiner/                  # Karabiner-Elements 키 매핑
+├── nvim/                       # Neovim 설정 (lazy.nvim 기반)
+├── ssh/                        # SSH config
+├── vim/                        # .vimrc
+├── zsh/                        # .zshrc, .zshenv, .zprofile, .p10k.zsh
+└── claude/                     # Claude Code 설정
+    └── .claude/
+        ├── settings.json
+        ├── mcp.json
+        ├── statusline.py
+        ├── SETUP.md
+        ├── SECURITY.md
+        ├── scripts/            # MCP wrapper + 알림 스크립트
+        ├── commands/           # 슬래시 커맨드
+        └── rules/              # 규칙 파일
 ```
 
-## 새 머신 복원 절차
-
-### 1. 전제 조건 설치
+## 새 Mac 부트스트랩
 
 ```bash
-# macOS (Homebrew)
-brew install stow git
+xcode-select --install
+git clone https://github.com/<user>/dotfiles.git ~/.dotfiles
+cd ~/.dotfiles && make bootstrap
+op signin && make claude-secrets
+claude login
 ```
 
-### 2. dotfiles 클론
+## Makefile 타겟
 
-```bash
-git clone <repo-url> ~/.dotfiles
+```
+make bootstrap         전체 부트스트랩 (새 Mac)
+make brew              Homebrew 패키지 설치/업데이트
+make dotfiles          stow 심볼릭 링크 (재)생성
+make omz               Oh-My-Zsh + 플러그인 + p10k + kube-ps1
+make runtimes          pyenv, nvm, bun 런타임 설치
+make claude            Claude Code 플러그인 + 알림 설정
+make claude-secrets    1Password → Keychain + ~/.secrets.zsh
+make brew-dump         현재 brew 상태를 txt에 덤프
+make help              도움말
 ```
 
-> 아직 remote가 없으면 먼저 GitHub에 repo 만들어야 함
+## 시크릿 관리
 
-### 3. stow로 심볼릭 링크 생성
+토큰은 git에 포함되지 않습니다:
 
-```bash
-cd ~/.dotfiles
-stow zsh bash vim git nvim ssh karabiner gh
-```
+- **MCP 토큰**: 1Password → macOS Keychain (`security` CLI)
+- **환경 변수**: `~/.secrets.zsh` (chmod 600)
+- 상세: [`~/.claude/SECURITY.md`](claude/.claude/SECURITY.md)
 
-### 4. 시크릿 복원
-
-`~/.secrets.zsh`는 git에 없으므로 별도로 생성:
+## 수동 인증 (bootstrap 후)
 
 ```bash
-cat > ~/.secrets.zsh << 'EOF'
-export GITHUB_MCP_TOKEN="..."
-export SLACK_USER_TOKEN="..."
-export SLACK_BOT_TOKEN="..."
-export NOTION_TOKEN="..."
-EOF
-chmod 600 ~/.secrets.zsh
-```
-
-> 1Password에서 값 꺼내서 채우기
-
-### 5. Claude Code 환경 설정
-
-`claude` 패키지는 토큰 포함 위험으로 dotfiles에서 제외됨. 별도 가이드 참조:
-
-→ [`~/.claude/SETUP.md`](~/.claude/SETUP.md)
-
-### 6. 나머지 수동 설정
-
-```bash
-# Oh-My-Zsh 설치 (zsh plugins 의존)
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
-
-# zsh 커스텀 플러그인 설치 (Oh-My-Zsh 설치 후)
-git clone https://github.com/zsh-users/zsh-autosuggestions \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-
-git clone https://github.com/zsh-users/zsh-syntax-highlighting \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
-
-git clone https://github.com/joshskidmore/zsh-fzf-history-search \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-fzf-history-search
-
-git clone https://github.com/jirutka/zsh-shift-select \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-shift-select
-
-# Powerlevel10k
-git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
-
-# kube-ps1
-mkdir -p ~/.kubernetes
-git clone https://github.com/jonmosco/kube-ps1.git ~/.kubernetes/kube-ps1
-
-# Neovim 플러그인 (첫 실행 시 lazy.nvim이 자동 설치)
-nvim --headless +q
+op signin                    # 1Password CLI
+make claude-secrets          # Keychain 토큰 등록
+claude login                 # Claude Code OAuth
+gh auth login                # GitHub CLI
+gimme-aws-creds              # AWS (okta-devops)
 ```

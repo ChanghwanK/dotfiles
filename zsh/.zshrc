@@ -230,7 +230,7 @@ alias vimtf="cd ~/workspace/riiid/terraform && vim ."
 alias vimkuberchart="cd ~/workspace/riiid/kubernetes-charts/ $$ vim ."
 alias ob='cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/obsidian_home/ch_home/ && nvim .'
 alias HOME="cd $HOME"
-
+alias cdob='cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/obsidian_home/ch_home/'
 source ~/powerlevel10k/powerlevel10k.zsh-theme
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.

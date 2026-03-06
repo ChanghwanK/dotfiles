@@ -32,6 +32,8 @@ return {
                 list = {
                     ["j"] = actions.next,
                     ["k"] = actions.previous,
+                    ["<Down>"] = actions.next,
+                    ["<Up>"] = actions.previous,
                     ["<Tab>"] = actions.next_location,
                     ["<S-Tab>"] = actions.previous_location,
                     ["<C-u>"] = actions.preview_scroll_win(5),

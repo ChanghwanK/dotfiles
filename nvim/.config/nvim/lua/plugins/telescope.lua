@@ -11,7 +11,20 @@ return {
     },
     config = function()
       local telescope = require("telescope")
+      local actions = require("telescope.actions")
       telescope.setup({
+        defaults = {
+          mappings = {
+            n = {
+              ["<Down>"] = actions.move_selection_next,
+              ["<Up>"] = actions.move_selection_previous,
+            },
+            i = {
+              ["<Down>"] = actions.move_selection_next,
+              ["<Up>"] = actions.move_selection_previous,
+            },
+          },
+        },
         extensions = {
           file_browser = {
             hidden = true,

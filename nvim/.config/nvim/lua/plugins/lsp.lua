@@ -121,14 +121,26 @@ return {
                     pcall(vim.keymap.del, "n", key, { buffer = ev.buf })
                 end
 
-                mapKey("gd", function()
+                -- 정의로 이동 로직 (gd, Ctrl+클릭 공용)
+                local function goto_definition()
                     local bufname = vim.api.nvim_buf_get_name(0)
                     if bufname:match("/templates/") then
                         local ok, helm = pcall(require, "utils.helm_values")
                         if ok and helm.try_goto_helm_value() then return end
                     end
                     vim.lsp.buf.definition()
-                end, "n", opts)
+                end
+
+                mapKey("gd", goto_definition, "n", opts)
+
+                -- Ctrl+클릭으로 정의로 이동 (VS Code 스타일)
+                vim.keymap.set("n", "<C-LeftMouse>", function()
+                    local mouse_pos = vim.fn.getmousepos()
+                    if mouse_pos.line > 0 then
+                        vim.api.nvim_win_set_cursor(0, { mouse_pos.line, mouse_pos.column - 1 })
+                    end
+                    goto_definition()
+                end, { buffer = ev.buf, desc = "Ctrl+클릭: 정의로 이동" })
                 mapKey("K", vim.lsp.buf.hover, "n", opts)
                 mapKey("<leader>rn", vim.lsp.buf.rename, "n", opts)
                 mapKey("<leader>ca", vim.lsp.buf.code_action, "n", opts)

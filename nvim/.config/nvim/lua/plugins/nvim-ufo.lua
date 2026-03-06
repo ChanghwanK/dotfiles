@@ -72,12 +72,48 @@ return {
             end,
         })
 
+        -- 대형 폴드만 자동으로 닫는 함수
+        local function close_large_folds(min_lines)
+            min_lines = min_lines or 20
+            vim.cmd("normal! zM")
+            local line_count = vim.api.nvim_buf_line_count(0)
+            local i = 1
+            while i <= line_count do
+                local foldstart = vim.fn.foldclosed(i)
+                if foldstart ~= -1 then
+                    local foldend = vim.fn.foldclosedend(foldstart)
+                    if (foldend - foldstart + 1) < min_lines then
+                        vim.cmd(foldstart .. "foldopen")
+                    end
+                    i = foldend + 1
+                else
+                    i = i + 1
+                end
+            end
+        end
+
+        -- 파일 열 때 대형 폴드 자동 닫기
+        local skip_ft = { "dashboard", "lazy", "mason", "help", "lspinfo", "checkhealth", "neo-tree", "NvimTree", "alpha", "snacks_dashboard" }
+        vim.api.nvim_create_autocmd("BufReadPost", {
+            callback = function()
+                local ft = vim.bo.filetype
+                if vim.tbl_contains(skip_ft, ft) then return end
+                vim.defer_fn(function()
+                    if not vim.api.nvim_buf_is_valid(0) then return end
+                    if vim.tbl_contains(skip_ft, vim.bo.filetype) then return end
+                    close_large_folds(20)
+                end, 150)
+            end,
+        })
+
         -- 키맵 설정
         mapKey("zR", function() ufo.openAllFolds() end, "n", { desc = "UFO: 모든 폴드 펼치기" })
         mapKey("zM", function() ufo.closeAllFolds() end, "n", { desc = "UFO: 모든 폴드 닫기" })
         mapKey("zr", function() ufo.openFoldsExceptKinds() end, "n", { desc = "UFO: 점진적 펼치기" })
         mapKey("zm", function() ufo.closeFoldsWith() end, "n", { desc = "UFO: 점진적 닫기" })
         
+        mapKey("zL", function() close_large_folds(20) end, "n", { desc = "UFO: 대형 폴드 접기 (20줄 이상)" })
+
         mapKey("za", "za", "n", { desc = "폴드 토글" })
         mapKey("zo", "zo", "n", { desc = "폴드 열기" })
         mapKey("zc", "zc", "n", { desc = "폴드 닫기" })
