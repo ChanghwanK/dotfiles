@@ -7,8 +7,7 @@ description: |
   트리거 키워드: "업무 일지", "어제 리뷰", "오늘 할 것들", "일지 읽어줘", "carry-over".
 model: sonnet
 allowed-tools:
-  - Bash(brew *)
-  - Bash(gimme-aws-creds *)
+  - Bash(bash /Users/changhwan/.claude/skills/daily:start/scripts/env-init.sh *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:start/scripts/notion-daily.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py *)
 ---
@@ -36,8 +35,8 @@ Notion Daily DB에서 업무 일지를 읽고, 분석하고, 업데이트하는 
 
 ```bash
 # 백그라운드 실행 (run_in_background: true) — 2개 병렬
-[ ! -f ~/.claude/tmp/start-daily-brew-$(date +%Y-%m-%d) ] && brew upgrade && touch ~/.claude/tmp/start-daily-brew-$(date +%Y-%m-%d) || echo "brew: already done today"
-[ ! -f ~/.claude/tmp/start-daily-gimme-$(date +%Y-%m-%d) ] && gimme-aws-creds && touch ~/.claude/tmp/start-daily-gimme-$(date +%Y-%m-%d) || echo "gimme-aws-creds: already done today"
+bash /Users/changhwan/.claude/skills/daily:start/scripts/env-init.sh brew
+bash /Users/changhwan/.claude/skills/daily:start/scripts/env-init.sh gimme
 ```
 
 - 마커가 없으면 실행 후 마커 생성. 마커가 있으면 "already done today" 출력.
@@ -186,3 +185,14 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/notion-daily.py upda
 - 토큰은 1Password에서 런타임에 fetch: `op://Employee/Claude MCP - Notion-Personal/token`
 - 날짜가 없는 경우 `error` 필드가 JSON에 포함됨
 - 섹션 헤딩이 없는 페이지는 모든 블록이 파싱되지 않을 수 있음
+
+---
+
+## 검증
+
+스크립트 실행 후 JSON 응답의 `success` 또는 `error` 필드를 반드시 확인한다.
+
+실패 시:
+- `NOTION_TOKEN not set` → `~/.secrets.zsh`에서 `NOTION_TOKEN` 환경변수 확인
+- `error: page not found` → 해당 날짜에 Daily 페이지가 없음 → `create` 커맨드로 생성
+- `update-todos` 후 Notion에 반영 안 됨 → `page_id` 필드 값 재확인

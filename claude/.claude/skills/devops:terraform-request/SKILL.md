@@ -1,6 +1,6 @@
 ---
 name: devops:terraform-request
-description: >
+description: |
   인프라 요청을 분석하여 Terraform 코드 변경을 자동으로 처리하는 스킬.
   요청 텍스트에서 sphere, role type, AWS actions, environment 등을 추출하여
   누락 정보를 식별하고, 충분한 정보가 있으면 Terraform 코드 수정 + plan 검증까지 자동 실행.

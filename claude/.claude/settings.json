@@ -8,7 +8,6 @@
       "Bash($HOME/.claude/scripts/notify-slack.sh *)"
     ]
   },
-  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {

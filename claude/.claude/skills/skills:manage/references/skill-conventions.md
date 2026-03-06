@@ -47,18 +47,22 @@
 | `namespace:noun` | 콘텐츠 타입 | `notion:eng`, `notion:study` |
 | `namespace:verb-noun` | 대상 명시 | `devops:alert-review`, `notion:send-plan` |
 | 단독 `noun` | 범용 도구 | `commit`, `learn` |
-| 단독 `noun-noun` | 복합 도구 | `gpu-analysis`, `skill-manager` |
+| 단독 `noun-noun` | 복합 도구 | `gpu-analysis`, `security-manager` |
 
 ### 네임스페이스 맵
 
 | Namespace | 기준 | 소속 스킬 |
 |-----------|------|-----------|
-| `notion` | Notion 플랫폼 | `notion:eng`, `notion:study`, `notion:private`, `notion:send-plan` |
-| `obsidian` | Obsidian vault | `obsidian:add-notes`, `obsidian:daily` |
+| `notion` | Notion 플랫폼 | `notion:add-engineering-note`, `notion:study`, `notion:add-personal-note`, `notion:send-task-plan` |
+| `obsidian` | Obsidian vault | `obsidian:note`, `obsidian:daily` |
 | `slack` | Slack 플랫폼 | `slack:search`, `slack:send` |
 | `devops` | DevOps 운영 | `devops:alert-review`, `devops:terraform-request`, `devops:gpu-analysis` |
 | `daily` | 일과 워크플로우 | `daily:start`, `daily:review` |
-| (없음) | 단독/범용 | `commit`, `learn`, `skill-manager`, `security-manager`, `notify` |
+| `learn` | 학습/성장 | `learn:interview`, `learn:growth-maker` |
+| `skills` | 스킬 관리 | `skills:manage` |
+| `schedule` | 일정 조회 | `schedule:view` |
+| `work` | 업무 문서화 | `work:tech-spec` |
+| (없음) | 단독/범용 | `commit`, `learn`, `security-manager`, `notify` |
 
 ### 미래 스킬 네이밍 예시
 

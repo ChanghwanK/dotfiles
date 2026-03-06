@@ -61,6 +61,32 @@ def notion_request(method, path, body=None):
             return {"object": "error", "message": f"HTTP {e.code}: {err}"}
 
 
+def md_to_rich_text(text):
+    """인라인 마크다운(**bold**, *italic*, `code`)을 Notion rich_text 세그먼트 리스트로 변환."""
+    segments = []
+    pattern = re.compile(r'\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`', re.DOTALL)
+    last_end = 0
+    for m in pattern.finditer(text):
+        if m.start() > last_end:
+            segments.append({"type": "text", "text": {"content": text[last_end:m.start()]}})
+        if m.group(0).startswith("**"):
+            segments.append({"type": "text", "text": {"content": m.group(1)},
+                             "annotations": {"bold": True, "italic": False, "code": False,
+                                             "strikethrough": False, "underline": False, "color": "default"}})
+        elif m.group(0).startswith("*"):
+            segments.append({"type": "text", "text": {"content": m.group(2)},
+                             "annotations": {"bold": False, "italic": True, "code": False,
+                                             "strikethrough": False, "underline": False, "color": "default"}})
+        else:
+            segments.append({"type": "text", "text": {"content": m.group(3)},
+                             "annotations": {"bold": False, "italic": False, "code": True,
+                                             "strikethrough": False, "underline": False, "color": "default"}})
+        last_end = m.end()
+    if last_end < len(text):
+        segments.append({"type": "text", "text": {"content": text[last_end:]}})
+    return segments if segments else [{"type": "text", "text": {"content": text}}]
+
+
 def md_to_blocks(text):
     """마크다운 텍스트를 Notion 블록 리스트로 변환 (간단 파서)."""
     blocks = []
@@ -99,7 +125,7 @@ def md_to_blocks(text):
         if m:
             level = len(m.group(1))
             blocks.append({f"type": f"heading_{level}", f"heading_{level}": {
-                "rich_text": [{"type": "text", "text": {"content": m.group(2).strip()}}],
+                "rich_text": md_to_rich_text(m.group(2).strip()),
                 "color": "default"
             }})
             continue
@@ -108,7 +134,7 @@ def md_to_blocks(text):
         if m:
             checked = m.group(1).lower() == "x"
             blocks.append({"type": "to_do", "to_do": {
-                "rich_text": [{"type": "text", "text": {"content": m.group(2).strip()}}],
+                "rich_text": md_to_rich_text(m.group(2).strip()),
                 "checked": checked, "color": "default"
             }})
             continue
@@ -116,7 +142,7 @@ def md_to_blocks(text):
         m = re.match(r'^[-*]\s+(.*)', line)
         if m:
             blocks.append({"type": "bulleted_list_item", "bulleted_list_item": {
-                "rich_text": [{"type": "text", "text": {"content": m.group(1).strip()}}],
+                "rich_text": md_to_rich_text(m.group(1).strip()),
                 "color": "default"
             }})
             continue
@@ -124,7 +150,7 @@ def md_to_blocks(text):
         m = re.match(r'^\d+\.\s+(.*)', line)
         if m:
             blocks.append({"type": "numbered_list_item", "numbered_list_item": {
-                "rich_text": [{"type": "text", "text": {"content": m.group(1).strip()}}],
+                "rich_text": md_to_rich_text(m.group(1).strip()),
                 "color": "default"
             }})
             continue
@@ -132,7 +158,7 @@ def md_to_blocks(text):
         m = re.match(r'^>\s*(.*)', line)
         if m:
             blocks.append({"type": "quote", "quote": {
-                "rich_text": [{"type": "text", "text": {"content": m.group(1).strip()}}],
+                "rich_text": md_to_rich_text(m.group(1).strip()),
                 "color": "default"
             }})
             continue
@@ -141,7 +167,7 @@ def md_to_blocks(text):
             continue
 
         blocks.append({"type": "paragraph", "paragraph": {
-            "rich_text": [{"type": "text", "text": {"content": line}}],
+            "rich_text": md_to_rich_text(line),
             "color": "default"
         }})
 

@@ -1,12 +1,19 @@
 ---
 name: devops:gpu-analysis
-description: >
+description: |
   IDC GPU 클러스터 사용 현황 분석 스킬. kubectl + Grafana DCGM 메트릭을 통해 GPU 노드 상태,
   VRAM/Power/온도 현황, 워크로드 매핑, 모델 배포 가능성을 분석한다.
   사용 시점: (1) GPU 전체 현황 파악, (2) 모델 배포 가능 여부 확인 (VRAM 여유 분석),
   (3) GPU 고부하/이상 노드 탐지, (4) 워크로드별 GPU 리소스 사용 분석.
   트리거 키워드: "GPU 현황", "GPU 분석", "VRAM", "GPU 남아있어?", "모델 올릴 수 있어?",
   "GPU 사용률", "DCGM", "GPU 배포 가능", "GPU 노드".
+model: sonnet
+allowed-tools:
+  - Bash(kubectl *)
+  - mcp__grafana__query_prometheus
+  - mcp__grafana__list_prometheus_metric_names
+  - mcp__grafana__list_prometheus_label_names
+  - mcp__grafana__list_prometheus_label_values
 ---
 
 # GPU 사용 분석
@@ -106,3 +113,22 @@ GPU 1장 VRAM = **48GB** 기준. 멀티 GPU 필요 시 tensor parallel 고려.
 
 - **총 28장, 1,344GB VRAM**
 - MPS 노드(06,07): 물리 4장을 가상 분할해 다수 Pod 동시 서빙
+
+---
+
+## 검증
+
+각 단계 실행 후 결과를 반드시 확인한다.
+
+```bash
+# GPU 노드 수 확인 (7개 워커 노드 기대)
+kubectl --context k8s-idc get nodes -l nvidia.com/gpu | grep Ready
+
+# DCGM exporter Pod 상태 확인
+kubectl --context k8s-idc get pods -n gpu-operator -l app=nvidia-dcgm-exporter
+```
+
+실패 시:
+- `kubectl: no context "k8s-idc"` → `kubectl config use-context k8s-idc` 실행 후 재시도
+- Grafana 쿼리 결과 없음 → Datasource UID `bemfeemok4ge8c` 확인, DCGM exporter Pod 상태 확인
+- `DCGM_FI_DEV_FB_USED` 메트릭 없음 → `nvidia-dcgm-exporter` DaemonSet이 Running 상태인지 확인

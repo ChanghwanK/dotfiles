@@ -6,6 +6,7 @@ description: |
   (3) 기술 검토/설계 노트 생성, (4) 이슈 분석 노트 작성.
   트리거 키워드: "업무 노트", "engineering note", "노트 생성", "eng-note",
   "엔지니어링 노트 써줘", "노션에 정리해줘", "노션에 노트 만들어줘", "설계 내용 노션에".
+model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py *)
   - Write(/tmp/eng-note-sections.json)

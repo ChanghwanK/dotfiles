@@ -43,6 +43,9 @@ NOTION_LANGUAGES = {
 
 
 def get_token():
+    if not NOTION_TOKEN:
+        print(json.dumps({"success": False, "error": "NOTION_TOKEN not set"}))
+        sys.exit(1)
     return NOTION_TOKEN
 
 

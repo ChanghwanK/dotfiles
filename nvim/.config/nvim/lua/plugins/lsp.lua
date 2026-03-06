@@ -56,7 +56,7 @@ return {
         })
 
         vim.lsp.config('kotlin_language_server', {
-            cmd = { "/opt/homebrew/bin/kotlin-language-server" },
+            cmd = { "kotlin-language-server" },
         })
 
         vim.lsp.config('lua_ls', {
@@ -98,7 +98,6 @@ return {
         vim.api.nvim_create_autocmd({"BufRead", "BufNewFile"}, {
             pattern = {"*/templates/*.yaml", "*/templates/*.yml", "*/templates/*.tpl"},
             callback = function()
-                vim.diagnostic.disable(0)
                 local clients = vim.lsp.get_clients({ bufnr = 0 })
                 for _, client in ipairs(clients) do
                     if client.name == "yamlls" then

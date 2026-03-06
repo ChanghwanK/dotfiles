@@ -106,3 +106,17 @@ NOTION_TOKEN=$(op read "op://Employee/Claude MCP - Notion-Personal/token") \
 - 토큰은 1Password에서 런타임 fetch: `op://Employee/Claude MCP - Notion-Personal/token`
 - iCloud Drive 경로에 스페이스 포함 — Write 도구는 절대 경로 사용으로 자동 처리됨
 - Notion 페이지가 없으면 빈 템플릿(Top 3 없음, Todos/Notes 섹션만)으로 생성
+
+---
+
+## 검증
+
+스킬 실행 완료 후 확인:
+
+- Obsidian 파일이 `/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/00. Daily/YYYY-MM-DD.md` 경로에 생성되었는가
+- Top 3 섹션이 포함되었는가 (Notion/transcript 데이터가 충분한 경우)
+- 파일이 이미 존재하면 스킵 처리 여부 확인
+
+실패 시:
+- `NOTION_TOKEN not set` → 1Password 토큰 fetch 명령 확인
+- 파일 Write 실패 → iCloud Drive 경로 존재 여부 확인 (`00. Daily/` 디렉토리)

@@ -247,7 +247,7 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
 
     # 6. Name format
     chk("name_format", bool(NAME_PATTERN.match(fm_name)) if fm_name else False,
-        f"'{fm_name}' must match ^[a-z0-9]+(-[a-z0-9]+)*$ and be ≤{MAX_NAME_LEN} chars")
+        f"'{fm_name}' must match ^[a-z0-9]+([:-][a-z0-9]+)*$ and be ≤{MAX_NAME_LEN} chars")
 
     # 7. Description not empty
     desc = fm.get("description", "")

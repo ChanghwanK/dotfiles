@@ -7,78 +7,12 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# If you come from bash you might have to change your $PATH.
-# export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
-
-# Path to your Oh My Zsh installation.
+# Oh My Zsh 설정
 export ZSH="$HOME/.oh-my-zsh"
 
-# Set name of the theme to load --- if set to "random", it will
-# load a random theme each time Oh My Zsh is loaded, in which case,
-# to know which specific one was loaded, run: echo $RANDOM_THEME
-# See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-ZSH_THEME="robbyrussell"
+# powerlevel10k를 직접 source하므로 OMZ 테마 비활성화
+ZSH_THEME=""
 
-# Set list of themes to pick from when loading at random
-# Setting this variable when ZSH_THEME=random will cause zsh to load
-# a theme from this variable instead of looking in $ZSH/themes/
-# If set to an empty array, this variable will have no effect.
-# ZSH_THEME_RANDOM_CANDIDATES=( "robbyrussell" "agnoster" )
-
-# Uncomment the following line to use case-sensitive completion.
-# CASE_SENSITIVE="true"
-
-# Uncomment the following line to use hyphen-insensitive completion.
-# Case-sensitive completion must be off. _ and - will be interchangeable.
-# HYPHEN_INSENSITIVE="true"
-
-# Uncomment one of the following lines to change the auto-update behavior
-# zstyle ':omz:update' mode disabled  # disable automatic updates
-# zstyle ':omz:update' mode auto      # update automatically without asking
-# zstyle ':omz:update' mode reminder  # just remind me to update when it's time
-
-# Uncomment the following line to change how often to auto-update (in days).
-# zstyle ':omz:update' frequency 13
-
-# Uncomment the following line if pasting URLs and other text is messed up.
-# DISABLE_MAGIC_FUNCTIONS="true"
-
-# Uncomment the following line to disable colors in ls.
-# DISABLE_LS_COLORS="true"
-
-# Uncomment the following line to disable auto-setting terminal title.
-# DISABLE_AUTO_TITLE="true"
-
-# Uncomment the following line to enable command auto-correction.
-# ENABLE_CORRECTION="true"
-
-# Uncomment the following line to display red dots whilst waiting for completion.
-# You can also set it to another string to have that shown instead of the default red dots.
-# e.g. COMPLETION_WAITING_DOTS="%F{yellow}waiting...%f"
-# Caution: this setting can cause issues with multiline prompts in zsh < 5.7.1 (see #5765)
-# COMPLETION_WAITING_DOTS="true"
-
-# Uncomment the following line if you want to disable marking untracked files
-# under VCS as dirty. This makes repository status check for large repositories
-# much, much faster.
-# DISABLE_UNTRACKED_FILES_DIRTY="true"
-
-# Uncomment the following line if you want to change the command execution time
-# stamp shown in the history command output.
-# You can set one of the optional three formats:
-# "mm/dd/yyyy"|"dd.mm.yyyy"|"yyyy-mm-dd"
-# or set a custom format using the strftime function format specifications,
-# see 'man strftime' for details.
-# HIST_STAMPS="mm/dd/yyyy"
-
-# Would you like to use another custom folder than $ZSH/custom?
-# ZSH_CUSTOM=/path/to/new-custom-folder
-
-# Which plugins would you like to load?
-# Standard plugins can be found in $ZSH/plugins/
-# Custom plugins may be added to $ZSH_CUSTOM/plugins/
-# Example format: plugins=(rails git textmate ruby lighthouse)
-# Add wisely, as too many plugins slow down shell startup.
 plugins=(
     git
     kubectl
@@ -93,34 +27,14 @@ plugins=(
 
 source $ZSH/oh-my-zsh.sh
 
-# User configuration
+# History 설정
+HISTSIZE=50000
+SAVEHIST=50000
+setopt HIST_IGNORE_ALL_DUPS
+setopt SHARE_HISTORY
 
-# export MANPATH="/usr/local/man:$MANPATH"
-
-# You may need to manually set your language environment
-# export LANG=en_US.UTF-8
-
-# Preferred editor for local and remote sessions
-# if [[ -n $SSH_CONNECTION ]]; then
-#   export EDITOR='vim'
-# else
-#   export EDITOR='nvim'
-# fi
-
-# Compilation flags
-# export ARCHFLAGS="-arch $(uname -m)"
-
-# Set personal aliases, overriding those provided by Oh My Zsh libs,
-# plugins, and themes. Aliases can be placed here, though Oh My Zsh
-# users are encouraged to define aliases within a top-level file in
-# the $ZSH_CUSTOM folder, with .zsh extension. Examples:
-# - $ZSH_CUSTOM/aliases.zsh
-# - $ZSH_CUSTOM/macos.zsh
-# For a full list of active aliases, run `alias`.
-#
-# Example aliases
-# alias zshconfig="mate ~/.zshrc"
-# alias ohmyzsh="mate ~/.oh-my-zsh"
+# Editor
+export EDITOR='nvim'
 export PATH=/opt/homebrew/bin:$PATH
 
 # build_prompt() {
@@ -143,9 +57,11 @@ export PATH=/opt/homebrew/bin:$PATH
 # }
 
 # kube-ps1
-source ~/.kubernetes/kube-ps1/kube-ps1.sh
-PROMPT='$(kube_ps1)'$PROMPT
-KUBE_PS1_SYMBOL_ENABLE=false
+if [[ -f ~/.kubernetes/kube-ps1/kube-ps1.sh ]]; then
+  source ~/.kubernetes/kube-ps1/kube-ps1.sh
+  PROMPT='$(kube_ps1)'$PROMPT
+  KUBE_PS1_SYMBOL_ENABLE=false
+fi
 
 # kubectl aliases
 alias k="kubectl"
@@ -165,7 +81,6 @@ alias klogs="kubectl logs -f"
 alias kgp="kubectl get pods"
 alias kgpw="kubectl get pods -o wide"
 alias kgpy="kubectl get pods -o yaml"
-alias kdp="kubectl describe pod"
 alias kep="kubectl edit pod"
 alias kge="kubectl get events --sort-by=.lastTimestamp"
 alias kctx="kubectx"
@@ -181,7 +96,7 @@ alias kstg="kctx k8s-stg"
 alias kprod="kctx k8s-prod"
 
 # workspace aliases
-alias netshoot="cd /Users/changhwan/workspace/engineering_home/netshoot"
+alias netshoot="cd $HOME/workspace/engineering_home/netshoot"
 
 # terraform aliases
 alias tf="terraform"
@@ -227,7 +142,7 @@ alias vim="nvim"
 alias vm="nvim"
 alias vimkuber="cd ~/workspace/riiid/kubernetes && vim ."
 alias vimtf="cd ~/workspace/riiid/terraform && vim ."
-alias vimkuberchart="cd ~/workspace/riiid/kubernetes-charts/ $$ vim ."
+alias vimkuberchart="cd ~/workspace/riiid/kubernetes-charts/ && vim ."
 alias ob='cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/obsidian_home/ch_home/ && nvim .'
 alias HOME="cd $HOME"
 alias cdob='cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/obsidian_home/ch_home/'
@@ -243,13 +158,16 @@ if [[ "$GHOSTTY_RESOURCES_DIR" != "" ]]; then
   export GHOSTTY_SHELL_INTEGRATION=detect
 fi
 
-export PATH="$HOME/.local/bin:$PATH"export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
+export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
 
 # Python 
 export PYENV_ROOT="$HOME/.pyenv"
 command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+if command -v pyenv >/dev/null 2>&1; then
+  eval "$(pyenv init -)"
+  eval "$(pyenv virtualenv-init -)"
+fi
 
 # AWS Profile
 export AWS_PROFILE=okta-devops
@@ -258,20 +176,17 @@ export AWS_PROFILE=okta-devops
 # [[ -s "/Users/changhwan/.gvm/scripts/gvm" ]] && source "/Users/changhwan/.gvm/scripts/gvm" >/dev/null 2>&1
 
 # Added by Antigravity
-export PATH="/Users/changhwan/.antigravity/antigravity/bin:$PATH"
+export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
 # GITHUB_MCP_TOKEN moved to ~/.secrets.zsh
 
 # Kiro CLI post block. Keep at the bottom of this file.
 [[ -f "${HOME}/Library/Application Support/kiro-cli/shell/zshrc.post.zsh" ]] && builtin source "${HOME}/Library/Application Support/kiro-cli/shell/zshrc.post.zsh"
 
 # bun completions
-[ -s "/Users/changhwan/.bun/_bun" ] && source "/Users/changhwan/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-alias claude-mem='/Users/changhwan/.bun/bin/bun "/Users/changhwan/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"'
-
-# Secrets (tokens stored in ~/.secrets.zsh, never committed to git)
-[[ -f ~/.secrets.zsh ]] && source ~/.secrets.zsh
+alias claude-mem="$HOME/.bun/bin/bun $HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"

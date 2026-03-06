@@ -19,8 +19,6 @@ mapKey('<', '<gv', 'v', { desc = "왼쪽 들여쓰기" })
 mapKey('>', '>gv', 'v', { desc = "오른쪽 들여쓰기" })
 
 
--- 삽입 모드에서 뒤 단어 삭제 (Ctrl + Shift + d)
-mapKey("<C-d>", "<Esc>dwa", "i", { desc = "뒤 단어 삭제" })
 mapKey('<A-e>', '<C-o>e', 'i', { desc = "단어 맨 뒤로" }) 
 
 
@@ -47,7 +45,6 @@ mapKey('<leader>nd', function() require("notify").dismiss({ silent = true, pendi
 mapKey('<S-h>', ':BufferPrevious<CR>', 'n', { desc = "이전 버퍼로 이동" })
 mapKey('<S-l>', ':BufferNext<CR>', 'n', { desc = "다음 버퍼로 이동" })
 mapKey('<leader>bd', function() pcall(Snacks.bufdelete) end, 'n', { desc = "현재 버퍼 닫기" })
-mapKey('<C-w>', function() pcall(Snacks.bufdelete) end, 'n', { desc = "현재 버퍼 닫기" })
 mapKey('<leader>bo', function() Snacks.bufdelete.other() end, 'n', { desc = "다른 버퍼 모두 닫기 (현재 제외)" })
 mapKey('<leader>ba', function() Snacks.bufdelete.all() end, 'n', { desc = "버퍼 모두 닫기" })
 mapKey('<leader>bl', ':BufferCloseBuffersLeft<CR>', 'n', { desc = "왼쪽 버퍼 모두 닫기" })
@@ -99,14 +96,6 @@ vim.keymap.set('i', '<C-z>', '<C-o>u', { desc = 'Undo in Insert Mode' })
 -- Insert 모드에서 Alt+s를 누르면 현재 단어를 선택하고 'Select Mode'로 진입
 -- (선택된 상태에서 타이핑하면 바로 교체됨, 백스페이스 누르면 지워짐)
 vim.keymap.set('i', '<A-s>', '<Esc>viw<C-g>', { desc = 'Select current word (IDE Style)' })
-
--- Shift + 화살표로 텍스트 선택 (Select Mode)
-vim.keymap.set('i', '<S-Right>', '<C-o>v<Right><C-g>', { desc = 'Select Right' })
-vim.keymap.set('i', '<S-Left>', '<C-o>v<Left><C-g>', { desc = 'Select Left' })
--- 이미 선택된 상태(Select Mode)에서 범위 늘리기
-vim.keymap.set('s', '<S-Right>', '<Right>', { desc = 'Extend Selection Right' })
-vim.keymap.set('s', '<S-Left>', '<Left>', { desc = 'Extend Selection Left' })
-
 
 -- 인서트 모드에서 Ctrl+d를 누르면 뒷 단어 삭제 (Delete Word)
 vim.keymap.set("i", "<C-d>", "<Del>", { desc = "Delete Next Character" })

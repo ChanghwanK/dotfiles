@@ -1,5 +1,5 @@
 ---
-name: skill-manager
+name: skills:manage
 description: |
   스킬 생명주기 관리 도구 (CRUD + validate + package).
   사용 시점: (1) 새 스킬 생성, (2) 스킬 목록/상세 조회, (3) 스킬 구조 검증,
@@ -7,7 +7,7 @@ description: |
   트리거 키워드: "스킬 만들어줘", "스킬 생성", "스킬 목록", "스킬 삭제", "스킬 검증",
   "skill create", "skill list", "skill manager", "/skill-manager".
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py *)
   - Read
   - Write
   - Edit
@@ -54,7 +54,7 @@ allowed-tools:
 ### 목록 조회
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py list
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py list
 ```
 
 결과를 표 형식으로 출력한다:
@@ -63,7 +63,7 @@ python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py li
 ### 상세 조회
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py show <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py show <name>
 ```
 
 frontmatter, 파일 목록, 검증 상태를 출력한다.
@@ -88,7 +88,7 @@ frontmatter, 파일 목록, 검증 상태를 출력한다.
 
 | 케이스 | 이름 형식 | 예시 |
 |--------|-----------|------|
-| 단독 범용 스킬 | `noun` 또는 `noun-noun` | `commit`, `learn`, `skill-manager` |
+| 단독 범용 스킬 | `noun` 또는 `noun-noun` | `commit`, `learn`, `security-manager` |
 | 플랫폼 스킬 2개+ | `platform:action` | `notion:eng`, `slack:send` |
 | 워크플로우 단계 | `workflow:phase` | `daily:start`, `daily:review` |
 
@@ -109,7 +109,7 @@ frontmatter, 파일 목록, 검증 상태를 출력한다.
 ### Step 2 — 스캐폴딩 생성 (스크립트)
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py create <name> \
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> \
   --description "한국어 설명. 사용 시점: (1) ..." \
   --model sonnet \
   --type workflow
@@ -142,7 +142,7 @@ python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py cr
 ### Step 4 — 검증 (스크립트)
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py validate <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py validate <name>
 ```
 
 검증 실패 항목을 수정한 후 다시 validate.
@@ -152,7 +152,7 @@ python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py va
 ## Validate 워크플로우
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py validate <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py validate <name>
 ```
 
 `valid: false`인 경우:
@@ -168,19 +168,19 @@ python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py va
 
 ```bash
 # 설명 변경
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py update-frontmatter <name> \
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
   --set-description "새 설명"
 
 # 모델 변경
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py update-frontmatter <name> \
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
   --set-model sonnet
 
 # allowed-tools 추가
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py update-frontmatter <name> \
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
   --add-tool "Bash(python3 /Users/changhwan/.claude/skills/<name>/scripts/new.py *)"
 
 # allowed-tools 제거
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py update-frontmatter <name> \
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
   --remove-tool "Bash(old_tool *)"
 ```
 
@@ -199,7 +199,7 @@ SKILL.md body는 Claude가 Edit 도구로 직접 수정한다:
 ### Step 1 — 현재 상태 확인
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py show <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py show <name>
 ```
 
 ### Step 2 — 사용자 동의 요청
@@ -217,10 +217,10 @@ python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py sh
 
 ```bash
 # 백업 포함 (기본)
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py delete <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name>
 
 # 백업 없이
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py delete <name> --no-backup
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name> --no-backup
 ```
 
 ---
@@ -228,7 +228,7 @@ python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py de
 ## Package 워크플로우
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skill-manager/scripts/manage_skill.py package <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py package <name>
 ```
 
 validate 통과 → `.skill` ZIP 생성 → `~/.claude/skills/<name>.skill`

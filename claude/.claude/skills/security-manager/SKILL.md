@@ -8,6 +8,11 @@ description: |
   트리거 키워드: "토큰 추가", "토큰 교체", "토큰 삭제", "Keychain 확인",
   "MCP 서버 추가", "token rotate", "1Password 동기화", "credential 관리",
   "/security-manager".
+model: sonnet
+allowed-tools:
+  - Bash(security *)
+  - Bash(op *)
+  - Bash(bash /Users/changhwan/.claude/skills/security-manager/scripts/keychain-manager.sh *)
 ---
 
 # Security Manager
@@ -112,7 +117,7 @@ security add-generic-password -a "claude-mcp" -s "<service>-token" \
   -w "$(op read 'op://Employee/<1pw-item>/token')" -T ""
 ```
 
-2. **Wrapper 스크립트 생성** (`~/.claude/bin/mcp-<service>.sh`)
+2. **Wrapper 스크립트 생성** (`~/.claude/scripts/mcp-<service>.sh`)
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -124,20 +129,42 @@ MY_TOKEN=$(
 exec npx -y @modelcontextprotocol/server-<service>
 ```
 ```bash
-chmod +x ~/.claude/bin/mcp-<service>.sh
+chmod +x ~/.claude/scripts/mcp-<service>.sh
 ```
 
 3. **`~/.claude/mcp.json` 등록**
 ```json
 "<service>": {
   "command": "/bin/bash",
-  "args": ["/Users/changhwan/.claude/bin/mcp-<service>.sh"]
+  "args": ["/Users/changhwan/.claude/scripts/mcp-<service>.sh"]
 }
 ```
 
 4. **`~/.claude/SECURITY.md` 토큰 목록 업데이트**
 
+### 전체 재동기화 (rotate-all) — 스크립트 사용
+```bash
+bash /Users/changhwan/.claude/skills/security-manager/scripts/keychain-manager.sh rotate-all
+```
+
 ## 원칙
 - `-T ""` 필수 — 없으면 매번 GUI 프롬프트 발생
 - `-U` = upsert (없으면 추가, 있으면 덮어씀)
 - 작업 완료 후 변경 내용 한 줄 요약 보고
+
+---
+
+## 검증
+
+각 작업 완료 후 결과를 반드시 확인한다.
+
+```bash
+# 토큰 저장 확인
+security find-generic-password -a "claude-mcp" -s "<service>-token" -w | head -c 20
+echo "..."
+```
+
+실패 시:
+- `SecKeychainItemCopyAttributesAndData` 에러 → `-T ""` 옵션 확인
+- `op read` 실패 → `op signin` 으로 1Password 인증 확인
+- 토큰 없음 (exit 44) → service name 오타 확인 (`<service>-token` 형식)

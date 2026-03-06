@@ -5,6 +5,7 @@ description: |
   사용 시점: (1) Claude와 기술 학습 세션 후 내용 정리, (2) 개념 학습 대화를 Notion에 기록,
   (3) 학습한 내용을 나중에 참고할 수 있도록 저장.
   트리거 키워드: "학습 노트", "study note", "공부한 거 저장", "학습 정리", "/study-note".
+model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/notion:study/scripts/notion-study-note.py *)
   - Write(/tmp/study-content.json)
@@ -18,7 +19,7 @@ Claude와의 학습 대화를 Engineering DB `#Study` 그룹에 자동 저장하
 
 - **대화 내용을 학습 노트로 정리**한다. 핵심 개념, 설명, 코드 예시를 추출한다.
 - 스크립트만 호출한다. Notion MCP 도구 사용 금지 (토큰 효율).
-- 토큰은 환경변수 `$NOTION_TOKEN` 사용 (`~/.secrets.zsh`에서 로드됨). fallback: `op read "op://Employee/Claude MCP - Notion-Personal/token"`
+- 토큰은 환경변수 `$NOTION_TOKEN` 사용 (`~/.secrets.zsh`에서 로드됨).
 - 생성 후 URL을 반드시 출력한다.
 - 제목에 `[#Study]` 접두사가 자동 추가된다.
 
@@ -86,6 +87,6 @@ python3 /Users/changhwan/.claude/skills/notion:study/scripts/notion-study-note.p
 스크립트 응답의 `success` 필드를 반드시 확인한다.
 
 실패 시:
-- `NOTION_TOKEN not set` → `~/.secrets.zsh`에서 NOTION_TOKEN 확인, fallback: `op read "op://Employee/Claude MCP - Notion-Personal/token"`
+- `NOTION_TOKEN not set` → `~/.secrets.zsh`에서 NOTION_TOKEN 확인
 - `invalid tag` → DB 스키마의 Tag 옵션 확인
 - `success: false` → 에러 메시지를 사용자에게 전달 후 재실행

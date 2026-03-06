@@ -146,3 +146,14 @@ python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py upd
 - 오늘 일지가 없으면 `error` 필드 포함 — 날짜 확인 안내
 - KPT content 포맷: `Keep\n- 항목\n\nProblem\n- 항목\n\nTry\n- 항목`
 - `update-tomorrow`, `update-kpt`는 기존 값을 **교체** (append 아님)
+
+---
+
+## 검증
+
+스크립트 실행 후 JSON 응답의 `success` 필드를 반드시 확인한다.
+
+실패 시:
+- `NOTION_TOKEN not set` → `~/.secrets.zsh`에서 `NOTION_TOKEN` 확인
+- `error: page not found` → 오늘 날짜 Daily 페이지 존재 여부 확인
+- `success: false` → 에러 메시지 확인 후 `page_id` 재검증
