@@ -51,5 +51,6 @@
     "claude-mem@thedotmack": true,
     "devops@socraai-devops-skills": true
   },
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "effortLevel": "high"
 }
