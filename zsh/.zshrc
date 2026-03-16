@@ -132,6 +132,7 @@ alias sr="source ~/.zshrc"
 alias cdworkspace="cd ~/workspace"
 alias open-zshrc="cursor ~/.zshrc"
 alias open-kubernetes="cursor ~/workspace/riiid/kubernetes"
+alias cdengineering101="cd $HOME/workspace/engineering101/"
 
 # git
 alias gps="g ps"

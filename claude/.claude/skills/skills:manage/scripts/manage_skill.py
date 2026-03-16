@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 manage_skill.py — Skill lifecycle management CLI
-Commands: list, show, create, validate, update-frontmatter, delete, package
-stdlib only: argparse, json, pathlib, shutil, zipfile, re, os, datetime
+Commands: list, show, create, validate, update-frontmatter, delete, restore
+stdlib only: argparse, json, pathlib, shutil, re, os, datetime
 """
 
 import argparse
@@ -11,7 +11,6 @@ import os
 import re
 import shutil
 import sys
-import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -154,7 +153,6 @@ def cmd_list(args):
 
         scripts_dir = d / "scripts"
         script_files = list(scripts_dir.glob("*.py")) if scripts_dir.exists() else []
-        package_file = SKILLS_DIR / f"{d.name}.skill"
 
         stat = skill_md.stat()
         skills.append({
@@ -165,7 +163,6 @@ def cmd_list(args):
             "path": str(d),
             "has_scripts": scripts_dir.exists(),
             "script_count": len(script_files),
-            "has_package": package_file.exists(),
             "last_modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
         })
 
@@ -191,9 +188,6 @@ def cmd_show(args):
             rel = f.relative_to(sp)
             all_files.append(file_info(f) | {"path": str(rel)})
 
-    # Package info
-    package_file = SKILLS_DIR / f"{name}.skill"
-
     # Validate inline
     checks, warnings = _validate_checks(name, sp, fm, body)
     valid = all(c["passed"] for c in checks)
@@ -204,10 +198,6 @@ def cmd_show(args):
         "body_preview": body[:200].replace("\n", "\\n") + ("..." if len(body) > 200 else ""),
         "body_length": len(body),
         "files": all_files,
-        "package": {
-            "exists": package_file.exists(),
-            "path": str(package_file) if package_file.exists() else None,
-        },
         "validation": {
             "valid": valid,
             "checks": checks,
@@ -326,6 +316,22 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
             warnings.append(
                 f"body에 {line_count}줄짜리 코드 블록 발견 — assets/ 또는 references/로 분리 권장"
             )
+
+    # W3: agents/ directory is empty (no .md files)
+    agents_dir = sp / "agents"
+    if agents_dir.exists() and agents_dir.is_dir():
+        agent_files = list(agents_dir.glob("*.md"))
+        if not agent_files:
+            warnings.append(
+                "agents/ 디렉토리가 비어 있음 — .md 프롬프트 파일을 추가하거나 디렉토리를 삭제하세요"
+            )
+        else:
+            # W4: agents/*.md files not referenced in body
+            for agent_file in agent_files:
+                if agent_file.name not in body:
+                    warnings.append(
+                        f"agents/{agent_file.name}가 body에서 참조되지 않음 — SKILL.md에서 Read로 참조하세요"
+                    )
 
     return checks, warnings
 
@@ -622,55 +628,62 @@ def cmd_delete(args):
 
     shutil.rmtree(str(sp))
 
-    # Also delete .skill package if present
-    package_file = SKILLS_DIR / f"{name}.skill"
-    package_deleted = False
-    if package_file.exists():
-        package_file.unlink()
-        package_deleted = True
-
     ok({
         "name": name,
         "deleted": str(sp),
         "backup": str(backup_path) if backup_path else None,
-        "package_deleted": package_deleted,
     })
 
 
-def cmd_package(args):
+def cmd_restore(args):
     name = args.name
+
+    if not BACKUPS_DIR.exists():
+        err(f"No backups directory found", path=str(BACKUPS_DIR))
+
+    # Find all backups for this skill (format: <name>-YYYYMMDD-HHMMSS)
+    pattern = re.compile(rf"^{re.escape(name)}-(\d{{8}}-\d{{6}})$")
+    backups = sorted(
+        [d for d in BACKUPS_DIR.iterdir() if d.is_dir() and pattern.match(d.name)],
+        key=lambda d: d.name,
+    )
+
+    if not backups:
+        err(f"No backups found for skill '{name}'", backups_dir=str(BACKUPS_DIR))
+
+    if args.list:
+        entries = []
+        for b in reversed(backups):
+            m = pattern.match(b.name)
+            ts_raw = m.group(1)  # YYYYMMDD-HHMMSS
+            ts = f"{ts_raw[:4]}-{ts_raw[4:6]}-{ts_raw[6:8]} {ts_raw[9:11]}:{ts_raw[11:13]}:{ts_raw[13:]}"
+            entries.append({"backup": b.name, "timestamp": ts, "path": str(b)})
+        ok({"name": name, "count": len(entries), "backups": entries})
+        return
+
+    # Restore latest backup
+    latest = backups[-1]
     sp = skill_path(name)
-    if not sp.exists():
-        err(f"Skill '{name}' not found")
 
-    # Validate first
-    skill_md = sp / "SKILL.md"
-    if not skill_md.exists():
-        err(f"SKILL.md not found for '{name}'")
+    if sp.exists():
+        err(
+            f"Skill '{name}' already exists — delete it first before restoring",
+            existing_path=str(sp),
+            latest_backup=latest.name,
+        )
 
+    shutil.copytree(str(latest), str(sp))
+
+    # Auto-validate after restore
     fm, body, _ = read_skill_file(sp)
     checks, warnings = _validate_checks(name, sp, fm, body)
     valid = all(c["passed"] for c in checks)
 
-    if not valid:
-        failed = [c for c in checks if not c["passed"]]
-        err(f"Validation failed — fix errors before packaging",
-            failed_checks=failed, warnings=warnings)
-
-    # Create ZIP
-    out_path = SKILLS_DIR / f"{name}.skill"
-    with zipfile.ZipFile(str(out_path), "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(sp.rglob("*")):
-            if f.is_file():
-                arcname = f"{name}/{f.relative_to(sp)}"
-                zf.write(str(f), arcname)
-
-    size = out_path.stat().st_size
     ok({
         "name": name,
-        "package": str(out_path),
-        "size_bytes": size,
-        "warnings": warnings,
+        "restored_from": latest.name,
+        "path": str(sp),
+        "validation": {"valid": valid, "checks": checks, "warnings": warnings},
     })
 
 
@@ -679,7 +692,7 @@ def cmd_package(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="manage_skill.py",
-        description="Skill lifecycle management (CRUD + validate + package)",
+        description="Skill lifecycle management (CRUD + validate + restore)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -715,9 +728,10 @@ def main():
     p_del.add_argument("name", help="Skill name")
     p_del.add_argument("--no-backup", action="store_true", help="Skip backup")
 
-    # package
-    p_pkg = sub.add_parser("package", help="Create .skill ZIP package")
-    p_pkg.add_argument("name", help="Skill name")
+    # restore
+    p_rst = sub.add_parser("restore", help="Restore skill from latest backup")
+    p_rst.add_argument("name", help="Skill name")
+    p_rst.add_argument("--list", action="store_true", help="List available backups without restoring")
 
     args = parser.parse_args()
 
@@ -728,7 +742,7 @@ def main():
         "validate": cmd_validate,
         "update-frontmatter": cmd_update_frontmatter,
         "delete": cmd_delete,
-        "package": cmd_package,
+        "restore": cmd_restore,
     }
     dispatch[args.command](args)
 

@@ -257,3 +257,61 @@ python3 /Users/changhwan/.claude/skills/my-tool/scripts/tool.py \
     │
     └─ 단순 파일/데이터 처리?        → tool
 ```
+
+---
+
+## Agent 사용 시 참고 패턴
+
+Workflow 스킬에서 병렬 데이터 수집이 필요할 때의 확장 패턴.
+
+**판단 기준**: 독립적인 소스(Notion, Obsidian, 외부 API 등)에서 데이터를 동시에 수집해야 하고, 각 수집 로직이 10줄 이상의 프롬프트를 요구할 때 → `agents/` 분리.
+
+### frontmatter 예시 (Agent 포함)
+
+```yaml
+---
+name: my-workflow
+description: |
+  여러 소스에서 병렬로 데이터를 수집하는 워크플로우.
+  사용 시점: (1) 상황 1, (2) 상황 2.
+  트리거 키워드: "키워드", "/my-workflow".
+model: sonnet
+allowed-tools:
+  - Agent
+  - Bash(python3 /Users/changhwan/.claude/skills/my-workflow/scripts/main.py *)
+  - Read
+  - Write
+---
+```
+
+### agents/ 파일 참조 패턴 (SKILL.md body)
+
+```markdown
+### Step 2 — 병렬 데이터 수집
+
+아래 두 Agent를 **동시에** 실행한다:
+
+**Agent A — Notion 데이터 수집**
+Read `/Users/changhwan/.claude/skills/my-workflow/agents/agent-notion-reader.md`
+변수 치환: `{date}` → 오늘 날짜 (YYYY-MM-DD 형식)
+
+**Agent B — Obsidian 노트 파싱**
+Read `/Users/changhwan/.claude/skills/my-workflow/agents/agent-obsidian-parser.md`
+변수 치환: `{note_path}` → 어제 Daily Note 경로
+```
+
+### agents/ 파일 구조 예시
+
+```markdown
+<!-- agents/agent-notion-reader.md -->
+# Notion 데이터 수집 에이전트
+
+대상 날짜: {date}
+
+다음 절차로 Notion에서 데이터를 수집한다:
+
+1. ...
+2. ...
+
+수집 완료 후 JSON 형태로 결과를 반환한다.
+```

@@ -36,46 +36,73 @@ allowed-tools:
 
 #### Step 1 — 데이터 수집
 
-두 커맨드를 순서대로 실행하여 이번 주 + 지난 주 데이터를 수집한다.
+세 커맨드를 순서대로 실행하여 이번 주 + 지난 주 + 오늘 Obsidian 데이터를 수집한다.
 
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py dashboard --week current
+python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py tasks --week current
 python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py tasks --week previous
+python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 ```
+
+`today` 커맨드가 에러를 반환하거나 파일이 없으면 해당 섹션을 생략하고 Notion 데이터만으로 진행.
 
 #### Step 2 — 분석 & 브리핑 출력
 
 수집한 JSON 데이터를 파싱하여 아래 형식으로 출력한다.
 
 ```
+----
 📋 이번 주 Task 브리핑 (MM/DD ~ MM/DD)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📌 이번 주 Tasks
+🚀 이번 주 Tasks
+
   🔄 진행 중 (N개)
     - [P1] Task이름 (WORK) — due: MM/DD
+
   ⏳ 시작 전 (N개)
     - [P1] Task이름 — due: MM/DD
-  ⏸️ 대기 (N개) | ✅ 완료 (N개)
 
-💡 오늘 추천
-  - [P1] Task이름 — due: MM/DD (진행 중)
-  - [P1] Task이름 — due: MM/DD (시작 전)
-  최대 3개. 아래 기준으로 선정.
+  ✅ 완료 (N개)
+    - Task이름
 
-📅 Due 미설정 진행 중 (N개)
-  진행 중이지만 Due Date가 없는 Task 목록.
-  - [P1] Task이름 (WORK) — ⚠️ Due Date 없음
-  → Due Date를 설정하면 주간 브리핑에서 추적할 수 있습니다.
-    `/task:manage`로 Due Date를 설정하세요.
-  없으면 이 섹션 생략.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 오늘 할 것들 (Obsidian Daily Note)
+  Top 3 목표:
+    - [ ] Task이름
+    - [x] Task이름 ✅
+
+  Todos (N개):
+    - [ ] Task이름
+    - [x] Task이름 ✅
+
+  📊 오늘 진행률: N/M (XX%) — 하루 시작
+  ※ Obsidian Daily Note 없으면 이 섹션 전체 생략, 대신 안내:
+  ⚠️ 오늘 Obsidian Daily Note 없음 — Notion 데이터만으로 브리핑합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+💡 우선순위 제안
+  1. [P1] Task이름 — 근거 설명. due D-N.
+  2. [P1] Task이름 — 근거 설명. due D-N.
+  3. [P1] Task이름 — 근거 설명. due D-N.
+
+  💬 제안 근거:
+  - (실제 데이터 기반 분석 내용)
+  - (마감일 임박, 이월 여부, Top 3 포함 여부 등)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 ⚠️ 놓친 것들
-  - [P1] Task이름 — 지난 주 due: MM/DD (미이월)
+  - [P1] Task이름 — 지난 주 due: MM/DD (상태, 미이월)
+  → 이번 주 Tasks에 없음. 필요하면 `/tasks:manage`로 이월하세요.
   없으면 이 섹션 생략.
 
-📊 이번 주 진행률
-  Daily Progress 데이터 기반 요약.
+----
+
+⚡ 요약: (한 줄 핵심 요약 — 오늘 집중 포인트 + 마감 위험 알림)
 ```
 
 ### B. 중간 리뷰 (신규)
@@ -119,12 +146,16 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 ## 분석 로직
 
-### 오늘 추천 기준 (최대 3개)
+### 우선순위 제안 기준 (최대 3개)
 
-1. 상태가 "진행 중"인 Task 우선
-2. P1 > P2 순
-3. due_date가 오늘에 가까운 순
-4. 최대 3개 선정
+Obsidian + Notion 통합 데이터를 기반으로 근거를 포함한 우선순위를 제안한다.
+
+1. **Obsidian Top 3 목표**에 지정된 항목 → 최우선 (사용자의 명시적 집중 대상)
+2. **Notion "진행 중"** + **Due Date 임박** → 높음 (이미 시작한 작업 완료 우선)
+3. **⏫ 마커**가 있는 항목 → 높음
+4. **반복 이월 Task** (지난 주에도 있었던 항목) → 조기 처리 권장 (이월 반복 방지)
+5. **개인(MY) / 비업무 항목** → 후순위 배치 (업무 항목 먼저)
+6. 각 항목에 근거를 1줄씩 표시 (예: "Notion 진행 중 + Obsidian Top 3")
 
 ### 놓친 것 감지
 
@@ -138,7 +169,6 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 | 커맨드 | 설명 |
 |--------|------|
-| `dashboard --week previous\|current\|next` | Task + Daily Progress 통합 뷰 |
 | `tasks --week previous\|current\|next` | 주 단위 Task 조회 |
 | `tasks --month YYYY-MM` | 월 단위 Task 조회 (`--week` 무시) |
 | `today` | Obsidian daily note 기반 경량 브리핑 (Top 3 + Todos 진행률) |

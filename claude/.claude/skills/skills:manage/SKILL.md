@@ -1,11 +1,13 @@
 ---
 name: skills:manage
 description: |
-  스킬 생명주기 관리 도구 (CRUD + validate + package).
-  사용 시점: (1) 새 스킬 생성, (2) 스킬 목록/상세 조회, (3) 스킬 구조 검증,
-  (4) 스킬 frontmatter 수정, (5) 스킬 삭제 (백업 포함), (6) .skill 패키지 생성.
-  트리거 키워드: "스킬 만들어줘", "스킬 생성", "스킬 목록", "스킬 삭제", "스킬 검증",
-  "skill create", "skill list", "skill manager", "/skill-manager".
+  스킬 생명주기 관리 (CRUD + validate + backup/restore).
+  사용 시점: (1) 새 스킬 생성/수정/삭제, (2) 스킬 목록 조회 또는 구조 검증,
+  (3) 삭제된 스킬 복원.
+  트리거 키워드: "스킬 만들어줘", "스킬 생성", "스킬 수정", "스킬 삭제",
+  "스킬 검증", "스킬 복원", "스킬 목록", "skill create", "skill update",
+  "skill delete", "skill show", "/skills:manage".
+model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py *)
   - Read
@@ -44,7 +46,7 @@ allowed-tools:
     ├─ "검증", "validate", "확인"           → Validate 워크플로우
     ├─ "수정", "변경", "update"             → Update 워크플로우
     ├─ "삭제", "제거", "delete"             → Delete 워크플로우
-    └─ "패키지", "배포", "package"          → Package 워크플로우
+    └─ "복원", "되돌려", "restore"          → Restore 워크플로우
 ```
 
 ---
@@ -74,7 +76,14 @@ frontmatter, 파일 목록, 검증 상태를 출력한다.
 
 ### Step 1 — 요구사항 파악
 
-사용자에게 확인 (대화에서 명확하면 생략):
+새 스킬 생성 전 다음 체크리스트를 반드시 확인한다:
+
+- [ ] 스킬이 해결하는 문제가 명확한가? (모호하면 사용자에게 질문)
+- [ ] `list`로 기존 스킬 확인 — 책임 범위가 겹치지 않는가?
+- [ ] 스크립트가 필요한가? (API 호출 → workflow, 지식 정리 → reference, CLI 래핑 → tool)
+- [ ] 병렬 Sub-Agent가 필요한가? (독립적 데이터 수집, 병렬 처리 등 → Step 3에서 `agents/` 생성)
+
+이후 사용자에게 확인 (대화에서 명확하면 생략):
 - **스킬 이름** (아래 명명 규칙 참고, 필수)
 - **한국어 설명** (사용 시점 포함, 필수)
 - **타입**: `workflow` | `reference` | `tool` (기본: workflow)
@@ -82,29 +91,7 @@ frontmatter, 파일 목록, 검증 상태를 출력한다.
 
 #### 스킬 명명 규칙
 
-형식: `[namespace:]action[-target]`
-
-**핵심 원칙**: 해당 플랫폼/도메인에 스킬이 2개 이상이면 colon namespace 사용, 1개뿐이면 flat 유지.
-
-| 케이스 | 이름 형식 | 예시 |
-|--------|-----------|------|
-| 단독 범용 스킬 | `noun` 또는 `noun-noun` | `commit`, `learn`, `security-manager` |
-| 플랫폼 스킬 2개+ | `platform:action` | `notion:eng`, `slack:send` |
-| 워크플로우 단계 | `workflow:phase` | `daily:start`, `daily:review` |
-
-**정의된 네임스페이스**:
-
-| Namespace | 대상 플랫폼/도메인 | 현재 소속 스킬 |
-|-----------|-------------------|---------------|
-| `notion:` | Notion 플랫폼 | `notion:eng`, `notion:study`, `notion:private`, `notion:send-plan` |
-| `obsidian:` | Obsidian vault | `obsidian:add-notes`, `obsidian:daily` |
-| `slack:` | Slack 플랫폼 | `slack:send`, `slack:search` |
-| `devops:` | DevOps 운영 | `devops:alert-review`, `devops:terraform-request`, `devops:gpu-analysis` |
-| `daily:` | 일과 워크플로우 | `daily:start`, `daily:review` |
-
-**제약**: lowercase only, 최대 64자, colon 최대 2개 (3 segment).
-
-새 플랫폼 스킬 추가 시: "이 플랫폼에 기존 스킬이 있는가?" → 있으면 namespace 추가, 없으면 flat으로 시작.
+`references/skill-conventions.md` Section 0 "명명 규칙" 참조. 형식: `[namespace:]action[-target]`, lowercase only, 최대 64자.
 
 ### Step 2 — 스캐폴딩 생성 (스크립트)
 
@@ -139,6 +126,14 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py cr
    - 15줄 이상의 출력 형식/템플릿 → `assets/*.md`로 분리
    - `allowed-tools`에 raw 시스템 명령 금지 → 스크립트로 래핑
 
+5. **Agent 프롬프트 작성** (Step 1에서 병렬 Sub-Agent 필요로 판단된 경우)
+   - `agents/` 디렉토리를 생성하고 Agent별 프롬프트 파일 작성
+   - 파일 명명: `agent-<역할>.md` (lowercase, hyphen-case)
+   - 프롬프트 내 동적 값은 `{변수명}` placeholder 사용
+   - SKILL.md body에서 Read 참조 + 변수 치환 지시 작성
+   - frontmatter `allowed-tools`에 `- Agent` 추가
+   - 상세 패턴: `references/templates.md` "Agent 사용 시 참고 패턴" 섹션 참조
+
 ### Step 4 — 검증 (스크립트)
 
 ```bash
@@ -159,6 +154,24 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py va
 1. 실패한 `checks` 항목 확인
 2. 각 항목 수정 (Edit/Write 도구 또는 update-frontmatter)
 3. 재검증
+
+### 성공 시
+
+`valid: true, warnings: []` 확인. warnings가 있으면 품질 개선 사항이므로 가능하면 해소.
+
+### 실패 시 체크별 수정 가이드
+
+| check | 수정 방법 |
+|-------|-----------|
+| `skill_md_exists` | 스킬 디렉토리에 SKILL.md 생성 |
+| `frontmatter_present` | SKILL.md 최상단에 `---` 블록 추가 |
+| `required_fields` | frontmatter에 name/description 추가 |
+| `no_unknown_fields` | 허용: name, description, model, allowed-tools, license, metadata. 그 외 제거 |
+| `name_matches_dir` | name 값을 디렉토리명과 일치시키기 |
+| `name_format` | `^[a-z0-9]+([:-][a-z0-9]+)*$`, 최대 64자 |
+| `description_not_empty` | 사용 시점 + 트리거 키워드 포함한 설명 작성 |
+| `script_files_exist` | 스크립트 생성 또는 `update-frontmatter --remove-tool`로 경로 정리 |
+| `body_not_empty` | body에 워크플로우/내용 작성 |
 
 ---
 
@@ -187,10 +200,15 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py up
 ### Body 수정 (Claude)
 
 SKILL.md body는 Claude가 Edit 도구로 직접 수정한다:
-1. `show` 명령으로 현재 내용 확인
+1. `show` 명령으로 현재 내용 + validation 상태 확인
 2. Read 도구로 전체 파일 읽기
 3. Edit 도구로 수정
-4. validate로 확인
+4. validate로 확인 — warnings 0개가 될 때까지 반복
+
+수정 범위별 가이드:
+- **섹션 추가**: 기존 구조(##/### 패턴) 유지, 워크플로우 끝에 삽입
+- **원칙/주의사항 변경**: 핵심 원칙 섹션만 수정, body 전체 리팩토링 금지
+- **스크립트 경로 변경**: frontmatter `allowed-tools`도 함께 `update-frontmatter`로 수정
 
 ---
 
@@ -225,15 +243,24 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py de
 
 ---
 
-## Package 워크플로우
+## Restore 워크플로우
+
+실수로 삭제한 스킬을 백업에서 복원한다.
+
+### 백업 목록 확인
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py package <name>
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py restore <name> --list
 ```
 
-validate 통과 → `.skill` ZIP 생성 → `~/.claude/skills/<name>.skill`
+### 최신 백업으로 복원
 
-검증 실패 시 먼저 Validate 워크플로우로 수정한다.
+```bash
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py restore <name>
+```
+
+- 동일 이름의 스킬이 이미 존재하면 에러 — 덮어쓰기 방지
+- 복원 후 자동 validate 실행
 
 ---
 

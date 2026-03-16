@@ -1,38 +1,30 @@
 ---
 name: notion:study
 description: |
-  Claude와의 학습 대화 내용을 Engineering DB에 Study 노트로 저장하는 스킬.
-  사용 시점: (1) Claude와 기술 학습 세션 후 내용 정리, (2) 개념 학습 대화를 Notion에 기록,
+  Claude와의 학습 대화 내용을 Obsidian 노트로 저장하는 스킬 (obsidian:note로 리다이렉트).
+  학습 노트는 Obsidian(지식 저장소)에 저장한다. Notion은 업무 기록 전용.
+  사용 시점: (1) Claude와 기술 학습 세션 후 내용 정리, (2) 개념 학습 대화를 Obsidian에 기록,
   (3) 학습한 내용을 나중에 참고할 수 있도록 저장.
   트리거 키워드: "학습 노트", "study note", "공부한 거 저장", "학습 정리", "/study-note".
 model: sonnet
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/notion:study/scripts/notion-study-note.py *)
-  - Write(/tmp/study-content.json)
+  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Write(/tmp/obsidian-content.json)
 ---
 
 # Study Note Skill
 
-Claude와의 학습 대화를 Engineering DB `#Study` 그룹에 자동 저장하는 워크플로우.
+> **리다이렉트 안내**: 학습 노트는 Obsidian에 저장합니다 (Obsidian = 지식, Notion = 업무).
+> 이 스킬은 내부적으로 `obsidian:note` 워크플로우를 실행합니다.
+
+Claude와의 학습 대화를 Obsidian `02. Notes/engineering/`에 자동 저장하는 워크플로우.
 
 ## 핵심 원칙
 
 - **대화 내용을 학습 노트로 정리**한다. 핵심 개념, 설명, 코드 예시를 추출한다.
-- 스크립트만 호출한다. Notion MCP 도구 사용 금지 (토큰 효율).
-- 토큰은 환경변수 `$NOTION_TOKEN` 사용 (`~/.secrets.zsh`에서 로드됨).
-- 생성 후 URL을 반드시 출력한다.
-- 제목에 `[#Study]` 접두사가 자동 추가된다.
-
-## DB 스키마
-
-**DB ID**: `17964745-3170-8030-bf01-e7f20a6e1bd7` (Engineering DB)
-
-| 속성 | 타입 | 값 |
-|------|------|-----|
-| Title | title | `[#Study] 제목` |
-| Group | select | `#Study` (고정) |
-| Tag | multi_select | `#Kubernetes`, `#Network`, `#Istio`, `#Issue`, `#Infra`, `#Observabiliy`, `#Security`, `#자동화`, `#AI`, `#Agent`, `#OS`, `#Terraform`, `#AWS`, `#Engineering` |
-| Created At | date | 오늘 날짜 |
+- `obsidian-note.py` 스크립트를 통해 Obsidian에 저장한다.
+- aliases를 자동 추출하여 Quick Switcher 검색성을 높인다.
+- 생성 후 파일 경로를 반드시 출력한다.
 
 ## 워크플로우
 
@@ -45,41 +37,39 @@ Claude와의 학습 대화를 Engineering DB `#Study` 그룹에 자동 저장하
 - 비교/대조 표 (있다면)
 - 핵심 요약 (Key Takeaways)
 
-### Step 2 — 제목 및 태그 결정
+### Step 2 — 제목, 태그, aliases 결정
 
 - **제목**: 학습 주제를 간결하게 (예: "Kubernetes Init Container 라이프사이클")
-- **태그**: 학습 주제에 맞는 태그 선택 (복수 가능)
+- **태그**: `domain/kubernetes`, `domain/observability` 등 `domain/` 네임스페이스 사용
+- **aliases**: 검색 키워드 (약어, 한/영 양방향, 증상 키워드 등)
 
-### Step 3 — content.json 작성 후 페이지 생성
-
-```bash
-python3 /Users/changhwan/.claude/skills/notion:study/scripts/notion-study-note.py create \
-  --title "제목" \
-  --tag "#Kubernetes,#Infra" \
-  --content /tmp/study-content.json
-```
-
-## content.json 형식
+### Step 3 — content.json 작성 후 노트 생성
 
 ```json
+// /tmp/obsidian-content.json
 {
-  "blocks": "마크다운 텍스트 전체 (헤딩, 리스트, 코드, 테이블 등 모두 지원)"
+  "title": "제목",
+  "tags": ["domain/kubernetes"],
+  "aliases": ["키워드1", "키워드2"],
+  "type": "learning-note",
+  "category": "engineering",
+  "body": "마크다운 본문 전체"
 }
 ```
 
-## 최근 학습 노트 목록 조회
-
 ```bash
-python3 /Users/changhwan/.claude/skills/notion:study/scripts/notion-study-note.py list --limit 10
+python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create \
+  --input /tmp/obsidian-content.json
 ```
 
 ## 결과 출력 형식
 
 ```
 학습 노트가 생성되었습니다.
-- 제목: [#Study] {title}
+- 파일: 02. Notes/engineering/{slug}.md
+- 제목: {title}
 - 태그: {tags}
-- URL: {url}
+- aliases: {aliases}
 ```
 
 ## 검증
@@ -87,6 +77,5 @@ python3 /Users/changhwan/.claude/skills/notion:study/scripts/notion-study-note.p
 스크립트 응답의 `success` 필드를 반드시 확인한다.
 
 실패 시:
-- `NOTION_TOKEN not set` → `~/.secrets.zsh`에서 NOTION_TOKEN 확인
-- `invalid tag` → DB 스키마의 Tag 옵션 확인
 - `success: false` → 에러 메시지를 사용자에게 전달 후 재실행
+- 저장 경로 오류 → `02. Notes/engineering/` 디렉토리 존재 확인

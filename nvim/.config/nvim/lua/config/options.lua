@@ -1,6 +1,7 @@
 local opt = vim.opt
 
 vim.opt.updatetime = 2000
+vim.opt.timeoutlen = 300
 
 -- 테마 설정 로드
 local theme = require("config.theme")
@@ -59,6 +60,16 @@ else
   -- - "non-ascii" 폰트를 nonicons로 설정 (iTerm2)
   -- - Kitty의 경우: symbol_map U+f101-U+f25c nonicons
 end
+
+-- markdown ftplugin이 tabstop=4로 덮어쓰는 것을 방지
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "markdown",
+  callback = function()
+    vim.opt_local.tabstop = 2
+    vim.opt_local.shiftwidth = 2
+    vim.opt_local.softtabstop = 2
+  end,
+})
 
 -- Helm 템플릿 filetype 감지: templates/ 하위 yaml/tpl/txt 파일을 helm으로 인식
 vim.filetype.add({

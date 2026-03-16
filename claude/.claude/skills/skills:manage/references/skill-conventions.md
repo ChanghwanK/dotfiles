@@ -115,11 +115,14 @@ allowed-tools:
 │   └── <script>.sh
 ├── assets/            # 출력 템플릿, 정적 리소스
 │   └── <template>.md
-└── references/        # 보조 문서 (상세 가이드)
-    └── <doc>.md
+├── references/        # 보조 문서 (상세 가이드)
+│   └── <doc>.md
+└── agents/            # (선택) Sub-Agent 프롬프트 — Claude가 필요 시 생성
+    └── agent-<역할>.md
 ```
 
 - `scripts/`, `references/`, `assets/` 3개 디렉토리는 `create` 시 자동 생성됨
+- `agents/` 디렉토리는 Claude가 Step 1 요구사항 분석에서 병렬 Sub-Agent가 필요하다고 판단할 때 수동 생성
 - `.skill` 패키지는 `~/.claude/skills/<name>.skill` 위치에 생성됨
 
 ---
@@ -272,11 +275,20 @@ Claude가 이미 아는 개념(JSON, REST API, kubectl, Docker 등)은 설명하
 | 반복 실행 bash (3줄 이상) | SKILL.md body에 inline bash | `scripts/env-init.sh` 추출, `allowed-tools`에 등록 |
 | 출력 템플릿 (15줄 이상) | SKILL.md body에 markdown 템플릿 | `assets/template.md`로 분리, Read로 참조 |
 | Raw 시스템 명령 | `Bash(brew *)` in allowed-tools | `Bash(bash .../scripts/init.sh *)` 래핑 |
+| Agent 인라인 프롬프트 (10줄 이상) | SKILL.md body에 멀티라인 Agent 프롬프트 | `agents/agent-<역할>.md`로 분리, body에서 Read 참조 |
 
 **판단 기준**:
 - 3줄 이상의 반복 실행 bash → `scripts/*.sh`로 추출 (멱등성, `set -euo pipefail` 추가)
 - 15줄 이상의 출력 형식/템플릿 → `assets/*.md`로 분리
 - `allowed-tools`에 raw 시스템 명령(brew, apt, pip 등) 금지 → 스크립트로 래핑
+- 10줄 이상의 Agent 인라인 프롬프트 → `agents/agent-<역할>.md`로 분리
+
+**agents/ 디렉토리 규칙**:
+- 파일 명명: `agent-{역할}.md` (lowercase, hyphen-case) — 예: `agent-notion-reader.md`, `agent-transcript-parser.md`
+- 프롬프트 내 동적 값: `{변수명}` placeholder 사용 — 예: `{date}`, `{yesterday_note_path}`
+- SKILL.md body에서 Read로 참조 후 변수 치환 지시 작성
+- `allowed-tools` frontmatter에 `- Agent` 추가
+- Claude가 Step 1 요구사항 분석에서 병렬 Sub-Agent 필요 여부를 판단하여 생성 (자동 스캐폴딩 없음)
 
 **허용 패턴** (allowed-tools):
 - `Bash(python3 /abs/path/scripts/*.py *)` — Python 스크립트 호출

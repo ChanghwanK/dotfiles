@@ -14,6 +14,10 @@ allowed-tools:
   - Glob
   - Grep
   - Agent
+references:
+  - references/iam-patterns.md
+  - references/resource-patterns.md
+  - references/auto-resolve-rules.md
 ---
 
 # Terraform 인프라 요청 처리
@@ -102,37 +106,104 @@ Read / Glob / Grep 도구를 사용하여:
 
 ---
 
-### Step 6: 누락 정보 검증
+### Step 6: 누락 정보 검증 + Auto-Resolution
 
-카테고리별 필수 필드를 검증합니다. **누락 시 코드 작업 전에 사용자에게 질문합니다.**
+**원칙: 물어보기 전에 코드를 먼저 본다** (`references/auto-resolve-rules.md` 참조)
 
-#### [A] IAM 권한
+#### 처리 순서 (반드시 이 순서를 따를 것)
 
-| 필드 | 필수 | 누락 시 질문 |
-|------|------|-------------|
-| 역할 종류 | Yes | "콘솔 접근용(okta)인가요, K8s Pod용(irsa)인가요?" |
-| AWS 액션 | Yes | "어떤 작업이 필요한지 알려주시면 액션을 추천드립니다" |
-| 리소스 스코프 | Yes | 기본: 태그 기반 `aws:ResourceTag/Sphere`, 특수 경우 확인 필요 |
-| 환경 | No | Okta → global (기본값), IRSA → 환경 확인 필요 |
+```
+1. 누락 필드 식별
+2. 각 누락 필드에 대해 코드베이스 탐색으로 추론 시도
+3. 추론 성공 → 확인 메시지에 추론 결과 포함
+4. 추론 실패 → 질문 생성
+5. 모든 필드 추론/질문 완료 → 통합 확인 메시지 출력
+```
 
-#### [B] 리소스 생성
+#### 카테고리별 Auto-Resolution 로직
 
+**[A] IAM - Okta 역할명 누락 시**:
+```
+→ Glob: src/infra/iam-for-okta/global/*{sphere}*.tf
+→ 파일 발견: 파일명에서 역할명 추출 (socraai_iam.tf → okta-socraai)
+→ Read: 현재 Statement 목록 추출 (현재 권한 상태 표시용)
+→ 추론 결과를 확인 메시지에 포함
+```
+
+**[A] IAM - 리소스 스코프 누락 시**:
+```
+→ 서비스 타입에서 기본 패턴 추론:
+  S3 → arn:aws:s3:::{sphere}-*, arn:aws:s3:::{sphere}-*/*
+  SecretsManager → Resource: "*", Condition: tag/Sphere={sphere}
+  CloudFront → Resource: "*", Condition: aws:ResourceTag/Sphere={sphere}
+  SSM → arn:aws:ssm:*:*:parameter/{sphere}/*
+  ECR → arn:aws:ecr:*:*:repository/{sphere}-*
+```
+
+**[C] S3 CORS - 버킷명 누락 시**:
+```
+→ Glob: src/{sphere}/*/({dev,stg,prod})/s3/s3.*.tf (또는 s3.tf)
+→ 파일에서 bucket = "..." 값 추출
+→ 기존 cors_rule 블록의 allowed_origins 추출 (변경 전 상태 표시용)
+→ 버킷 목록 제안
+```
+
+**[A] IRSA - 파일 경로 추론**:
+```
+→ Glob: src/{sphere}/{circle}/{env}/irsa/irsa.tf
+→ circle을 요청의 서비스명에서 추론 후 탐색
+→ 파일 발견: 현재 policy_json Statement 추출
+→ 미발견: circle 이름 질문
+```
+
+#### 통합 확인 메시지 형식
+
+```
+## 요청 분석 완료
+
+**[분류]** {category} — {sub-type}
+**[대상 파일]** {file_path}
+
+**[자동 추론된 정보]** (코드베이스에서 확인)
+- 항목1: 값 (근거)
+- 항목2: 값 (근거)
+
+**[현재 상태]**
+{기존 정책/설정 내용 요약}
+
+**[변경 예정]**
+{추가/수정할 내용 diff}
+
+---
+진행할까요? (수정 필요시 알려주세요)
+```
+
+#### 카테고리별 필수 필드 (추론 불가 시 질문)
+
+**[A] IAM 권한**:
+| 필드 | 추론 가능 | 불가 시 질문 |
+|------|----------|-------------|
+| 역할 종류 (okta/irsa) | No | "콘솔 접근(okta)인가요, K8s Pod(irsa)인가요?" |
+| Okta 역할명 | Yes (sphere → okta-{sphere}) | - |
+| AWS 액션 | No | "어떤 작업이 필요한지 알려주세요" |
+| 리소스 스코프 | Yes (서비스 타입 기반) | 비표준 경우만 확인 |
+| 환경 | 부분 (Okta=global) | IRSA는 환경 확인 필요 |
+
+**[B] 리소스 생성**:
 | 필드 | 필수 | 누락 시 질문 |
 |------|------|-------------|
 | Sphere | Yes | "어느 프로젝트(sphere)에 필요한가요?" |
 | 환경 | Yes | "dev/stg/prod 중 어느 환경인가요?" |
-| 스펙 | 조건부 | RDS: "인스턴스 타입과 엔진 버전을 알려주세요" / S3: 기본값 적용 가능 |
+| 스펙 | 조건부 | RDS: 인스턴스 타입/엔진 / S3: 기본값 적용 |
 
-#### [C] 설정 변경
+**[C] 설정 변경**:
+| 필드 | 추론 가능 | 불가 시 질문 |
+|------|----------|-------------|
+| 대상 리소스 | 부분 (버킷명 추론) | 불가 시 확인 |
+| 변경 값 | No | "추가할 URL/값을 알려주세요" |
+| 환경 | 부분 (버킷명 suffix에서) | - |
 
-| 필드 | 필수 |
-|------|------|
-| 대상 리소스 | Yes |
-| 변경 내용 (구체적 값) | Yes |
-| 환경 | Yes |
-
-#### [D] 네트워크/보안
-
+**[D] 네트워크/보안**:
 | 필드 | 필수 |
 |------|------|
 | 대상 SG 또는 리소스 | Yes |

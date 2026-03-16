@@ -23,6 +23,7 @@ allowed-tools:
 - 스크립트만 호출한다. Notion MCP 도구 사용 금지 (토큰 효율).
 - 토큰은 환경변수 `$NOTION_TOKEN` 사용 (`~/.secrets.zsh`에서 로드됨).
 - 생성 후 URL을 반드시 출력한다.
+- **기술 학습 노트는 `obsidian:note`를 사용할 것** (Obsidian = 지식, Notion = 개인 메모/행정 기록). 개발 개념, 인프라 지식, 기술 정리는 `obsidian:note`로 저장해야 Quick Switcher 검색이 가능합니다.
 
 ---
 

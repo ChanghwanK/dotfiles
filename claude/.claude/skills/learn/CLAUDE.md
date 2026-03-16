@@ -8,4 +8,20 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #3595 | 5:30 PM | 🔵 | Working skills also embed triggers in description without dedicated field | ~432 |
+
+### Mar 11, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #5442 | 3:05 PM | 🔵 | Learn skill Socratic questions are inline in SKILL.md with no external templates | ~496 |
+| #5441 | " | 🔵 | Learn skill implements 6-phase Socratic learning workflow with dynamic variable-based transition questions | ~408 |
+| #5281 | 10:01 AM | ⚖️ | Socratic Questioning methodology integration designed for learn skills ecosystem | ~876 |
+| #5272 | 9:57 AM | 🔵 | Learn Skills Analysis: No Existing Socratic Questioning Methodology | ~451 |
+| #5269 | " | 🔵 | Learn skill implements 6-phase structured learning workflow | ~579 |
+
+### Mar 12, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #5615 | 8:35 AM | 🔵 | Learn Skill Socratic Learning Framework | ~561 |
 </claude-mem-context>

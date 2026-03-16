@@ -103,6 +103,12 @@ return {
           IndentBlanklineChar = { fg = "#3E4452" },
           IndentBlanklineContextChar = { fg = "#E06C75" },
 
+          -- LSP 단어 강조 (snacks.words, LSP document highlight)
+          -- 커서 위 단어와 같은 단어 전체를 파란 배경으로 표시
+          LspReferenceText  = { bg = "#2d4270" },                        -- 읽기 참조
+          LspReferenceRead  = { bg = "#2d4270" },                        -- 읽기 참조
+          LspReferenceWrite = { bg = "#3d2a5e", bold = true },           -- 쓰기 참조 (보라빛으로 구분)
+
           -- -- 함수/메서드 호출 강조 (Treesitter + LSP semantic tokens)
           -- ["@function.call"] = { fg = "#E5C07B" },
           -- ["@method.call"] = { fg = "#E5C07B" },

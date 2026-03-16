@@ -85,6 +85,19 @@ def get_pr(cwd):
     return hyperlink(url, label)
 
 
+def get_claude_account():
+    """Return the email of the currently logged-in Claude account."""
+    try:
+        r = subprocess.run(
+            ["claude", "auth", "status", "--json"],
+            capture_output=True, text=True, timeout=5,
+        )
+        info = json.loads(r.stdout.strip())
+        return info.get("email") or ""
+    except Exception:
+        return ""
+
+
 def get_kube_ctx():
     if not shutil.which("kubectl"):
         return ""
@@ -201,9 +214,10 @@ def main():
 
     # ── Runtime ──────────────────────────────────────────────────────────────
     dir_display = shorten_path(cwd)
-    git_branch  = get_git_branch(cwd)
-    kube_ctx    = get_kube_ctx()
-    pr_link     = get_pr(cwd)
+    git_branch     = get_git_branch(cwd)
+    kube_ctx       = get_kube_ctx()
+    pr_link        = get_pr(cwd)
+    claude_account = get_claude_account()
 
     # ── Line 1: 📁 dir (branch)  ⎈ kube  🤖 model  📦 version  🎨 profile ──
     line1 = co(BOLD + C, f"📁 {dir_display}") + git_branch
@@ -216,6 +230,9 @@ def main():
         meta.append(f"🤖 {co(M, model_display)}")
     if version:
         meta.append(f"📦 {co(B, version)}")
+
+    if claude_account:
+        meta.append(f"👤 {co(W, claude_account)}")
 
     if meta:
         line1 += "  " + "  ".join(meta)

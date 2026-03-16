@@ -9,6 +9,7 @@ model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/extract-work.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py *)
 ---
 
 # End-Daily Skill: 하루 마무리 워크플로우
@@ -29,13 +30,16 @@ allowed-tools:
 
 ### Step 1 — 데이터 수집 (자동, 병렬 실행)
 
-두 소스를 **동시에** 읽는다:
+세 소스를 **동시에** 읽는다:
 
 ```bash
-# (1) Notion 일지
+# (1) Notion 일지 (page_id, tomorrow, kpt 필드 획득용)
 python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py read --date today
 
-# (2) 오늘 Claude 대화 transcript (Notion에 없는 작업 포착)
+# (2) Obsidian Daily Note todos (primary todos 소스)
+python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
+
+# (3) 오늘 Claude 대화 transcript (Obsidian에 없는 작업 포착)
 python3 /Users/changhwan/.claude/skills/daily:review/scripts/extract-work.py --date today
 ```
 
@@ -43,22 +47,25 @@ python3 /Users/changhwan/.claude/skills/daily:review/scripts/extract-work.py --d
 
 | 소스 | 사용 목적 |
 |------|-----------|
-| Notion `todos` done=true | 계획된 완료 항목 |
-| Notion `todos` done=false | 미완료 항목 |
-| Notion `tomorrow` 필드 | 기존 내일 할 것들 기반 |
-| Transcript `sessions` | Notion에 없는 실제 작업 내용 추출 |
+| Notion `read` | `page_id`, `tomorrow`, `kpt` 필드 획득 전용 |
+| Obsidian `today` → `todos.completed` | **완료 항목 primary source** |
+| Obsidian `today` → `todos.in_progress` | **미완료 항목 primary source** |
+| Obsidian `today` → `top3` | 오늘 목표 달성 여부 |
+| Transcript `sessions` | Obsidian에도 없는 실제 작업 내용 추출 |
+
+> ⚠️ Notion `todos` 필드는 DB 프로퍼티 컬럼만 읽히므로 실제 todos와 불일치. **Obsidian을 primary source로 사용**한다.
 
 **Transcript 해석 방법:**
 - `sessions[].project`로 어떤 리포지토리/프로젝트에서 작업했는지 파악
 - `sessions[].user_messages`에서 실제 작업 의도와 내용 추출
-- Notion 완료 목록에 없는 작업을 **추가 완료 항목**으로 포함
+- Obsidian 완료 목록에 없는 작업을 **추가 완료 항목**으로 포함
 
 **출력 포맷:**
 ```
 ## {YYYY-MM-DD} 하루 마무리
 
 ### 오늘 한 일 요약
-- [Notion] 항목1
+- [Obsidian] 항목1
 - [Transcript] 항목2 (프로젝트명)
 
 ### 미완료 🔄
@@ -140,7 +147,8 @@ python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py upd
 ## 주의사항
 
 - Notion 업데이트는 항상 사용자 확인 후 실행
-- **Step 1에서 Notion + Transcript 두 소스를 반드시 병렬로 읽는다** — Notion 일지만 보면 실제 작업이 누락됨
+- **Step 1에서 Notion + Obsidian + Transcript 세 소스를 반드시 병렬로 읽는다** — Notion `Todo's` 프로퍼티는 DB 컬럼값(3개 내외)만 반환하므로 실제 todos와 불일치. Obsidian이 primary todos source
+- **미완료 항목은 Obsidian `todos.in_progress`에서 읽는다** — Notion `todos` done=false 사용 금지
 - **내일 할 것들과 KPT는 Step 2에서 반드시 함께 제시한다** — 한 번에 확인받고 한 번에 업데이트
 - 중간에 확인 기다리다 멈추지 않는다 — 두 초안을 모두 보여준 뒤 단 한 번만 확인을 요청한다
 - 오늘 일지가 없으면 `error` 필드 포함 — 날짜 확인 안내

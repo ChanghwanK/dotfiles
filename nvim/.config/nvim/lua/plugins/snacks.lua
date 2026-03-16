@@ -10,18 +10,76 @@ return {
     statuscolumn = { enabled = true },
     words = { enabled = true },
     bufdelete = { enabled = true },
+    lazygit = { enabled = true },
     picker = {
       enabled = true,
       sources = {
         explorer = {
           hidden = true,
-          watch = true, -- 외부 프로세스가 파일 생성/삭제 시 자동 반영
+          watch = true,
+          actions = {
+            -- [패치] (1) 디렉토리 y+p 복사 지원, (2) 이름 충돌 시 _copy suffix 자동 추가
+            explorer_paste = function(picker)
+              local files = vim.split(vim.fn.getreg(vim.v.register or "+") or "", "\n", { plain = true })
+              files = vim.tbl_filter(function(file)
+                return file ~= "" and (vim.fn.filereadable(file) == 1 or vim.fn.isdirectory(file) == 1)
+              end, files)
+              if #files == 0 then
+                return Snacks.notify.warn(("The `%s` register does not contain any files"):format(vim.v.register or "+"))
+              end
+              local dir = picker:dir()
+              local svim = require("snacks.util.vim")
+              -- 충돌 시 suffix를 붙여 unique한 경로를 생성하는 헬퍼
+              local function unique_path(target)
+                if not vim.uv.fs_stat(target) then
+                  return target
+                end
+                local parent = vim.fs.dirname(target)
+                local base = vim.fn.fnamemodify(target, ":t")
+                -- 확장자 분리 (디렉토리는 ext 없음)
+                local name, ext
+                if vim.fn.isdirectory(target) == 1 or not base:find("%.") then
+                  name, ext = base, ""
+                else
+                  name = base:match("^(.+)%.[^.]+$") or base
+                  ext = base:match("^.+(%.[^.]+)$") or ""
+                end
+                local i = 1
+                local candidate
+                repeat
+                  local suffix = i == 1 and "_copy" or ("_copy" .. i)
+                  candidate = parent .. "/" .. name .. suffix .. ext
+                  i = i + 1
+                until not vim.uv.fs_stat(candidate)
+                return candidate
+              end
+              for _, path in ipairs(files) do
+                local name = vim.fn.fnamemodify(path, ":t")
+                local to = svim.fs.normalize(dir .. "/" .. name)
+                to = unique_path(to)
+                Snacks.picker.util.copy_path(svim.fs.normalize(path), to)
+              end
+              local Tree = require("snacks.explorer.tree")
+              Tree:refresh(dir)
+              Tree:open(dir)
+              picker:find()
+            end,
+          },
           on_show = function(picker)
             vim.schedule(function()
               local win = picker.layout.root.win
               if win and vim.api.nvim_win_is_valid(win) then
                 local width = vim.api.nvim_win_get_width(win)
                 require("barbar.api").set_offset(width + 1, "Explorer", nil, "left")
+              end
+              -- 활성 버퍼 디렉토리만 펼침 (나머지 모두 접기)
+              local buf_path = vim.api.nvim_buf_get_name(0)
+              if buf_path ~= "" then
+                local buf_dir = vim.fn.fnamemodify(buf_path, ":h")
+                local Tree = require("snacks.explorer.tree")
+                Tree:close_all(picker:cwd())
+                Tree:open(buf_dir)
+                picker:find()
               end
             end)
           end,
@@ -83,6 +141,44 @@ return {
     opts.dashboard.preset.header = vim.o.columns >= 55 and header_large or header_small
     require("snacks").setup(opts)
 
+    -- [패치] Explorer 파일 정렬: 디렉토리 우선, 파일은 수정시간 내림차순 (최신순)
+    local Tree = require("snacks.explorer.tree")
+    local orig_walk = Tree.walk
+    Tree.walk = function(self, node, fn, opts_walk)
+      local abort = fn(node)
+      if abort ~= nil then
+        return abort
+      end
+      local children = vim.tbl_values(node.children)
+      table.sort(children, function(a, b)
+        if a.dir ~= b.dir then
+          return a.dir
+        end
+        if a.dir and b.dir then
+          return a.name < b.name
+        end
+        local sa = vim.uv.fs_stat(a.path)
+        local sb = vim.uv.fs_stat(b.path)
+        if sa and sb then
+          return sa.mtime.sec > sb.mtime.sec
+        end
+        return a.name > b.name
+      end)
+      for c, child in ipairs(children) do
+        child.last = c == #children
+        abort = false
+        if child.dir and (child.open or (opts_walk and opts_walk.all)) then
+          abort = self:walk(child, fn, opts_walk)
+        else
+          abort = fn(child)
+        end
+        if abort then
+          return true
+        end
+      end
+      return false
+    end
+
     -- VimResized 시 대시보드 헤더 갱신
     vim.api.nvim_create_autocmd("VimResized", {
       callback = function()
@@ -96,6 +192,28 @@ return {
             end
           end
         end
+      end,
+    })
+
+    -- 버퍼 전환 시 explorer 트리 동기화 (활성 버퍼 디렉토리만 펼침)
+    local _explorer_syncing = false
+    vim.api.nvim_create_autocmd("BufEnter", {
+      callback = function()
+        -- 재진입 방지 (explorer:find() 실행 중 BufEnter 재발생 시 무시)
+        if _explorer_syncing then return end
+        -- unlisted 버퍼(explorer list 등)에서는 실행하지 않음 → barbar 재귀 차단
+        if not vim.bo.buflisted then return end
+        local explorer = Snacks.picker.get({ source = "explorer" })[1]
+        if not explorer then return end
+        local buf_path = vim.api.nvim_buf_get_name(0)
+        if buf_path == "" then return end
+        local buf_dir = vim.fn.fnamemodify(buf_path, ":h")
+        local Tree = require("snacks.explorer.tree")
+        _explorer_syncing = true
+        Tree:close_all(explorer:cwd())
+        Tree:open(buf_dir)
+        explorer:find()
+        _explorer_syncing = false
       end,
     })
 

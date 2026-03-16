@@ -50,9 +50,18 @@ return {
         vim.lsp.config('helm_ls', {
             settings = {
                 ['helm-ls'] = {
-                    yamlls = { path = "yaml-language-server" }
-                }
-            }
+                    yamlls = {
+                        path = "yaml-language-server",
+                        config = {
+                            yaml = {
+                                schemas = {},
+                                validate = false,
+                                schemaStore = { enable = false },
+                            },
+                        },
+                    },
+                },
+            },
         })
 
         vim.lsp.config('kotlin_language_server', {
@@ -132,14 +141,28 @@ return {
 
                 mapKey("gd", goto_definition, "n", opts)
 
-                -- Ctrl+클릭으로 정의로 이동 (VS Code 스타일)
-                vim.keymap.set("n", "<C-LeftMouse>", function()
+                -- Ctrl+클릭 / Cmd+클릭으로 정의로 이동 (VS Code 스타일)
+                local function click_goto_definition()
                     local mouse_pos = vim.fn.getmousepos()
                     if mouse_pos.line > 0 then
                         vim.api.nvim_win_set_cursor(0, { mouse_pos.line, mouse_pos.column - 1 })
                     end
                     goto_definition()
-                end, { buffer = ev.buf, desc = "Ctrl+클릭: 정의로 이동" })
+                end
+                vim.keymap.set("n", "<C-LeftMouse>", click_goto_definition, { buffer = ev.buf, desc = "Ctrl+클릭: 정의로 이동" })
+                vim.keymap.set("n", "<D-LeftMouse>", click_goto_definition, { buffer = ev.buf, desc = "Cmd+클릭: 정의로 이동" })
+
+                -- Inlay Hints (타입 힌트 인라인 표시)
+                local client = vim.lsp.get_client_by_id(ev.data.client_id)
+                if client and client.supports_method("textDocument/inlayHint") then
+                    vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
+                end
+                mapKey("<leader>ih", function()
+                    vim.lsp.inlay_hint.enable(
+                        not vim.lsp.inlay_hint.is_enabled({ bufnr = ev.buf }),
+                        { bufnr = ev.buf }
+                    )
+                end, "n", { buffer = ev.buf, desc = "Inlay Hints 토글" })
                 mapKey("K", vim.lsp.buf.hover, "n", opts)
                 mapKey("<leader>rn", vim.lsp.buf.rename, "n", opts)
                 mapKey("<leader>ca", vim.lsp.buf.code_action, "n", opts)

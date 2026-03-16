@@ -59,6 +59,8 @@ return {
             },
             menu = {
                 border = "rounded",
+                min_width = 60,
+                max_height = 15,
                 draw = {
                     columns = {
                         { "kind_icon" },
