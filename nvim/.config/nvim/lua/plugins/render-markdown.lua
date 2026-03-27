@@ -51,5 +51,24 @@ return {
             -- 배경이 전체 너비에 걸치도록
             width = "full",
         },
+        bullet = {
+            -- 기본 ●/○ (U+25CF/U+25CB)은 East Asian Width: Ambiguous → 터미널에 따라 2셀 렌더링
+            -- • (U+2022), ◦ (U+25E6), ▸ (U+25B8), ▹ (U+25B9)은 EA Width: Narrow → 항상 1셀
+            icons = { "•", "◦", "▸", "▹" },
+        },
+        checkbox = {
+            -- [ ] = 3 cells, +1 trailing space = width 4
+            -- icon(3 cells) + right_pad(1) = 4 → space=0, 추가 conceal 없음
+            -- □ (U+25A1) = East Asian Width "Na" = 무조건 1 cell
+            right_pad = 1,
+            unchecked = {
+                icon = '□  ',   -- 1 + 2spaces = 3 cells
+                highlight = 'RenderMarkdownUnchecked',
+            },
+            checked = {
+                icon = '▣  ',   -- 1 + 2spaces = 3 cells (U+25A3, "Na")
+                highlight = 'RenderMarkdownChecked',
+            },
+        },
     },
 }

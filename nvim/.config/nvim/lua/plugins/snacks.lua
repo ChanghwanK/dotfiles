@@ -1,3 +1,6 @@
+-- cut 대상 파일 목록 (x키로 마크, p키로 이동 완료 후 초기화)
+local _cut_files = {}
+
 return {
   "folke/snacks.nvim",
   priority = 1000,
@@ -18,8 +21,101 @@ return {
           hidden = true,
           watch = true,
           actions = {
-            -- [패치] (1) 디렉토리 y+p 복사 지원, (2) 이름 충돌 시 _copy suffix 자동 추가
+            -- [패치] x키: 파일 이동 준비 (cut 마크). 이후 p키로 붙여넣기 시 이동됨
+            explorer_cut = function(picker)
+              local items = picker:selected({ fallback = true })
+              if not items or #items == 0 then
+                return Snacks.notify.warn("선택된 파일이 없습니다")
+              end
+              _cut_files = {}
+              local names = {}
+              for _, item in ipairs(items) do
+                local path = item.file
+                if path and (vim.fn.filereadable(path) == 1 or vim.fn.isdirectory(path) == 1) then
+                  table.insert(_cut_files, path)
+                  table.insert(names, vim.fn.fnamemodify(path, ":t"))
+                end
+              end
+              if #_cut_files == 0 then
+                return Snacks.notify.warn("유효한 파일 경로가 없습니다")
+              end
+              vim.fn.setreg("+", table.concat(_cut_files, "\n"))
+              Snacks.notify.info("Cut: " .. table.concat(names, ", "))
+            end,
+            -- [패치] a키: 파일 생성 후 에디터에서 바로 열기 (IDE처럼 포커스 이동)
+            explorer_add = function(picker)
+              local dir = picker:dir()
+              vim.ui.input({
+                prompt = "새 파일/디렉토리 (끝에 / 붙이면 디렉토리): ",
+                default = dir .. "/",
+                completion = "file",
+              }, function(input)
+                if not input or input == "" then return end
+                local path = vim.fs.normalize(input)
+                local is_dir = vim.endswith(input, "/")
+                local Tree = require("snacks.explorer.tree")
+                if is_dir then
+                  vim.fn.mkdir(path, "p")
+                  Tree:refresh(vim.fn.fnamemodify(path, ":h"))
+                  Tree:open(path)
+                  picker:find()
+                else
+                  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+                  local f = io.open(path, "w")
+                  if not f then
+                    return Snacks.notify.error("파일 생성 실패: " .. path)
+                  end
+                  f:close()
+                  local file_dir = vim.fn.fnamemodify(path, ":h")
+                  Tree:refresh(file_dir)
+                  Tree:open(file_dir)
+                  picker:find()
+                  -- 생성된 파일을 에디터에서 열기
+                  vim.schedule(function()
+                    vim.cmd("edit " .. vim.fn.fnameescape(path))
+                  end)
+                end
+              end)
+            end,
+            -- [패치] (1) cut 상태면 이동(move), (2) 디렉토리 y+p 복사 지원, (3) 이름 충돌 시 _copy suffix 자동 추가
             explorer_paste = function(picker)
+              local dir = picker:dir()
+              local Tree = require("snacks.explorer.tree")
+
+              -- Cut mode: fs_rename으로 이동 (원본 삭제)
+              if #_cut_files > 0 then
+                local moved = {}
+                for _, path in ipairs(_cut_files) do
+                  local name = vim.fn.fnamemodify(path, ":t")
+                  local to = vim.fs.normalize(dir .. "/" .. name)
+                  if path == to then
+                    Snacks.notify.warn("같은 위치입니다: " .. name)
+                  else
+                    local ok, err = vim.uv.fs_rename(path, to)
+                    if ok then
+                      table.insert(moved, name)
+                      -- 열려있는 버퍼 경로 업데이트
+                      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                        if vim.api.nvim_buf_get_name(buf) == path then
+                          vim.api.nvim_buf_set_name(buf, to)
+                        end
+                      end
+                    else
+                      Snacks.notify.error("이동 실패: " .. name .. " — " .. (err or "unknown"))
+                    end
+                  end
+                end
+                _cut_files = {}
+                if #moved > 0 then
+                  Snacks.notify.info("이동 완료: " .. table.concat(moved, ", "))
+                end
+                Tree:refresh(dir)
+                Tree:open(dir)
+                picker:find()
+                return
+              end
+
+              -- Copy mode: 기존 로직
               local files = vim.split(vim.fn.getreg(vim.v.register or "+") or "", "\n", { plain = true })
               files = vim.tbl_filter(function(file)
                 return file ~= "" and (vim.fn.filereadable(file) == 1 or vim.fn.isdirectory(file) == 1)
@@ -27,8 +123,6 @@ return {
               if #files == 0 then
                 return Snacks.notify.warn(("The `%s` register does not contain any files"):format(vim.v.register or "+"))
               end
-              local dir = picker:dir()
-              local svim = require("snacks.util.vim")
               -- 충돌 시 suffix를 붙여 unique한 경로를 생성하는 헬퍼
               local function unique_path(target)
                 if not vim.uv.fs_stat(target) then
@@ -55,15 +149,21 @@ return {
               end
               for _, path in ipairs(files) do
                 local name = vim.fn.fnamemodify(path, ":t")
-                local to = svim.fs.normalize(dir .. "/" .. name)
+                local to = vim.fs.normalize(dir .. "/" .. name)
                 to = unique_path(to)
-                Snacks.picker.util.copy_path(svim.fs.normalize(path), to)
+                Snacks.picker.util.copy_path(vim.fs.normalize(path), to)
               end
-              local Tree = require("snacks.explorer.tree")
               Tree:refresh(dir)
               Tree:open(dir)
               picker:find()
             end,
+          },
+          win = {
+            list = {
+              keys = {
+                ["x"] = "explorer_cut",
+              },
+            },
           },
           on_show = function(picker)
             vim.schedule(function()

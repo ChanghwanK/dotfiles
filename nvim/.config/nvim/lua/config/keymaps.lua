@@ -42,6 +42,10 @@ mapKey('<leader>nh', function() Snacks.notifier.show_history() end, 'n', { desc 
 mapKey('<leader>nd', function() require("notify").dismiss({ silent = true, pending = true }) end, 'n',
   { desc = '모든 알림 닫기' })
 
+-- 트랙패드 수평 스크롤
+vim.keymap.set({'n', 'v', 'i'}, '<ScrollWheelLeft>',  '3zh', { desc = "수평 스크롤: 왼쪽" })
+vim.keymap.set({'n', 'v', 'i'}, '<ScrollWheelRight>', '3zl', { desc = "수평 스크롤: 오른쪽" })
+
 -- 버퍼 이동 (Shift + h/l) — C-S-[/] 는 tmux가 가로채므로 S-h/l 사용
 mapKey('<S-h>', ':BufferPrevious<CR>', 'n', { desc = "이전 버퍼로 이동" })
 mapKey('<S-l>', ':BufferNext<CR>', 'n', { desc = "다음 버퍼로 이동" })
