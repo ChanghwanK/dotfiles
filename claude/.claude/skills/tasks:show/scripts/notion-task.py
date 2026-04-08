@@ -98,17 +98,32 @@ def get_month_range(month_str):
 def query_tasks(token, start_date, end_date):
     body = {
         "filter": {
-            "and": [
-                {"property": "Due Date", "date": {"on_or_after": start_date}},
-                {"property": "Due Date", "date": {"on_or_before": end_date}},
+            "or": [
+                {
+                    "and": [
+                        {"property": "Due Date", "date": {"on_or_after": start_date}},
+                        {"property": "Due Date", "date": {"on_or_before": end_date}},
+                    ]
+                },
+                {
+                    "and": [
+                        {"property": "started_at", "date": {"on_or_after": start_date}},
+                        {"property": "started_at", "date": {"on_or_before": end_date}},
+                    ]
+                },
             ]
         },
         "sorts": [{"property": "Priority", "direction": "ascending"}],
     }
     resp = notion_request(token, "POST", f"/databases/{TASK_DB_ID}/query", body)
 
+    seen_ids = set()
     tasks = {"in_progress": [], "upcoming": [], "waiting": [], "completed": []}
     for page in resp.get("results", []):
+        if page["id"] in seen_ids:
+            continue
+        seen_ids.add(page["id"])
+
         props = page.get("properties", {})
         name = rich_text_to_plain(props.get("이름", {}).get("title", []))
         priority_sel = props.get("Priority", {}).get("select")
@@ -116,6 +131,7 @@ def query_tasks(token, start_date, end_date):
         status_obj = props.get("상태", {}).get("status")
         status = status_obj.get("name", "") if status_obj else ""
         due = props.get("Due Date", {}).get("date") or {}
+        started_at = (props.get("started_at", {}).get("date") or {}).get("start", "")
         category_sel = props.get("Category", {}).get("select")
         category = category_sel.get("name", "") if category_sel else ""
         tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
@@ -126,6 +142,7 @@ def query_tasks(token, start_date, end_date):
             "priority": priority,
             "status": status,
             "due_date": due.get("start", ""),
+            "started_at": started_at,
             "category": category,
             "tags": tags,
         }
@@ -342,25 +359,40 @@ def parse_obsidian_daily(file_path):
         if todo and not line.startswith("\t"):
             top3.append(todo)
 
-    # Todos 파싱 (최상위 항목만)
+    # Todos 파싱 — 최상위 항목 + 서브 체크박스 포함
+    # todos: 브리핑 표시용 (최상위만), sub_checkboxes: 진행률 계산용 추가분
     todos = []
+    sub_done_count = 0
+    sub_total_count = 0
     for line in sections.get("Todos", []):
-        if line.startswith("\t") or line.startswith("    "):
-            continue
+        is_sub = line.startswith("\t") or line.startswith("    ")
         todo = parse_todo_line(line)
-        if todo:
-            todos.append(todo)
+        if not is_sub:
+            if todo:
+                todos.append(todo)
+        else:
+            # 서브 체크박스는 progress 계산에만 포함 (브리핑 목록 표시 제외)
+            if todo:
+                sub_total_count += 1
+                if todo["done"]:
+                    sub_done_count += 1
 
-    done_count = sum(1 for t in todos if t["done"])
-    total_count = len(todos)
+    top_done = sum(1 for t in todos if t["done"])
+    top_total = len(todos)
+    total_done = top_done + sub_done_count
+    total_count = top_total + sub_total_count
 
     return {
         "top3": top3,
         "todos": todos,
         "progress": {
-            "done": done_count,
+            "done": total_done,
             "total": total_count,
-            "rate": round(done_count / total_count, 2) if total_count > 0 else 0,
+            "rate": round(total_done / total_count, 2) if total_count > 0 else 0,
+            "top_done": top_done,
+            "top_total": top_total,
+            "sub_done": sub_done_count,
+            "sub_total": sub_total_count,
         },
     }
 

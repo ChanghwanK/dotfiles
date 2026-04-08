@@ -10,13 +10,15 @@ import json
 import os
 import re
 import sys
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
 # 공통 태그 유틸리티 임포트
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../_lib"))
 from tags import TAG_DOMAIN_MAP, AWS_SERVICES, normalize_tags  # noqa: E402
 
 VAULT_BASE = "/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home"
+VAULT_ROOT = Path(VAULT_BASE)
 NOTES_BASE = f"{VAULT_BASE}/02. Notes"
 NOTES_SUBDIRS = ["engineering", "others", "history"]
 
@@ -28,88 +30,6 @@ TYPE_DIR_MAP = {
     "cheatsheet": "03. Resources/cheatsheets",
 }
 
-
-def extract_aliases(title: str, content: str, existing_tags: list[str]) -> list[str]:
-    """
-    제목에서 복합 구(compound phrase) 위주로 aliases를 추출한다.
-    연속된 대문자 단어 시퀀스를 하나의 구로 묶어 개별 토크나이징을 최소화한다.
-
-    전략:
-    - 연속 2단어 시퀀스 → "Karpenter NodePool" 형태로 통째로 추출
-    - 연속 3+단어 시퀀스 → acronym 포함 bigram 우선 ("OIDC Federated" 등)
-    - 단독 단어 → 약어(IRSA)나 고유명사(Git)만 보조로 추가
-    - domain/ 태그 → 카테고리 키워드 1개
-    """
-    result: list[str] = []
-    seen: set[str] = set()
-
-    def add(a: str) -> None:
-        a = a.strip()
-        if a and a not in seen and len(a) >= 2:
-            seen.add(a)
-            result.append(a)
-
-    # 1. 제목 그대로 (항상 포함)
-    add(title.strip('"').strip())
-
-    # 2. 제목에서 연속 대문자 단어 시퀀스 추출
-    # CamelCase(NodePool), acronym(OIDC), TitleCase(Federated) 모두 하나의 토큰으로 인식
-    token_re = re.compile(r'\b[A-Z][A-Za-z0-9]+\b')
-    acronym_re = re.compile(r'^[A-Z]{2,}$')
-    skip_words = {"The", "And", "For", "With", "From", "When", "That", "This",
-                  "What", "How", "Why", "Are", "Was", "Were", "Not", "But",
-                  "Has", "Had", "Its"}
-
-    matches = list(token_re.finditer(title))
-    sequences: list[list[str]] = []
-    if matches:
-        current = [matches[0]]
-        for i in range(1, len(matches)):
-            between = title[matches[i - 1].end():matches[i].start()]
-            if re.match(r'^\s+$', between):   # 공백만 있으면 같은 시퀀스
-                current.append(matches[i])
-            else:                              # 한국어·특수문자가 끼면 시퀀스 분리
-                sequences.append([m.group() for m in current])
-                current = [matches[i]]
-        sequences.append([m.group() for m in current])
-
-    phrases: list[str] = []
-    lone_keywords: list[str] = []
-    for seq in sequences:
-        words = [m for m in seq]
-        if len(words) == 1:
-            w = words[0]
-            # 약어(PR, JWT)는 항상, TitleCase는 3자 이상 고유명사만
-            if w not in skip_words and (acronym_re.match(w) or len(w) >= 3):
-                lone_keywords.append(w)
-        elif len(words) == 2:
-            phrases.append(" ".join(words))
-        else:
-            # 3+단어: acronym 포함 bigram 우선
-            has_bigram = False
-            for i in range(len(words) - 1):
-                w1, w2 = words[i], words[i + 1]
-                if acronym_re.match(w1) or acronym_re.match(w2):
-                    phrases.append(f"{w1} {w2}")
-                    has_bigram = True
-            if not has_bigram:
-                phrases.append(" ".join(words[:2]))  # acronym 없으면 앞 2단어
-
-    # phrases 최대 2개 → lone_keywords 최대 1개
-    for p in phrases[:2]:
-        add(p)
-    for kw in lone_keywords[:1]:
-        add(kw)
-
-    # 3. domain/ 태그 첫 번째만 (카테고리 키워드)
-    _acronym_domains = {"aws", "ai", "ml", "gcp", "eks", "iam", "k8s", "vpc"}
-    for tag in existing_tags:
-        if tag.startswith("domain/"):
-            parts = tag.split("/", 1)[1].split("-")
-            add("-".join(p.upper() if p in _acronym_domains else p.capitalize() for p in parts))
-            break
-
-    return result[:5]  # 최대 5개
 
 
 def remove_hr(content: str) -> str:
@@ -144,6 +64,67 @@ def get_save_dir(note_type: str, category: str) -> str:
     if note_type == HISTORY_TYPE:
         return os.path.join(NOTES_BASE, "history")
     return os.path.join(NOTES_BASE, category)
+
+
+def append_to_daily_note(note_slug: str, tags: list[str]) -> dict:
+    """노트 생성 후 오늘 Daily Note의 ## Notes 섹션에 wikilink 추가."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    daily_path = VAULT_ROOT / "01. Daily" / f"{today}.md"
+
+    if not daily_path.exists():
+        return {"linked": False, "reason": "daily_note_not_found"}
+
+    content = daily_path.read_text(encoding="utf-8")
+
+    # 중복 방지: 이미 동일 wikilink가 존재하면 skip
+    wikilink = f"[[{note_slug}]]"
+    if wikilink in content:
+        return {"linked": False, "reason": "already_linked"}
+
+    lines = content.splitlines()
+
+    # ## Notes 섹션 인덱스 탐색
+    notes_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == "## Notes":
+            notes_idx = i
+            break
+
+    if notes_idx is None:
+        return {"linked": False, "reason": "notes_section_not_found"}
+
+    # domain 태그 요약 (최대 2개)
+    domain_tags = [t for t in tags if t.startswith("domain/")]
+    tags_str = ", ".join(domain_tags[:2]) if domain_tags else ""
+    entry = f"- {wikilink}" + (f" {tags_str}" if tags_str else "")
+
+    # Notes 섹션 다음 줄 분석: 빈 섹션(placeholder `-`)이면 교체, 아니면 마지막 항목 뒤에 append
+    # Notes 섹션 끝(다음 ## 헤딩 또는 파일 끝)까지의 범위 확인
+    section_end = len(lines)
+    for i in range(notes_idx + 1, len(lines)):
+        if lines[i].startswith("##"):
+            section_end = i
+            break
+
+    # 섹션 내용 (빈 줄 제외)
+    section_lines = lines[notes_idx + 1:section_end]
+    non_empty = [l for l in section_lines if l.strip()]
+
+    if non_empty == ["-"] or non_empty == [] :
+        # 빈 섹션: placeholder 교체 (첫 번째 `-` 줄을 entry로 교체, 나머지 삭제)
+        # notes_idx + 1 ~ section_end - 1 범위를 entry 한 줄로 교체
+        new_lines = lines[:notes_idx + 1] + [entry, ""] + lines[section_end:]
+    else:
+        # 기존 항목 있음: 섹션 마지막 항목 뒤에 append
+        # section_end 직전(빈 줄 고려)에 삽입
+        insert_at = section_end
+        # 섹션 끝 바로 앞 빈 줄들 건너뜀
+        while insert_at > notes_idx + 1 and lines[insert_at - 1].strip() == "":
+            insert_at -= 1
+        new_lines = lines[:insert_at] + [entry] + lines[insert_at:]
+
+    daily_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    return {"linked": True, "daily_note": str(daily_path)}
 
 
 def find_related_notes(tags: list[str], exclude_filename: str) -> list[dict]:
@@ -199,7 +180,7 @@ def find_related_notes(tags: list[str], exclude_filename: str) -> list[dict]:
     return related[:5]  # 최대 5개
 
 
-def create_note(title: str, tags: list[str], content: str, note_type: str = "learning-note", category: str = "engineering") -> dict:
+def create_note(title: str, tags: list[str], content: str, note_type: str = "learning-note", category: str = "engineering", aliases: list[str] | None = None) -> dict:
     today = date.today().isoformat()
 
     # 카테고리 검증 및 저장 디렉토리 결정
@@ -211,8 +192,7 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
     # 태그 정규화
     domain_tags = normalize_tags(tags)
 
-    # aliases 자동 추출
-    aliases = extract_aliases(title, content, domain_tags)
+    aliases = aliases or []
 
     # frontmatter 생성
     frontmatter_lines = [
@@ -259,11 +239,18 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
         related_section = "\n\n## 관련 노트\n\n"
         for note in related:
             tags_str = " ".join(f"#{t}" for t in note["common_tags"])
-            related_section += f"- [[{note['slug']}|{note['title']}]] — {tags_str}\n"
+            related_section += f"- [[{note['slug']}|{note['title']}]] {tags_str}\n"
         body = body.rstrip() + related_section + "\n"
 
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(body)
+
+    # Daily Note에 wikilink 추가 (실패해도 노트 생성에 영향 없음)
+    note_slug = os.path.splitext(filename)[0]
+    try:
+        daily_result = append_to_daily_note(note_slug, domain_tags)
+    except Exception:
+        daily_result = {"linked": False, "reason": "error"}
 
     return {
         "success": True,
@@ -276,6 +263,7 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
         "filename": filename,
         "filepath": filepath,
         "related_count": len(related),
+        "daily_linked": daily_result.get("linked", False),
     }
 
 
@@ -341,6 +329,7 @@ def main():
     p_create = sub.add_parser("create", help="노트 생성")
     p_create.add_argument("--title", required=True, help="노트 제목")
     p_create.add_argument("--tags", default="", help="태그 (콤마 구분, 예: Kubernetes,Network)")
+    p_create.add_argument("--aliases", default="", help="aliases 키워드 3개 (콤마 구분, 예: Karpenter,NodePool,스케줄링)")
     p_create.add_argument("--content-file", default="", help="본문 파일 경로 (JSON {blocks: str} 또는 plain text)")
     p_create.add_argument("--type", default="learning-note", help="노트 유형 (learning-note, troubleshooting 등)")
     p_create.add_argument("--category", default="engineering", choices=["engineering", "others", "history"],
@@ -353,17 +342,22 @@ def main():
 
     if args.command == "create":
         tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
+        aliases = [a.strip() for a in args.aliases.split(",") if a.strip()][:3] if args.aliases else []
         content = ""
-        if args.content_file and os.path.exists(args.content_file):
+        raw = ""
+        if args.content_file == "-":
+            raw = sys.stdin.read()
+        elif args.content_file and os.path.exists(args.content_file):
             with open(args.content_file, encoding="utf-8") as f:
                 raw = f.read()
+        if raw:
             try:
                 data = json.loads(raw)
                 content = data.get("blocks", raw)
             except json.JSONDecodeError:
                 content = raw
 
-        result = create_note(args.title, tags, content, getattr(args, "type", "learning-note"), getattr(args, "category", "engineering"))
+        result = create_note(args.title, tags, content, getattr(args, "type", "learning-note"), getattr(args, "category", "engineering"), aliases)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     elif args.command == "list":

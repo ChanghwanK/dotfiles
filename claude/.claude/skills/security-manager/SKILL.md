@@ -132,11 +132,13 @@ exec npx -y @modelcontextprotocol/server-<service>
 chmod +x ~/.claude/scripts/mcp-<service>.sh
 ```
 
-3. **`~/.claude/mcp.json` 등록**
+3. **`~/.claude.json` `mcpServers` 등록**
+
+`~/.claude.json`의 `mcpServers` 섹션에 직접 추가한다:
 ```json
 "<service>": {
-  "command": "/bin/bash",
-  "args": ["/Users/changhwan/.claude/scripts/mcp-<service>.sh"]
+  "type": "stdio",
+  "command": "/Users/changhwan/.claude/scripts/mcp-<service>.sh"
 }
 ```
 

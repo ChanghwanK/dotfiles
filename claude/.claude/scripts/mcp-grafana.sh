@@ -12,5 +12,5 @@ GRAFANA_SERVICE_ACCOUNT_TOKEN=$(
 exec podman run --rm -i \
   -e GRAFANA_URL \
   -e GRAFANA_SERVICE_ACCOUNT_TOKEN \
-  docker.io/grafana/mcp-grafana \
+  docker.io/grafana/mcp-grafana:0.11.4 \
   -transport stdio

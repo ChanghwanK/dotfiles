@@ -78,11 +78,22 @@ python3 /Users/changhwan/.claude/skills/devops:webserver-chart-version-up/script
   bump --chart webserver --version <NEW_VERSION>
 ```
 
-### Step 4 — CHANGELOG 작성
+### Step 4 — CHANGELOG 자동 생성 및 검토
 
-`charts/<chart>/CHANGELOG.md` 파일을 Edit 또는 Write 도구로 업데이트.
+1. `versionup.py changelog` 서브커맨드로 초안 생성:
 
-CHANGELOG 형식:
+```bash
+python3 /Users/changhwan/.claude/skills/devops:webserver-chart-version-up/scripts/versionup.py \
+  --repo-root ~/workspace/riiid/kubernetes-charts \
+  changelog --chart webserver --version <NEW_VERSION>
+```
+
+2. 출력된 초안을 검토하여 커밋 메시지를 사람이 읽기 좋은 **한국어**로 다듬기:
+   - 기술적 커밋 메시지 → 사용자 관점 설명으로 변환
+   - 중복/유사 항목 통합
+   - 빈 카테고리(Added/Fixed/Changed) 생략
+
+3. 다듬은 내용을 `charts/<chart>/CHANGELOG.md` 상단(`# Changelog` 바로 아래)에 삽입:
 
 ```markdown
 # Changelog
@@ -97,13 +108,17 @@ CHANGELOG 형식:
 
 ### Changed
 - 변경된 동작/설정 설명
+
+## [이전 버전] ...
 ```
+
+4. 사용자에게 최종 CHANGELOG 내용 확인 요청
 
 규칙:
 - 최신 버전이 파일 상단에 위치
 - 각 항목은 사용자가 이해할 수 있는 한국어로 작성
-- 빈 카테고리(Added/Fixed/Changed)는 생략
 - 커밋 해시나 기술적 세부사항은 포함하지 않음
+- 자동 분류가 어려운 경우 초안에 `_변경사항 없음 또는 자동 분류 불가_`가 출력되면 git log를 직접 확인하여 수동 작성
 
 ### Step 5 — diff 정리 출력
 

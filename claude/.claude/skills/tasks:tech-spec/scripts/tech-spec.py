@@ -40,69 +40,6 @@ VALID_SPEC_TYPES = {
 }
 
 
-def extract_aliases(title: str, content: str, existing_tags: list[str]) -> list[str]:
-    """
-    노트 제목과 본문에서 핵심 키워드를 추출하여 aliases를 생성한다.
-    추출 대상: 대문자 약어, 기술 고유명사, 한국어-영어 쌍, 에러 코드.
-    """
-    aliases = set()
-
-    # 1. 제목에서 고유명사
-    proper_nouns = re.findall(r'\b[A-Z][a-zA-Z]{2,}\b', title)
-    for noun in proper_nouns:
-        if noun not in {"The", "And", "For", "With", "From"}:
-            aliases.add(noun)
-
-    # 대문자 약어 (2자 이상)
-    acronyms = re.findall(r'\b[A-Z]{2,}\b', title)
-    aliases.update(acronyms)
-
-    # 2. 본문에서 추출 (처음 3000자만)
-    sample = content[:3000] if content else ""
-
-    # 백틱 기술 용어 (범용 CLI 도구 및 파일경로 패턴 제외)
-    skip_terms = {
-        "kubectl", "helm", "git", "curl", "wget", "grep", "sed", "awk",
-        "cat", "echo", "bash", "sh", "python", "python3", "pip", "pip3",
-        "docker", "podman", "make", "go", "node", "npm", "yarn",
-        "terraform", "argocd", "eksctl", "aws", "jq", "yq",
-    }
-    backtick_terms = re.findall(r'`([^`\n]{2,30})`', sample)
-    for term in backtick_terms:
-        if re.match(r'^[A-Za-z][A-Za-z0-9_\-\.]{1,25}$', term) and term.lower() not in skip_terms:
-            aliases.add(term)
-
-    # 대문자 약어 (본문)
-    skip_acronyms = {"HTTP", "HTTPS", "API", "URL", "SQL", "JSON", "YAML",
-                     "CLI", "GUI", "CPU", "RAM", "SSD", "TCP", "UDP", "DNS",
-                     "SSH", "TLS", "SSL", "EOF", "OCI", "VM", "OS", "KV"}
-    acronyms_body = re.findall(r'\b([A-Z]{2,8})\b', sample)
-    for acr in acronyms_body:
-        if acr not in skip_acronyms:
-            aliases.add(acr)
-
-    # 3. 에러 코드 패턴
-    error_codes = re.findall(r'\b(5[0-9]{2}|4[0-9]{2}|p99|p50|p95)\b', sample)
-    aliases.update(error_codes)
-
-    # 4. 한국어 키워드 (제목)
-    korean_words = re.findall(r'[\uAC00-\uD7A3]{2,}', title)
-    for word in korean_words:
-        if len(word) >= 2:
-            aliases.add(word)
-
-    # 제목 자체도 alias
-    title_clean = title.strip('"').strip()
-    if title_clean:
-        aliases.add(title_clean)
-
-    # 정제
-    skip_words = {"AND", "OR", "NOT", "FOR", "THE", "IN", "ON", "AT",
-                  "BY", "TO", "IS", "AS", "BE", "IF", "MS", "ID", "OK"}
-    aliases = {a for a in aliases if a not in skip_words and len(a) >= 2}
-
-    return sorted(aliases)[:20]
-
 
 def slugify(title: str) -> str:
     """제목을 파일명으로 변환 (공백 유지, 특수문자 제거)."""
@@ -219,15 +156,14 @@ def find_related_specs(tags: list[str], exclude_filename: str) -> list[dict]:
     return related[:5]
 
 
-def create_spec(title: str, tags: list[str], content: str, spec_types: list[str] | None = None) -> dict:
-    """Tech Spec 문서를 생성한다. 태그 정규화, aliases 자동 추출, spec_type 포함."""
+def create_spec(title: str, tags: list[str], content: str, spec_types: list[str] | None = None, aliases: list[str] | None = None) -> dict:
+    """Tech Spec 문서를 생성한다. 태그 정규화, spec_type 포함."""
     today = date.today().isoformat()
 
     # 태그 정규화
     domain_tags = normalize_tags(tags)
 
-    # aliases 자동 추출
-    aliases = extract_aliases(title, content, domain_tags)
+    aliases = aliases or []
 
     # frontmatter 생성
     fm_lines = [
@@ -733,24 +669,7 @@ def migrate_spec(filepath: str, dry_run: bool = True) -> dict:
                     1,
                 )
 
-    # 2. aliases 추가/갱신
-    old_aliases = fm.get("aliases", [])
-    title = fm.get("title", os.path.splitext(filename)[0])
-    # 본문에서 frontmatter 제거 후 추출
-    body_only = re.sub(r'^---.*?---\s*', '', content, count=1, flags=re.DOTALL)
-    new_aliases = extract_aliases(title, body_only, new_tags or old_tags)
-    if not old_aliases and new_aliases:
-        changes.append(f"aliases: [] → {new_aliases[:5]}...")
-        if not dry_run:
-            alias_yaml = "\n".join(f"  - {a}" for a in new_aliases)
-            new_content = new_content.replace("aliases: []", f"aliases:\n{alias_yaml}", 1)
-            # aliases 필드 자체가 없는 경우
-            if "aliases:" not in new_content:
-                new_content = new_content.replace(
-                    "\n---\n",
-                    f"\naliases:\n{alias_yaml}\n---\n",
-                    1,
-                )
+    # 2. aliases — migrate 시에는 기존 값 유지 (수동 지정 필요)
 
     # 3. last_reviewed 추가
     if "last_reviewed:" not in content:
@@ -840,6 +759,7 @@ def main():
     p_create = sub.add_parser("create", help="Tech Spec 생성")
     p_create.add_argument("--title", required=True, help="스펙 제목")
     p_create.add_argument("--tags", default="", help="태그 (콤마 구분)")
+    p_create.add_argument("--aliases", default="", help="aliases 키워드 3개 (콤마 구분, 예: Karpenter,NodePool,스케줄링)")
     p_create.add_argument("--content-file", default="", help="본문 파일 경로")
     p_create.add_argument("--spec-type", default="", help="스펙 유형 (콤마 구분)")
 
@@ -890,6 +810,7 @@ def main():
 
     if args.command == "create":
         tags = [t.strip() for t in args.tags.split(",") if t.strip()] if args.tags else []
+        aliases = [a.strip() for a in args.aliases.split(",") if a.strip()][:3] if args.aliases else []
         spec_types = [s.strip() for s in args.spec_type.split(",") if s.strip()] if args.spec_type else []
         invalid_types = [s for s in spec_types if s not in VALID_SPEC_TYPES]
         if invalid_types:
@@ -907,7 +828,7 @@ def main():
                 content = data.get("blocks", raw)
             except json.JSONDecodeError:
                 content = raw
-        result = create_spec(args.title, tags, content, spec_types)
+        result = create_spec(args.title, tags, content, spec_types, aliases)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     elif args.command == "list":

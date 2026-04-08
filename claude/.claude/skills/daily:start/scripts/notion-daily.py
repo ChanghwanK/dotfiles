@@ -160,16 +160,29 @@ def cmd_read(args):
     print(json.dumps(output, ensure_ascii=False, indent=2))
 
 
+def get_two_week_range():
+    """이번 주 월요일 ~ 다음 주 일요일 ISO 날짜 반환."""
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    next_sunday = monday + timedelta(days=13)
+    return monday.isoformat(), next_sunday.isoformat()
+
+
 def cmd_read_weekly(args):
-    """이번 주 Task DB 항목 조회 (P1 우선, 미완료만)."""
+    """이번 주 + 다음 주 Task DB 항목 조회 (P1 우선).
+    level 필드:
+      - 'weekly_project': due_end 있음 + status 진행 중 (주간 프로젝트 목표)
+      - 'daily': 그 외 일반 Task
+    """
     token = get_token()
     monday, sunday = get_week_range()
+    _, next_sunday = get_two_week_range()
 
     body = {
         "filter": {
             "and": [
                 {"property": "Due Date", "date": {"on_or_after": monday}},
-                {"property": "Due Date", "date": {"on_or_before": sunday}},
+                {"property": "Due Date", "date": {"on_or_before": next_sunday}},
             ]
         },
         "sorts": [{"property": "Priority", "direction": "ascending"}]
@@ -186,19 +199,23 @@ def cmd_read_weekly(args):
         status = status_obj.get("name", "") if status_obj else ""
         due = props.get("Due Date", {}).get("date") or {}
         tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
+        due_end = due.get("end", "")
+        level = "weekly_project" if (due_end and status == "진행 중") else "daily"
         tasks.append({
             "page_id": page["id"],
             "name": name,
             "priority": priority,
             "status": status,
             "due_start": due.get("start", ""),
-            "due_end": due.get("end", ""),
+            "due_end": due_end,
             "tags": tags,
+            "level": level,
         })
 
     print(json.dumps({
         "week_start": monday,
         "week_end": sunday,
+        "next_week_end": next_sunday,
         "tasks": tasks
     }, ensure_ascii=False, indent=2))
 

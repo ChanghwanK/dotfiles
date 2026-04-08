@@ -44,9 +44,9 @@ EKS/IDC 클러스터의 Pod lifecycle 에러, 클러스터 인프라 문제, K8s
 
 ## 참조 문서 (필요 시 Read)
 
-- `kubernetes/docs/infra-guide.md` → DR 플레이북, 환경별 정책, 장애 대응
-- `kubernetes/docs/k8s-standards.md` → Health probe 표준, 리소스 Tier 분류
-- `kubernetes/docs/karpenter-guide.md` → NodePool, 스케줄링 실패 시 확인
+- `kubernetes/claude-code/02-context/infra-guide.md` → DR 플레이북, 환경별 정책, 장애 대응
+- `kubernetes/claude-code/03-guardrails/k8s-standards.md` → Health probe 표준, 리소스 Tier 분류
+- `kubernetes/claude-code/02-context/karpenter-guide.md` → NodePool, 스케줄링 실패 시 확인
 
 ---
 

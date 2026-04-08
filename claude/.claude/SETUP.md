@@ -86,22 +86,29 @@ claude login
 
 ---
 
-## 4. ~/.claude/mcp.json
+## 4. ~/.claude.json (mcpServers 섹션)
 
-Claude Code용 MCP 서버 (Grafana, Slack):
+Claude Code MCP 서버 설정은 `~/.claude.json`의 `mcpServers` 필드에 직접 추가한다.
+(`~/.claude/mcp.json`은 Claude Code가 읽지 않으므로 사용하지 않음)
+
+`~/.claude.json`을 열어 `mcpServers` 키 하위에 아래 서버들을 추가:
 
 ```json
-{
-  "mcpServers": {
-    "grafana": {
-      "type": "stdio",
-      "command": "/Users/<USER>/.claude/scripts/mcp-grafana.sh"
-    },
-    "slack": {
-      "type": "stdio",
-      "command": "/Users/<USER>/.claude/scripts/mcp-slack.sh"
-    }
-  }
+"grafana": {
+  "type": "stdio",
+  "command": "/Users/<USER>/.claude/scripts/mcp-grafana.sh"
+},
+"slack": {
+  "type": "stdio",
+  "command": "/Users/<USER>/.claude/scripts/mcp-slack.sh"
+},
+"github": {
+  "type": "stdio",
+  "command": "/Users/<USER>/.claude/scripts/mcp-github.sh"
+},
+"notion-personal": {
+  "type": "stdio",
+  "command": "/Users/<USER>/.claude/scripts/mcp-notion-personal.sh"
 }
 ```
 
@@ -336,7 +343,7 @@ git config user.email
 ## 참조
 
 - `~/.claude/settings.json` — Claude Code 메인 설정
-- `~/.claude/mcp.json` — Claude Code MCP 서버
+- `~/.claude.json` (`mcpServers` 섹션) — Claude Code MCP 서버
 - `~/.claude/scripts/` — MCP wrapper 및 시스템 스크립트
 - `~/Library/Application Support/Claude/claude_desktop_config.json` — Claude Desktop MCP
 - `~/.dotfiles/` — GNU Stow dotfiles 레포 (claude 제외)

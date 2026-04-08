@@ -24,4 +24,12 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #5615 | 8:35 AM | 🔵 | Learn Skill Socratic Learning Framework | ~561 |
+
+### Mar 18, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #7133 | 1:32 PM | 🔵 | Structured Learning Skill with Phase Tree Navigation | ~914 |
+| #7040 | 10:17 AM | ✅ | Updated Phase 1 level-based guidance to separate What and Why instructions | ~385 |
+| #7039 | " | ✅ | Added concept explanation section to learn skill Phase 1 | ~372 |
 </claude-mem-context>

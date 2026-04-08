@@ -145,13 +145,13 @@ exec npx -y @modelcontextprotocol/server-<service>
 
 **4. 이 문서의 토큰 목록 테이블에 행 추가**
 
-**5. `mcp.json`에 서버 등록**
+**5. `~/.claude.json` `mcpServers`에 서버 등록**
+
+`~/.claude.json`의 `mcpServers` 섹션에 직접 추가한다 (`~/.claude/mcp.json`은 Claude Code가 읽지 않음):
 ```json
-{
-  "<service>": {
-    "command": "/bin/bash",
-    "args": ["/Users/changhwan/.claude/bin/mcp-<service>.sh"]
-  }
+"<service>": {
+  "type": "stdio",
+  "command": "/Users/changhwan/.claude/scripts/mcp-<service>.sh"
 }
 ```
 

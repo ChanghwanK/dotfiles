@@ -153,70 +153,42 @@ def cmd_read(args):
 
 def cmd_update_todos(args):
     """
-    Append content to the Todo's property of the given page.
-    Reads current value, appends new lines, and PATCHes the page.
+    Replace content of the Todo's property of the given page.
     """
-    token = get_token()
-    page_id = args.page_id
-    content = args.content.replace("\\n", "\n")
-
-    # Fetch current page to get existing Todo's value
-    page = notion_request(token, "GET", f"/pages/{page_id}")
-    existing_rt = page.get("properties", {}).get("Todo's", {}).get("rich_text", [])
-
-    # Build new rich_text segments from content
-    new_segments = []
-    lines = content.split("\n")
-    for line in lines:
-        if line:  # include non-empty lines (including lines with just spaces)
-            new_segments.append({
-                "type": "text",
-                "text": {"content": line + "\n"},
-                "annotations": {
-                    "strikethrough": False
-                }
-            })
-
-    if not new_segments:
-        print(json.dumps({"success": False, "error": "No content to add"}))
-        return
-
-    # Append to existing rich_text
-    updated_rt = existing_rt + new_segments
-
-    # PATCH the page property
-    resp = notion_request(token, "PATCH", f"/pages/{page_id}", {
-        "properties": {
-            "Todo's": {
-                "rich_text": updated_rt
-            }
-        }
-    })
-
-    print(json.dumps({
-        "success": True,
-        "segments_added": len(new_segments),
-        "total_segments": len(updated_rt)
-    }, ensure_ascii=False, indent=2))
+    cmd_update_property(args, "Todo's")
 
 
 def cmd_update_property(args, prop_name):
     """
     Replace content of a rich_text property on the given page.
+    Supports ~~text~~ markdown for strikethrough.
     """
+    import re
     token = get_token()
     page_id = args.page_id
     content = args.content.replace("\\n", "\n")
 
     new_segments = []
     lines = content.split("\n")
-    for line in lines:
-        segment_text = line + "\n"
-        new_segments.append({
-            "type": "text",
-            "text": {"content": segment_text},
-            "annotations": {"strikethrough": False}
-        })
+    for i, line in enumerate(lines):
+        # Add newline after each line except the last
+        suffix = "\n" if i < len(lines) - 1 else ""
+        # Check for ~~text~~ strikethrough pattern
+        m = re.fullmatch(r"~~(.*)~~", line.strip())
+        if m:
+            segment_text = m.group(1) + suffix
+            new_segments.append({
+                "type": "text",
+                "text": {"content": segment_text},
+                "annotations": {"strikethrough": True}
+            })
+        else:
+            segment_text = line + suffix
+            new_segments.append({
+                "type": "text",
+                "text": {"content": segment_text},
+                "annotations": {"strikethrough": False}
+            })
 
     if not new_segments:
         print(json.dumps({"success": False, "error": "No content to add"}))
@@ -255,9 +227,9 @@ def main():
                              help="Date to read: today, yesterday, or YYYY-MM-DD")
 
     # update-todos command
-    update_parser = subparsers.add_parser("update-todos", help="Append todos to a page")
+    update_parser = subparsers.add_parser("update-todos", help="Replace Todo's property on a page")
     update_parser.add_argument("--page-id", required=True, help="Notion page ID")
-    update_parser.add_argument("--content", required=True, help="Content to append (newline-separated)")
+    update_parser.add_argument("--content", required=True, help="Content to write (newline-separated)")
 
     # update-tomorrow command
     tomorrow_parser = subparsers.add_parser("update-tomorrow", help="Replace 내일 할 것들 property")

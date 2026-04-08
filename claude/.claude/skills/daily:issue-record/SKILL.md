@@ -11,7 +11,7 @@ allowed-tools:
 
 # daily:issue-record 스킬
 
-작업 중 발생한 이슈를 오늘 Obsidian Daily Note의 `## Issues` 섹션에 구조화된 형식으로 기록한다.
+작업 중 발생한 이슈를 오늘 Obsidian Daily Note의 `## Issues` 섹션에 기록한다.
 
 ---
 
@@ -26,17 +26,14 @@ allowed-tools:
 
 ## 워크플로우
 
-### Step 1 — 이슈 정보 파악
+### Step 1 — 이슈 정보 추출
 
-대화 맥락을 분석하여 아래 3가지 정보를 확인한다. 명확하지 않으면 질문한다.
+대화 맥락을 분석하여 다음을 추출한다:
 
-| 항목 | 설명 | 예시 |
-|------|------|------|
-| **작업명** | 어떤 작업을 하던 중이었는지 | "ai-core OTEL 설정", "vestway dev 배포" |
-| **이슈 내용** | 발생한 문제의 구체적 내용 | "Elastic APM과 OTEL 충돌로 trace 미수집" |
-| **작업 상태** | 현재 이슈 처리 상황 | `진행중` / `해결` / `보류` |
+- **요약**: 이슈를 한 줄로 요약 (무엇이 어떻게 됐는지)
+- **세부 내용**: 원인, 과정, 조치 등 구체적 사항 (여러 줄 가능)
 
-> **질문 예시**: "이슈 내용을 조금 더 구체적으로 알려주세요. 어떤 에러가 발생했나요?"
+맥락이 불충분하면 질문한다.
 
 ### Step 2 — Daily Note 읽기
 
@@ -46,63 +43,49 @@ allowed-tools:
 경로: /Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/01. Daily/YYYY-MM-DD.md
 ```
 
-날짜 형식: `2026-03-11` (오늘 날짜 사용)
-
 파일이 없으면:
-- "오늘 Daily Note가 없습니다. `/daily:start`로 먼저 생성해 주세요." 메시지 출력 후 종료.
+- "오늘 Daily Note가 없습니다. `/daily:start`로 먼저 생성해 주세요." 출력 후 종료.
 
-### Step 3 — Issues 섹션 찾기 및 이슈 append
+### Step 3 — Issues 섹션에 append
 
-#### 케이스 A: `## Issues` 섹션이 존재하는 경우
+`## Issues` 섹션의 마지막 항목 뒤에 Edit 도구로 append한다.
 
-Edit 도구로 섹션 하단에 새 이슈를 append한다.
-
-**기존 이슈가 없는 경우** (`## Issues` 다음 줄이 비어있거나 다음 섹션이 바로 시작):
-```
-## Issues\n
-```
-→ 다음으로 교체:
-```
-## Issues\n\n- {작업명}\n\t- 이슈\n\t\t- {이슈 내용}\n\t- 작업 상태: {상태}\n
-```
-
-**기존 이슈가 있는 경우**: 섹션의 마지막 항목 다음에 append.
-
-#### 케이스 B: `## Issues` 섹션이 없는 경우
-
-파일 끝에 섹션 전체를 추가한다.
+- `## Issues` 섹션이 없으면 → 파일 끝에 섹션 + 이슈 함께 추가.
+- 다음 섹션(`##`)이 나오기 전에 삽입한다.
 
 ---
 
 ## 기록 형식
 
 ```markdown
-- {작업명}
-	- 이슈
-		- {이슈 상세 내용}
-	- 작업 상태: {진행중/해결/보류}
+- {요약 1줄}
+	- {세부 내용 1}
+	- {세부 내용 2}
 ```
 
 **예시:**
 ```markdown
-- ai-core OTEL 설정
-	- 이슈
-		- Elastic APM 클라이언트가 OTEL auto-instrumentation과 충돌하여 trace가 수집되지 않음
-		- `ELASTIC_APM_ENABLED=false` 설정으로 해결
-	- 작업 상태: 해결
+- k6-restarter grace period 배포 시 CRD 스키마 불일치로 ArgoCD sync 실패
+	- `make manifests`는 `config/crd/bases/`에만 CRD를 생성하고 chart에는 복사하지 않음
+	- CRD 복사 없이 helm package → Harbor push하여 구 스키마 배포됨
+	- Makefile `manifests` 타겟에 cp 추가하여 재발 방지
 ```
 
 ---
 
 ## 완료 출력
 
-기록 완료 후 아래 형식으로 출력한다.
-
 ```
 ✅ 이슈 기록 완료
-- 파일: 2026-03-11.md
-- 작업: {작업명}
-- 상태: {작업 상태}
+- 파일: YYYY-MM-DD.md
+- 이슈: {요약 1줄}
+```
+
+트러블슈팅(에러 분석, 장애 대응, 원인 추적)에 해당하면 추가 안내:
+
+```
+💡 트러블슈팅이었다면 `## Hypothesis Log`에도 가설을 기록해보세요.
+   형식: ### [HH:MM] 이슈명 → 증상 → H1/H2 가설 → 결과
 ```
 
 ---
@@ -114,4 +97,3 @@ Edit 도구로 섹션 하단에 새 이슈를 append한다.
 | Daily Note 파일 없음 | `/daily:start`로 생성 안내 후 종료 |
 | `## Issues` 섹션 없음 | 파일 끝에 섹션 + 첫 이슈 함께 추가 |
 | 이슈 정보 불충분 | Step 1에서 질문하여 확인 후 진행 |
-| 동일 작업에 추가 이슈 | 기존 작업 항목 아래에 이슈 항목 추가 |

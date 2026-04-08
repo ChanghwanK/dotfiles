@@ -8,10 +8,16 @@ description: |
   트리거 키워드: "obsidian 노트", "노트로 저장", "obsidian에 저장", "/obsidian:note", "옵시디언 노트".
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
-  - Write(/tmp/obsidian-content.json)
 ---
 
 # Obsidian Note Skill
+
+## TL;DR
+
+- 대화에서 학습/설명한 내용을 **요약 없이 전체 구조화**하여 Obsidian 마크다운으로 저장
+- `domain/` 태그로 주제 분류, aliases 자동 추출로 Quick Switcher 검색성 확보
+- 타입별 저장 경로 분기: `learning-note` → `02. Notes/`, `runbook`·`troubleshooting`·`cheatsheet` → `03. Resources/`
+- 관련 노트 자동 탐색 및 wikilink 연결
 
 현재 대화에서 학습/설명한 내용을 Obsidian `02. Notes/engineering/` 또는 `02. Notes/others/` 디렉토리에 마크다운 파일로 저장한다.
 
@@ -31,7 +37,7 @@ allowed-tools:
 - **대화 내용 기반**: 현재 대화에서 설명된 내용을 구조화된 마크다운으로 정리한다.
 - **파일명 규칙**: `slugified-title.md` 형식으로 자동 생성된다 (날짜 prefix 없음).
 - **domain/ 태그**: `domain/kubernetes`, `domain/aws`, `domain/observability`, `domain/networking`, `domain/terraform`, `domain/database`, `domain/on-premise` 중 선택.
-- **aliases 자동 추출**: 노트 제목과 본문에서 핵심 키워드(약어, 기술 용어, 한국어 쌍)를 자동 추출하여 Quick Switcher(Cmd+O) 검색을 활성화한다.
+- **aliases (Claude 결정)**: 노트 내용을 바탕으로 핵심 키워드 3개를 Claude가 직접 판단하여 `--aliases`로 전달한다. Quick Switcher(Cmd+O) 검색을 활성화한다.
 - **날짜 자동화**: 오늘 날짜가 `date`, `last_reviewed` 두 필드에 모두 기록된다.
 - **관련 노트 자동 링크**: 같은 domain/ 태그를 가진 기존 노트를 탐색하여 "관련 노트" 섹션에 wikilink로 자동 추가.
 
@@ -51,14 +57,15 @@ allowed-tools:
 
 **기존 태그 자동 변환**: Kubernetes → domain/kubernetes, Istio → domain/networking 등 자동 매핑.
 
-## aliases 자동 추출 로직
+## aliases 결정 기준
 
-스크립트가 다음을 자동 추출합니다:
-- 대문자 약어: `NAT`, `TCAM`, `OTel`, `FPGA`
-- 고유명사: `Karpenter`, `Istio`, `Hyperplane`
-- 백틱 기술 용어: `` `NodePool` ``, `` `metrics_generator` ``
-- 에러 코드: `503`, `p99`, `p50`
-- 제목의 한국어 키워드: `카펜터`, `섀도우 배포`
+노트 저장 전에 Claude가 직접 핵심 키워드 **3개**를 선택하여 `--aliases`로 전달한다.
+
+**선택 기준:**
+- 이 노트를 나중에 검색할 때 어떤 단어로 찾을지 생각한다
+- 기술 약어/고유명사 우선 (예: `Karpenter`, `IRSA`, `mTLS`)
+- 한국어 핵심 개념어도 포함 가능 (예: `서비스 메시`, `노드 프로비저닝`)
+- 제목 그대로 반복하지 않는다 — 제목을 다르게 표현하거나 연관 개념을 선택
 
 ## 워크플로우
 
@@ -70,9 +77,19 @@ allowed-tools:
 - **깊이 유지** — 원리 설명, 코드, 다이어그램, 테이블 등 대화에서 사용된 표현 수단을 그대로 활용.
 
 **필수 섹션 (반드시 포함):**
-1. `## 핵심 개념` — 주제의 정의와 Why (왜 필요한지)
-2. 주제별 본문 섹션들 — 대화 흐름에 맞게 자유롭게 구성
-3. `## 정리` — 핵심 takeaway 3-5개 bullet point
+1. `## Summary` — 노트 전체 내용을 5~7개 bullet point로 요약 (노트 최상단에 위치)
+   - 대화에서 다룬 핵심 포인트를 빠짐없이 나열
+   - 각 bullet은 한 문장으로, 독립적으로 읽혔을 때 의미가 통해야 함
+   - 아래 형식으로 작성:
+     ```
+     ## Summary
+     - aaa
+     - bbb
+     - ccc
+     ```
+2. `## 핵심 개념` — 주제의 정의와 Why (왜 필요한지)
+3. 주제별 본문 섹션들 — 대화 흐름에 맞게 자유롭게 구성
+4. `## 정리` — 핵심 takeaway 3-5개 bullet point
 
 **선택 섹션 (대화에 해당 내용이 있으면 반드시 포함):**
 
@@ -117,34 +134,42 @@ allowed-tools:
 - 헤딩에 `—` (em dash) 사용 금지. 부제나 보충 설명이 필요하면 별도 `###` 하위 헤딩으로 분리
   - ❌ `## CDP로 Gmail 자동화 — 기술적 가능 vs 현실적 장벽`
   - ✅ `## CDP로 Gmail 자동화` + `### 기술적 가능 vs 현실적 장벽`
-- 리스트에서 `—` (em dash)로 설명 연결 금지. 중첩 불릿으로 설명을 분리
-  - ❌ `- **CDP** — 크롬 브라우저를 직접 제어하는 프로토콜`
-  - ✅ `- **CDP**` + 하위 `  - 크롬 브라우저를 직접 제어하는 프로토콜`
+- 번호/레이블 헤딩은 `레이블: 제목` 형식 사용 — em dash(`—`) 사용 금지
+  - ❌ `### 1단계 — 인증서 발급` / `### Step 1 — 앱 생성` / `### 규칙 1 — Deny 우선` / `### Case 1 — EKS Pod` / `## Level 0 — 왜 React인가`
+  - ✅ `### 1단계: 인증서 발급` / `### Step 1: 앱 생성` / `### 규칙 1: Deny 우선` / `### Case 1: EKS Pod` / `## Level 0: 왜 React인가`
+- 리스트에서 `—` (em dash)로 설명/예시/부연 연결 금지. 반드시 중첩 불릿으로 분리
+  - 패턴 1: bold 용어 + 설명
+    - ❌ `- **CDP** — 크롬 브라우저를 직접 제어하는 프로토콜`
+    - ✅ `- **CDP**` → `  - 크롬 브라우저를 직접 제어하는 프로토콜`
+  - 패턴 2: 사실/현상 + 구체적 예시/근거
+    - ❌ `- AlertManager inhibition 미존재 — OOMKill 발생 시 이중 호출`
+    - ✅ `- AlertManager inhibition 미존재` → `  - OOMKill 발생 시 이중 호출`
+  - 패턴 3: 코드/설정 + 부연
+    - ❌ `` - `oncall: true` 가 커스텀 OOM rule에만 존재 — 긴급 상황에 oncall 없음 ``
+    - ✅ `` - `oncall: true` 가 커스텀 OOM rule에만 존재 `` → `  - 긴급 상황에 oncall 없음`
 
 ### Step 2 — 제목과 태그 결정
 
 - **제목**: 학습 주제를 간결하게, **하이픈(`-`) 사용 금지** — 단어 구분은 공백으로 (예: `Kubernetes Init Container 라이프사이클`)
 - **태그**: 위 domain/ 네임스페이스에서 1개 이상 선택 (기존 태그명 입력 시 자동 변환)
 
-### Step 3 — content.json 작성
+### Step 3 — 노트 생성 스크립트 실행
 
-마크다운 본문을 `/tmp/obsidian-content.json`에 저장한다:
+마크다운 본문을 stdin으로 직접 파이프하여 스크립트를 실행한다.
+`<< 'OBSIDIAN_CONTENT_EOF'` 방식으로 heredoc을 사용하여 특수문자(`$`, `` ` ``, 따옴표 등)가 shell에 의해 해석되지 않게 한다.
 
-```json
-{
-  "blocks": "마크다운 전체 텍스트"
-}
-```
-
-### Step 4 — 노트 생성 스크립트 실행
+스크립트 호출 전에 Claude가 핵심 키워드 3개를 결정한다 (`## aliases 결정 기준` 참고).
 
 ```bash
 python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create \
   --title "제목" \
   --tags "Kubernetes,Infra" \
+  --aliases "키워드1,키워드2,키워드3" \
   --type "learning-note" \
   --category "engineering" \
-  --content-file /tmp/obsidian-content.json
+  --content-file - << 'OBSIDIAN_CONTENT_EOF'
+마크다운 전체 텍스트
+OBSIDIAN_CONTENT_EOF
 ```
 
 `--type` 옵션: `learning-note` (기본값) | `troubleshooting` | `cheatsheet`
@@ -161,10 +186,11 @@ python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py c
 Obsidian 노트가 생성되었습니다.
 - 제목: {title}
 - 태그: {tags}
-- aliases: {aliases} (자동 추출)
+- aliases: {aliases}
 - 날짜: {date}
 - 파일: {filename}
 - 관련 노트: {related_count}개 링크됨 (없으면 생략)
+- Daily Note: {daily_linked가 true이면 "📝 Daily Note에 연결됨", false이면 생략}
 ```
 
 ## 최근 노트 목록 조회

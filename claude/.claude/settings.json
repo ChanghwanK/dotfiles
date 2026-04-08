@@ -1,6 +1,7 @@
 {
   "env": {
-    "ENABLE_TOOL_SEARCH": "auto:5"
+    "ENABLE_TOOL_SEARCH": "auto:5",
+    "CLAUDE_CODE_NO_FLICKER": "1"
   },
   "permissions": {
     "allow": [
@@ -51,5 +52,6 @@
     "claude-mem@thedotmack": true,
     "devops@socraai-devops-skills": true
   },
+  "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true
 }
