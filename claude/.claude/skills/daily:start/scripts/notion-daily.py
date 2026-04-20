@@ -23,6 +23,10 @@ TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
 
 def get_token():
+    if not NOTION_TOKEN:
+        print("Error: NOTION_TOKEN environment variable is not set.", file=sys.stderr)
+        print("Hint: source ~/.secrets.zsh or check op://Employee/Claude MCP - Notion-Personal/token", file=sys.stderr)
+        sys.exit(1)
     return NOTION_TOKEN
 
 
@@ -41,6 +45,9 @@ def notion_request(token, method, path, body=None):
     except urllib.error.HTTPError as e:
         err_body = e.read().decode()
         print(f"HTTP {e.code}: {err_body}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"Network error contacting Notion API: {e.reason}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -319,8 +326,8 @@ def cmd_update_todos(args):
 def cmd_update_property(args, prop_name):
     """
     Replace content of a rich_text property on the given page.
+    Destructive: replaces the entire property. Supports --dry-run for preview.
     """
-    token = get_token()
     page_id = args.page_id
     content = args.content.replace("\\n", "\n")
 
@@ -338,7 +345,19 @@ def cmd_update_property(args, prop_name):
         print(json.dumps({"success": False, "error": "No content to add"}))
         return
 
-    resp = notion_request(token, "PATCH", f"/pages/{page_id}", {
+    if getattr(args, "dry_run", False):
+        preview = content[:300] + ("..." if len(content) > 300 else "")
+        print(json.dumps({
+            "dry_run": True,
+            "property": prop_name,
+            "page_id": page_id,
+            "segments_to_write": len(new_segments),
+            "content_preview": preview,
+        }, ensure_ascii=False, indent=2))
+        return
+
+    token = get_token()
+    notion_request(token, "PATCH", f"/pages/{page_id}", {
         "properties": {
             prop_name: {
                 "rich_text": new_segments
@@ -374,6 +393,7 @@ def main():
     update_parser = subparsers.add_parser("update-todos", help="Append todos to a page")
     update_parser.add_argument("--page-id", required=True, help="Notion page ID")
     update_parser.add_argument("--content", required=True, help="Content to append (newline-separated)")
+    update_parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
 
     # create command
     create_parser = subparsers.add_parser("create", help="Create a new daily page")
@@ -386,11 +406,13 @@ def main():
     tomorrow_parser = subparsers.add_parser("update-tomorrow", help="Replace 내일 할 것들 property")
     tomorrow_parser.add_argument("--page-id", required=True, help="Notion page ID")
     tomorrow_parser.add_argument("--content", required=True, help="Content to write (newline-separated)")
+    tomorrow_parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
 
     # update-kpt command
     kpt_parser = subparsers.add_parser("update-kpt", help="Replace KPT property")
     kpt_parser.add_argument("--page-id", required=True, help="Notion page ID")
     kpt_parser.add_argument("--content", required=True, help="KPT content to write")
+    kpt_parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
 
     # read-weekly command
     subparsers.add_parser("read-weekly", help="Read this week's tasks from Task DB")

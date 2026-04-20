@@ -9,7 +9,6 @@
       "Bash($HOME/.claude/scripts/notify-slack.sh *)"
     ]
   },
-  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {
@@ -53,5 +52,6 @@
     "devops@socraai-devops-skills": true
   },
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "model": "sonnet[1m]"
 }

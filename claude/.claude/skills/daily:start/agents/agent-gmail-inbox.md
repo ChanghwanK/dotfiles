@@ -1,4 +1,5 @@
 ---
+model: haiku
 allowed-tools:
   - mcp__claude_ai_Gmail__gmail_search_messages
   - mcp__claude_ai_Gmail__gmail_read_message

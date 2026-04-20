@@ -189,7 +189,7 @@ def cmd_show(args):
             all_files.append(file_info(f) | {"path": str(rel)})
 
     # Validate inline
-    checks, warnings = _validate_checks(name, sp, fm, body)
+    checks, warnings, info = _validate_checks(name, sp, fm, body)
     valid = all(c["passed"] for c in checks)
 
     ok({
@@ -202,13 +202,26 @@ def cmd_show(args):
             "valid": valid,
             "checks": checks,
             "warnings": warnings,
+            "info": info,
         },
     })
 
 
-def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, list]:
+DESTRUCTIVE_KEYWORDS = re.compile(
+    r"\b(delete|drop|destroy|remove|rm\s+-rf|truncate|purge|reset)\b|삭제|파괴|초기화",
+    re.IGNORECASE,
+)
+CONFIRMATION_KEYWORDS = re.compile(
+    r"\b(confirm|confirmation|dry[\s-]?run|preview|--apply)\b|확인|동의|미리보기|되돌릴",
+    re.IGNORECASE,
+)
+VALIDATION_KEYWORDS = re.compile(r"검증|validate|verify|확인", re.IGNORECASE)
+
+
+def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, list, list]:
     checks = []
     warnings = []
+    info = []
 
     def chk(rule: str, passed: bool, detail: str = ""):
         checks.append({"rule": rule, "passed": passed, "detail": detail})
@@ -319,8 +332,10 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
 
     # W3: agents/ directory is empty (no .md files)
     agents_dir = sp / "agents"
+    has_agent_files = False
     if agents_dir.exists() and agents_dir.is_dir():
         agent_files = list(agents_dir.glob("*.md"))
+        has_agent_files = bool(agent_files)
         if not agent_files:
             warnings.append(
                 "agents/ 디렉토리가 비어 있음 — .md 프롬프트 파일을 추가하거나 디렉토리를 삭제하세요"
@@ -333,7 +348,73 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
                         f"agents/{agent_file.name}가 body에서 참조되지 않음 — SKILL.md에서 Read로 참조하세요"
                     )
 
-    return checks, warnings
+    # ─── BP semantic checks ──────────────────────────────────────────────
+    # BP1: description must include "사용 시점:" + "트리거 키워드:" literals
+    if desc and "사용 시점" not in desc:
+        warnings.append("[BP] description에 '사용 시점:' 누락 — 트리거 판단을 위해 필수")
+    if desc and "트리거 키워드" not in desc and "트리거" not in desc:
+        warnings.append("[BP] description에 '트리거 키워드:' 누락 — 활성화 정확도 저하")
+
+    # BP2: description length cap (Anthropic BP: ≤ 1024 chars)
+    if len(desc) > 1024:
+        warnings.append(f"[BP] description {len(desc)}자 — 1024자 초과, 핵심만 남기기")
+
+    # BP3: references one-level deep (no nested subdirs)
+    refs_dir = sp / "references"
+    if refs_dir.exists():
+        nested = [p for p in refs_dir.rglob("*") if p.is_file() and p.parent != refs_dir]
+        if nested:
+            sample = ", ".join(str(p.relative_to(sp)) for p in nested[:3])
+            warnings.append(
+                f"[BP] references/ 하위 중첩 디렉토리 발견 ({sample}) — one-level deep 권장"
+            )
+
+    # ─── Parallelism (Agent) cross-check ─────────────────────────────────
+    tools_str = " ".join(tools) if isinstance(tools, list) else str(tools)
+    has_agent_tool = "Agent" in (tools if isinstance(tools, list) else [tools_str])
+    if has_agent_files and not has_agent_tool:
+        warnings.append(
+            "[parallelism] agents/ 존재하나 frontmatter allowed-tools에 Agent 없음 — 추가 필요"
+        )
+    if has_agent_tool and not has_agent_files:
+        warnings.append(
+            "[parallelism] allowed-tools에 Agent 있으나 agents/*.md 없음 — 인라인 프롬프트는 10줄 이상 시 분리 권장"
+        )
+
+    # ─── Harness checks (destructive/confirmation/dry-run) ───────────────
+    # H1: destructive keywords in body must mention confirmation pattern
+    if DESTRUCTIVE_KEYWORDS.search(body) and not CONFIRMATION_KEYWORDS.search(body):
+        warnings.append(
+            "[harness] body에 파괴적 작업(delete/drop/삭제 등) 언급 — confirmation/dry-run 패턴 명시 필요"
+        )
+
+    # H2: workflow last step should mention validation/verification
+    step_pattern = re.compile(r"^###\s+Step\s+\d+", re.MULTILINE)
+    steps = list(step_pattern.finditer(body))
+    if len(steps) >= 2:
+        last_step_start = steps[-1].start()
+        last_step_chunk = body[last_step_start:]
+        if not VALIDATION_KEYWORDS.search(last_step_chunk):
+            info.append(
+                "[harness] 마지막 Step에 검증/validate 키워드 없음 — Rule 5.5 검증 루프 권장"
+            )
+
+    # H3: scripts that mutate state should support --dry-run
+    scripts_dir = sp / "scripts"
+    if scripts_dir.exists():
+        for script in scripts_dir.glob("*.py"):
+            try:
+                src = script.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            mutates = re.search(r"\b(write_text|mkdir|unlink|rmtree|copytree|os\.remove|shutil\.move)\b", src)
+            has_dry_run = "dry-run" in src or "dry_run" in src
+            if mutates and not has_dry_run:
+                info.append(
+                    f"[harness] scripts/{script.name}가 파일을 변경하나 --dry-run 없음 — 안전성 강화 권장"
+                )
+
+    return checks, warnings, info
 
 
 def cmd_validate(args):
@@ -347,13 +428,113 @@ def cmd_validate(args):
         err(f"SKILL.md not found for '{name}'")
 
     fm, body, _ = read_skill_file(sp)
-    checks, warnings = _validate_checks(name, sp, fm, body)
+    checks, warnings, info = _validate_checks(name, sp, fm, body)
     valid = all(c["passed"] for c in checks)
 
-    ok({"valid": valid, "checks": checks, "warnings": warnings})
+    ok({"valid": valid, "checks": checks, "warnings": warnings, "info": info})
 
 
-def _make_scaffold(name: str, description: str, model: str, skill_type: str) -> str:
+def _classify_finding(msg: str) -> str:
+    """Bucket warnings/info into BP / parallelism / harness / quality."""
+    if "[BP]" in msg:
+        return "bp"
+    if "[parallelism]" in msg:
+        return "parallelism"
+    if "[harness]" in msg:
+        return "harness"
+    return "quality"
+
+
+def cmd_review(args):
+    """Score a skill across BP / parallelism / harness dimensions.
+
+    Read-only — no mutations. Designed to be the structural input for
+    Claude's parallel-agent qualitative review (see SKILL.md Review workflow).
+    """
+    name = args.name
+    sp = skill_path(name)
+    if not sp.exists():
+        err(f"Skill '{name}' not found")
+    if not (sp / "SKILL.md").exists():
+        err(f"SKILL.md not found for '{name}'")
+
+    fm, body, _ = read_skill_file(sp)
+    checks, warnings, info = _validate_checks(name, sp, fm, body)
+
+    # Bucket findings by dimension
+    buckets: dict[str, list[str]] = {"bp": [], "parallelism": [], "harness": [], "quality": []}
+    for w in warnings:
+        buckets[_classify_finding(w)].append(f"warning: {w}")
+    for i in info:
+        buckets[_classify_finding(i)].append(f"info: {i}")
+
+    # Scoring: each dimension starts at 100, deductions per finding
+    DEDUCTION = {"warning": 15, "info": 5}
+    scores = {}
+    for dim, items in buckets.items():
+        score = 100
+        for it in items:
+            kind = it.split(":", 1)[0]
+            score -= DEDUCTION.get(kind, 5)
+        scores[dim] = max(0, score)
+
+    # Failing structural checks → BP score floor of 0
+    failed_checks = [c for c in checks if not c["passed"]]
+    if failed_checks:
+        scores["bp"] = 0
+
+    overall = round(sum(scores.values()) / len(scores))
+
+    # Inventory snapshot — feeds Claude's qualitative review agents
+    body_lines = body.splitlines()
+    agents_dir = sp / "agents"
+    refs_dir = sp / "references"
+    scripts_dir = sp / "scripts"
+    # Extract per-agent model assignment from each agent file
+    agent_inventory = []
+    if agents_dir.exists():
+        model_re = re.compile(r"\*\*Recommended model\*\*:\s*`?(\w+)`?")
+        for agent_file in sorted(agents_dir.glob("*.md")):
+            try:
+                txt = agent_file.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            m = model_re.search(txt)
+            agent_inventory.append({
+                "file": agent_file.name,
+                "model": m.group(1) if m else None,
+                "first_50_chars": txt[:50].replace("\n", " "),
+            })
+
+    inventory = {
+        "body_lines": len(body_lines),
+        "body_lines_limit": 500,
+        "description_chars": len(fm.get("description", "")),
+        "description_chars_limit": 1024,
+        "allowed_tools": fm.get("allowed-tools", []),
+        "has_agents_dir": agents_dir.exists(),
+        "agent_files": [p.name for p in agents_dir.glob("*.md")] if agents_dir.exists() else [],
+        "agents": agent_inventory,
+        "reference_files": [p.name for p in refs_dir.glob("*.md")] if refs_dir.exists() else [],
+        "script_files": [p.name for p in scripts_dir.iterdir()] if scripts_dir.exists() else [],
+    }
+
+    ok({
+        "name": name,
+        "overall_score": overall,
+        "scores": scores,
+        "structural_pass": not failed_checks,
+        "findings_by_dimension": buckets,
+        "inventory": inventory,
+        "next_step": (
+            "Claude는 이 점수를 출발점으로, SKILL.md Review 워크플로우에 명시된 3개 Agent를 "
+            "병렬 호출하여 정성 평가(BP 깊이, 컨텍스트 효율, 하네스 강건성)를 보완하세요."
+        ),
+    })
+
+
+def _make_scaffold(name: str, description: str, model: str, skill_type: str,
+                   with_agents: bool = False) -> str:
     """Generate a Korean-language SKILL.md scaffold with TODO placeholders."""
     model_line = f"\nmodel: {model}" if model else ""
     abs_scripts = f"/Users/changhwan/.claude/skills/{name}/scripts"
@@ -373,8 +554,10 @@ def _make_scaffold(name: str, description: str, model: str, skill_type: str) -> 
         f"  - Bash(python3 {abs_scripts}/TODO_script.py *)",
         f"  - Read",
         f"  - Write",
-        f"---",
     ]
+    if with_agents:
+        frontmatter_lines.append(f"  - Agent")
+    frontmatter_lines.append("---")
     frontmatter = "\n".join(frontmatter_lines)
 
     if skill_type == "workflow":
@@ -504,6 +687,23 @@ def cmd_create(args):
     description = args.description or "TODO: 스킬 설명을 작성하세요."
     model = args.model or ""
     skill_type = args.type or "workflow"
+    agent_specs = []  # list of (role, model) tuples
+    if args.with_agents:
+        for entry in args.with_agents.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            if ":" in entry:
+                role, model = entry.split(":", 1)
+                role, model = role.strip(), model.strip()
+            else:
+                role, model = entry, "sonnet"
+            if not re.match(r"^[a-z0-9]+(-[a-z0-9]+)*$", role):
+                err(f"Invalid agent role '{role}'. Must be lowercase hyphen-case")
+            if model not in ("haiku", "sonnet", "opus"):
+                err(f"Invalid agent model '{model}' for role '{role}'. Choose haiku/sonnet/opus")
+            agent_specs.append((role, model))
+    agent_roles = [r for r, _ in agent_specs]
 
     # Validate name
     if not NAME_PATTERN.match(name):
@@ -520,21 +720,73 @@ def cmd_create(args):
     (sp / "references").mkdir(parents=True)
     (sp / "assets").mkdir(parents=True)
 
-    # Write scaffold SKILL.md
-    scaffold = _make_scaffold(name, description, model, skill_type)
+    # Agent scaffolding (opt-in via --with-agents)
+    agent_files_created = []
+    if agent_specs:
+        (sp / "agents").mkdir(parents=True)
+        model_hints = {
+            "haiku": "단순 변환/추출/형식화 작업에 적합",
+            "sonnet": "일반 분석/패턴 매칭/파일 탐색 (기본값)",
+            "opus": "깊은 판단/BP 해석/아키텍처 설계가 필요한 작업",
+        }
+        for role, model in agent_specs:
+            agent_path = sp / "agents" / f"agent-{role}.md"
+            agent_path.write_text(
+                f"# {role.replace('-', ' ').title()} 에이전트\n\n"
+                f"**Recommended model**: `{model}` — {model_hints[model]}\n"
+                f"**역할**: TODO — 이 에이전트가 무엇을 책임지는지 한 문장으로 작성.\n\n"
+                f"**입력 변수** (SKILL.md에서 치환):\n"
+                f"- `{{TODO_var1}}`: TODO 설명\n"
+                f"- `{{TODO_var2}}`: TODO 설명\n\n"
+                f"## 절차\n\n"
+                f"1. TODO: 첫 번째 단계\n"
+                f"2. TODO: 두 번째 단계\n"
+                f"3. TODO: 결과를 JSON으로 반환\n\n"
+                f"## 출력 형식\n\n"
+                f"```json\n"
+                f'{{\n  "summary": "...",\n  "findings": []\n}}\n'
+                f"```\n\n"
+                f"---\n"
+                f"**호출 시**: SKILL.md에서 Agent tool 호출 시 `model: \"{model}\"` 명시\n",
+                encoding="utf-8",
+            )
+            agent_files_created.append(str(agent_path))
+
+    # Write scaffold SKILL.md (with Agent in allowed-tools if agents/ created)
+    scaffold = _make_scaffold(name, description, model, skill_type, with_agents=bool(agent_roles))
     (sp / "SKILL.md").write_text(scaffold, encoding="utf-8")
 
     # Write placeholder script
     abs_scripts = sp / "scripts"
     placeholder_script = abs_scripts / "TODO_script.py"
     placeholder_script.write_text(
-        '#!/usr/bin/env python3\n"""TODO: Replace this placeholder script."""\n'
+        '#!/usr/bin/env python3\n'
+        '"""TODO: Replace this placeholder script.\n\n'
+        'Harness conventions (do not remove):\n'
+        '- Mutating subcommands MUST honor --dry-run (preview-only, no side effects).\n'
+        '- Destructive operations MUST require an explicit --confirm flag.\n'
+        '- All output: JSON via ok()/err() helpers.\n'
+        '"""\n'
         'import argparse, json, sys\n\n'
+        'def ok(data):\n'
+        '    print(json.dumps({"success": True, **data}, ensure_ascii=False, indent=2))\n\n'
+        'def err(msg, **extra):\n'
+        '    print(json.dumps({"success": False, "error": msg, **extra}, ensure_ascii=False, indent=2))\n'
+        '    sys.exit(1)\n\n'
+        'def cmd_run(args):\n'
+        '    if args.dry_run:\n'
+        '        ok({"dry_run": True, "would_do": "TODO: describe planned action"})\n'
+        '        return\n'
+        '    # TODO: implement actual mutation here\n'
+        '    ok({"message": "TODO: implement"})\n\n'
         'def main():\n'
         '    parser = argparse.ArgumentParser()\n'
-        '    parser.add_argument("subcommand")\n'
+        '    sub = parser.add_subparsers(dest="command", required=True)\n'
+        '    p_run = sub.add_parser("run")\n'
+        '    p_run.add_argument("--dry-run", action="store_true",\n'
+        '                       help="Preview without making changes")\n'
         '    args = parser.parse_args()\n'
-        '    print(json.dumps({"success": True, "message": "TODO: implement"}))\n\n'
+        '    {"run": cmd_run}[args.command](args)\n\n'
         'if __name__ == "__main__":\n'
         '    main()\n',
         encoding="utf-8",
@@ -546,7 +798,8 @@ def cmd_create(args):
         "files_created": [
             str(sp / "SKILL.md"),
             str(placeholder_script),
-        ],
+        ] + agent_files_created,
+        "agents_scaffolded": [{"role": r, "model": m} for r, m in agent_specs],
         "message": (
             f"Scaffold created. Next: fill in SKILL.md body, write scripts, "
             f"then validate with: python3 {__file__} validate {name}"
@@ -563,6 +816,8 @@ def cmd_update_frontmatter(args):
     skill_md = sp / "SKILL.md"
     fm, body, raw = read_skill_file(sp)
 
+    # Snapshot before mutations for diff output
+    fm_before = {k: (list(v) if isinstance(v, list) else v) for k, v in fm.items()}
     changed = []
 
     if args.set_description:
@@ -599,17 +854,30 @@ def cmd_update_frontmatter(args):
 
     # Reconstruct SKILL.md: new frontmatter + original body
     new_content = build_frontmatter(fm) + "\n\n" + body
+
+    # Dry-run: preview changes without writing
+    if args.dry_run:
+        ok({
+            "name": name,
+            "dry_run": True,
+            "changed": changed,
+            "frontmatter_before": fm_before,
+            "frontmatter_after": fm,
+            "message": "DRY RUN — 변경사항 미리보기. 실제 적용하려면 --dry-run 없이 재실행하세요.",
+        })
+        return
+
     skill_md.write_text(new_content, encoding="utf-8")
 
     # Auto-validate
     fm2, body2, _ = read_skill_file(sp)
-    checks, warnings = _validate_checks(name, sp, fm2, body2)
+    checks, warnings, info = _validate_checks(name, sp, fm2, body2)
     valid = all(c["passed"] for c in checks)
 
     ok({
         "name": name,
         "changed": changed,
-        "validation": {"valid": valid, "checks": checks, "warnings": warnings},
+        "validation": {"valid": valid, "checks": checks, "warnings": warnings, "info": info},
     })
 
 
@@ -618,6 +886,27 @@ def cmd_delete(args):
     sp = skill_path(name)
     if not sp.exists():
         err(f"Skill '{name}' not found", path=str(sp))
+
+    # Dry-run: list what would be removed without acting
+    if args.dry_run:
+        files = sorted([str(p.relative_to(sp)) for p in sp.rglob("*") if p.is_file()])
+        ok({
+            "name": name,
+            "dry_run": True,
+            "would_delete": str(sp),
+            "would_backup": not args.no_backup,
+            "file_count": len(files),
+            "files": files[:20] + (["..."] if len(files) > 20 else []),
+            "message": "DRY RUN — 실제 삭제하려면 --dry-run 없이 재실행하세요.",
+        })
+        return
+
+    # Harness: --no-backup requires explicit double-opt-in to prevent accidental loss
+    if args.no_backup and not args.confirm_no_backup:
+        err(
+            "백업 없이 삭제하려면 --confirm-no-backup 플래그를 추가로 지정해야 합니다 (실수 방지)",
+            hint=f"안전한 삭제: python3 {__file__} delete {name}",
+        )
 
     backup_path = None
     if not args.no_backup:
@@ -676,14 +965,14 @@ def cmd_restore(args):
 
     # Auto-validate after restore
     fm, body, _ = read_skill_file(sp)
-    checks, warnings = _validate_checks(name, sp, fm, body)
+    checks, warnings, info = _validate_checks(name, sp, fm, body)
     valid = all(c["passed"] for c in checks)
 
     ok({
         "name": name,
         "restored_from": latest.name,
         "path": str(sp),
-        "validation": {"valid": valid, "checks": checks, "warnings": warnings},
+        "validation": {"valid": valid, "checks": checks, "warnings": warnings, "info": info},
     })
 
 
@@ -710,10 +999,20 @@ def main():
     p_create.add_argument("--model", "-m", choices=["sonnet", "opus", "haiku"], help="Model override")
     p_create.add_argument("--type", "-t", choices=["workflow", "reference", "tool"],
                           default="workflow", help="Skill template type (default: workflow)")
+    p_create.add_argument("--with-agents",
+                          help="Comma-separated agent roles with optional model: 'role[:model]'. "
+                               "model ∈ {haiku, sonnet, opus}, default sonnet. "
+                               "Example: --with-agents 'collector:haiku,strategist:opus,parser'. "
+                               "Creates agents/agent-<role>.md (with model annotation) and adds Agent to allowed-tools.")
 
     # validate
     p_val = sub.add_parser("validate", help="Validate skill structure")
     p_val.add_argument("name", help="Skill name")
+
+    # review
+    p_rev = sub.add_parser("review",
+                           help="Score a skill (BP/parallelism/harness) — read-only")
+    p_rev.add_argument("name", help="Skill name")
 
     # update-frontmatter
     p_uf = sub.add_parser("update-frontmatter", help="Modify frontmatter fields")
@@ -722,11 +1021,17 @@ def main():
     p_uf.add_argument("--set-model", choices=["sonnet", "opus", "haiku"], help="New model")
     p_uf.add_argument("--add-tool", help="Add an allowed-tool entry")
     p_uf.add_argument("--remove-tool", help="Remove an allowed-tool entry")
+    p_uf.add_argument("--dry-run", action="store_true",
+                      help="Preview frontmatter changes without writing")
 
     # delete
     p_del = sub.add_parser("delete", help="Delete a skill (with backup by default)")
     p_del.add_argument("name", help="Skill name")
-    p_del.add_argument("--no-backup", action="store_true", help="Skip backup")
+    p_del.add_argument("--no-backup", action="store_true", help="Skip backup (REQUIRES --confirm-no-backup)")
+    p_del.add_argument("--confirm-no-backup", action="store_true",
+                       help="Required gate when using --no-backup (prevents accidental data loss)")
+    p_del.add_argument("--dry-run", action="store_true",
+                       help="List files that would be removed without acting")
 
     # restore
     p_rst = sub.add_parser("restore", help="Restore skill from latest backup")
@@ -740,6 +1045,7 @@ def main():
         "show": cmd_show,
         "create": cmd_create,
         "validate": cmd_validate,
+        "review": cmd_review,
         "update-frontmatter": cmd_update_frontmatter,
         "delete": cmd_delete,
         "restore": cmd_restore,

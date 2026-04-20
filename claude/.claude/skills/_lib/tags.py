@@ -52,7 +52,7 @@ def normalize_tags(raw_tags: list[str]) -> list[str]:
         mapped = TAG_DOMAIN_MAP.get(key)
         if mapped:
             domain_tags.add(mapped)
-        elif tag.startswith("domain/"):
+        elif tag.startswith("domain/") or tag.startswith("type/") or tag.startswith("resource/") or tag.startswith("topic/"):
             domain_tags.add(tag)
         elif key in AWS_SERVICES:
             domain_tags.add("domain/aws")

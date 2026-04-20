@@ -10,7 +10,10 @@ import sys
 
 
 def check_dependencies():
-    """최소 하나의 자막 추출 라이브러리 설치 여부 확인."""
+    """자막 추출 라이브러리 설치 여부 확인.
+
+    Returns: (any_available: bool, has_ytdlp: bool, has_transcript_api: bool)
+    """
     has_ytdlp = False
     has_transcript_api = False
     try:
@@ -23,7 +26,7 @@ def check_dependencies():
         has_transcript_api = True
     except ImportError:
         pass
-    return has_ytdlp or has_transcript_api
+    return (has_ytdlp or has_transcript_api), has_ytdlp, has_transcript_api
 
 
 def extract_video_id(url: str) -> str | None:
@@ -89,7 +92,8 @@ def extract_metadata_ytdlp(url: str) -> dict | None:
             "duration": format_duration(info.get("duration")),
             "upload_date": upload_date,
         }
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"warn: extract_metadata_ytdlp failed: {e}\n")
         return None
 
 
@@ -113,7 +117,8 @@ def extract_transcript_ytdlp(url: str) -> dict | None:
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"warn: extract_transcript_ytdlp (extract_info) failed: {e}\n")
         return None
 
     if info is None:
@@ -153,9 +158,10 @@ def extract_transcript_ytdlp(url: str) -> dict | None:
 
     try:
         import urllib.request
-        with urllib.request.urlopen(sub_url) as response:
+        with urllib.request.urlopen(sub_url, timeout=30) as response:
             sub_content = json.loads(response.read().decode("utf-8"))
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"warn: subtitle download failed: {e}\n")
         return None
 
     events = sub_content.get("events", [])
@@ -218,7 +224,8 @@ def extract_transcript_api(video_id: str) -> dict | None:
         language = f"{target.language_code}{lang_suffix}"
 
         return {"transcript": transcript, "language": language}
-    except Exception:
+    except Exception as e:
+        sys.stderr.write(f"warn: extract_transcript_api failed: {e}\n")
         return None
 
 
@@ -276,15 +283,19 @@ def main():
         print(json.dumps({"success": False, "error": f"알 수 없는 명령: {command}"}, ensure_ascii=False))
         sys.exit(1)
 
-    if not check_dependencies():
+    any_available, has_ytdlp, _ = check_dependencies()
+    if not any_available:
         print(json.dumps({
             "success": False,
-            "error": "yt-dlp가 설치되어 있지 않습니다. 'pip install yt-dlp'로 설치해주세요."
+            "error": "yt-dlp 또는 youtube_transcript_api가 설치되어 있지 않습니다. 'pip install yt-dlp'로 설치해주세요."
         }, ensure_ascii=False))
         sys.exit(1)
 
     url = sys.argv[2]
     result = extract(url)
+
+    if not has_ytdlp and result.get("success"):
+        result["metadata_warning"] = "yt-dlp 미설치로 메타데이터(제목/채널/길이/날짜)가 제한될 수 있습니다."
 
     # 결과를 /tmp/yt-extract-result.json에 저장
     output_path = "/tmp/yt-extract-result.json"

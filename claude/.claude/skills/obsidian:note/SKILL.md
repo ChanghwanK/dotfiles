@@ -8,6 +8,7 @@ description: |
   트리거 키워드: "obsidian 노트", "노트로 저장", "obsidian에 저장", "/obsidian:note", "옵시디언 노트".
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Agent
 ---
 
 # Obsidian Note Skill
@@ -16,16 +17,16 @@ allowed-tools:
 
 - 대화에서 학습/설명한 내용을 **요약 없이 전체 구조화**하여 Obsidian 마크다운으로 저장
 - `domain/` 태그로 주제 분류, aliases 자동 추출로 Quick Switcher 검색성 확보
-- 타입별 저장 경로 분기: `learning-note` → `02. Notes/`, `runbook`·`troubleshooting`·`cheatsheet` → `03. Resources/`
+- 타입별 저장 경로 분기: `learning-note` → `04. Wiki/engineering/`, `runbook`·`troubleshooting`·`cheatsheet` → `03. Resources/`
 - 관련 노트 자동 탐색 및 wikilink 연결
 
-현재 대화에서 학습/설명한 내용을 Obsidian `02. Notes/engineering/` 또는 `02. Notes/others/` 디렉토리에 마크다운 파일로 저장한다.
+현재 대화에서 학습/설명한 내용을 Obsidian `04. Wiki/` 하위 디렉토리에 마크다운 파일로 저장한다.
 
 **타입별 저장 경로 매핑**:
 
 | `--type` 값 | 저장 경로 |
 |-------------|----------|
-| `learning-note` (기본) | `02. Notes/engineering/` (또는 `--category others`로 `02. Notes/others/`) |
+| `learning-note` (기본) | `04. Wiki/engineering/` |
 | `troubleshooting` | `03. Resources/troubleshooting/` |
 | `runbook` | `03. Resources/runbooks/` |
 | `cheatsheet` | `03. Resources/cheatsheets/` |
@@ -59,13 +60,29 @@ allowed-tools:
 
 ## aliases 결정 기준
 
-노트 저장 전에 Claude가 직접 핵심 키워드 **3개**를 선택하여 `--aliases`로 전달한다.
+노트 저장 전에 Claude가 직접 **3개**를 선택하여 `--aliases`로 전달한다. 3개는 각기 다른 역할을 맡는다.
 
-**선택 기준:**
-- 이 노트를 나중에 검색할 때 어떤 단어로 찾을지 생각한다
-- 기술 약어/고유명사 우선 (예: `Karpenter`, `IRSA`, `mTLS`)
-- 한국어 핵심 개념어도 포함 가능 (예: `서비스 메시`, `노드 프로비저닝`)
-- 제목 그대로 반복하지 않는다 — 제목을 다르게 표현하거나 연관 개념을 선택
+**3개 역할 구성 (모두 채울 것):**
+1. **Role A — 기술 약어/공식 명칭**: 영어 약어 또는 제품명 (예: `IRSA`, `mTLS`, `KEDA`, `CloudFront`)
+2. **Role B — 한국어 개념어**: 영어 이름이 생각 안 날 때 타이핑할 단어 (예: `파드 권한`, `분산 추적`, `노드 자동 확장`)
+3. **Role C — 연관 개념 진입점**: 이 노트 내용을 떠올리지만 제목과 다른 각도의 키워드 (예: `AWS 권한 위임`, `사이드카 프록시`, `카나리 배포`)
+
+**안티패턴 (사용 금지):**
+- 제목의 단어 그대로 반복 (대소문자·띄어쓰기만 다른 것 포함)
+- 범용어: `설정`, `가이드`, `방법`, `노트`, `개념`, `정리`, `사용법`
+- 동사형·문장형: `어떻게 설정하는지`, `사용하는 방법`
+- 구두점 포함: `/`, `(`, `)`, `:` (기술 명칭의 일부인 경우 제외)
+
+**자가 검증:** 작성 후 "Quick Switcher(Cmd+O)에서 이 단어를 타이핑하면 이 노트가 나올까?" 질문.
+
+**예시:**
+
+| 노트 제목 | Role A | Role B | Role C |
+|-----------|--------|--------|--------|
+| `IRSA 설정 가이드` | `IRSA` | `파드 권한` | `IAM Roles for Service Accounts` |
+| `Karpenter 노드 프로비저닝` | `Karpenter` | `노드 자동 확장` | `EC2NodeClass` |
+| `Loki 로그 수집 아키텍처` | `Loki` | `로그 파이프라인` | `LogQL` |
+| `Istio mTLS 설정` | `mTLS` | `서비스 메시 암호화` | `PeerAuthentication` |
 
 ## 워크플로우
 
@@ -174,9 +191,26 @@ OBSIDIAN_CONTENT_EOF
 
 `--type` 옵션: `learning-note` (기본값) | `troubleshooting` | `cheatsheet`
 
-`--category` 옵션: `engineering` (기본값) | `others`
-- `engineering`: DevOps/인프라/관측 기술 노트 → `02. Notes/engineering/`
-- `others`: 방법론, 자기계발 등 비-엔지니어링 노트 → `02. Notes/others/`
+`--category` 옵션: `engineering` (기본값) | `career`
+- `engineering`: 기술 노트 전체 (개념, 장애 분석, 인사이트 포함) → `04. Wiki/engineering/`
+- `career`: 엔지니어링 철학/성장/팀 운영 노트 → `04. Wiki/career/`
+
+### Step 4 — 노트 품질 리뷰 (Agent)
+
+노트 생성 성공 후, Review Agent를 실행하여 aliases·구조·지식 연결을 자동 점검한다.
+
+`agents/agent-note-reviewer.md`를 Read한 후 아래 변수를 치환하여 Agent tool로 호출한다:
+
+- `{filepath}` → 스크립트 응답의 `filepath` 값
+- `{title}` → 노트 제목
+- `{aliases}` → `--aliases`로 전달한 값
+- `{tags}` → 정규화된 태그 목록
+- `{related_slugs}` → 스크립트 응답의 `related` 목록 (없으면 빈 배열)
+
+Agent 결과가 반환되면:
+- `overall_score ≥ 85`: "리뷰 통과" 메시지와 함께 `top_actions`만 표시
+- `overall_score < 85`: 개선 항목을 사용자에게 구조화하여 표시
+- 수정 적용: 사용자가 확인하면 Edit tool로 파일 직접 수정 (자동 적용 금지)
 
 ### Step 5 — 결과 출력
 

@@ -18,7 +18,10 @@ case "$SUBCOMMAND" in
       echo "brew: already done today"
       exit 0
     fi
-    brew upgrade
+    if ! brew upgrade 2>&1; then
+      echo "brew upgrade failed (exit $?). Marker not created — will retry next run." >&2
+      exit 1
+    fi
     touch "$MARKER"
     ;;
   gimme)
@@ -27,7 +30,14 @@ case "$SUBCOMMAND" in
       echo "gimme-aws-creds: already done today"
       exit 0
     fi
-    gimme-aws-creds
+    if ! command -v gimme-aws-creds >/dev/null 2>&1; then
+      echo "gimme-aws-creds not found in PATH" >&2
+      exit 1
+    fi
+    if ! gimme-aws-creds 2>&1; then
+      echo "gimme-aws-creds failed (exit $?). Marker not created — will retry next run." >&2
+      exit 1
+    fi
     touch "$MARKER"
     ;;
   *)

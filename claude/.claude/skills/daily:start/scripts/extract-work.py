@@ -111,8 +111,8 @@ def extract_user_messages(jsonl_path: Path) -> list[str]:
                     if is_meaningful_message(text):
                         # 너무 긴 메시지는 앞부분만
                         messages.append(text[:300].strip())
-    except Exception:
-        pass
+    except Exception as e:
+        sys.stderr.write(f"warn: failed to read {jsonl_path}: {e}\n")
     return messages
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Obsidian 노트 생성 스크립트.
-02. Notes/engineering/ 또는 02. Notes/others/ 에 마크다운 파일을 생성한다.
+04. Wiki/ 하위 (concepts/career/synthesis/incidents) 또는 03. Resources/ 에 마크다운 파일을 생성한다.
 frontmatter에 last_reviewed, status, type, aliases 필드를 포함한다.
 """
 
@@ -19,16 +19,36 @@ from tags import TAG_DOMAIN_MAP, AWS_SERVICES, normalize_tags  # noqa: E402
 
 VAULT_BASE = "/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home"
 VAULT_ROOT = Path(VAULT_BASE)
-NOTES_BASE = f"{VAULT_BASE}/02. Notes"
-NOTES_SUBDIRS = ["engineering", "others", "history"]
+WIKI_BASE = f"{VAULT_BASE}/04. Wiki"
 
-# Resources 타입 라우팅
+# Wiki 카테고리 → 서브디렉토리 매핑
+WIKI_CATEGORY_MAP = {
+    "engineering": "04. Wiki/engineering",
+    "career": "04. Wiki/career",
+    # 하위호환: 이전 category 이름 지원
+    "concepts": "04. Wiki/engineering",
+    "synthesis": "04. Wiki/engineering",
+    "incidents": "04. Wiki/engineering",
+    "others": "04. Wiki/career",
+    "history": "04. Wiki/engineering",
+}
+
+# Resources 타입 라우팅 (변경 없음)
 RESOURCE_TYPES = {"runbook", "troubleshooting", "cheatsheet"}
 TYPE_DIR_MAP = {
     "runbook": "03. Resources/runbooks",
     "troubleshooting": "03. Resources/troubleshooting",
     "cheatsheet": "03. Resources/cheatsheets",
 }
+
+# 관련 노트 탐색 대상 디렉토리
+SEARCH_DIRS = [
+    "04. Wiki/engineering",
+    "04. Wiki/career",
+    "03. Resources/runbooks",
+    "03. Resources/troubleshooting",
+    "03. Resources/cheatsheets",
+]
 
 
 
@@ -55,15 +75,18 @@ def slugify(title: str) -> str:
 
 
 HISTORY_TYPE = "history"
+INCIDENT_TYPE = "incident"
 
 
 def get_save_dir(note_type: str, category: str) -> str:
     """노트 타입에 따라 저장 디렉토리를 결정한다."""
     if note_type in RESOURCE_TYPES:
         return os.path.join(VAULT_BASE, TYPE_DIR_MAP[note_type])
-    if note_type == HISTORY_TYPE:
-        return os.path.join(NOTES_BASE, "history")
-    return os.path.join(NOTES_BASE, category)
+    if note_type in (HISTORY_TYPE, INCIDENT_TYPE):
+        return os.path.join(VAULT_BASE, "04. Wiki/incidents")
+    # Wiki 카테고리 매핑 (기본: concepts)
+    wiki_subdir = WIKI_CATEGORY_MAP.get(category, "04. Wiki/concepts")
+    return os.path.join(VAULT_BASE, wiki_subdir)
 
 
 def append_to_daily_note(note_slug: str, tags: list[str]) -> dict:
@@ -132,14 +155,17 @@ def find_related_notes(tags: list[str], exclude_filename: str) -> list[dict]:
     tag_set = set(tags)
     related = []
 
-    # 탐색 범위: 02. Notes 하위 + 03. Resources 하위
-    search_dirs = [os.path.join(NOTES_BASE, s) for s in NOTES_SUBDIRS]
-    search_dirs += [os.path.join(VAULT_BASE, d) for d in TYPE_DIR_MAP.values()]
+    # 탐색 범위: 04. Wiki 하위 + 03. Resources 하위
+    search_dirs = [os.path.join(VAULT_BASE, d) for d in SEARCH_DIRS]
 
     for search_dir in search_dirs:
         if not os.path.isdir(search_dir):
             continue
-        for filename in os.listdir(search_dir):
+        try:
+            dir_entries = os.listdir(search_dir)
+        except PermissionError:
+            continue
+        for filename in dir_entries:
             if not filename.endswith(".md") or filename == exclude_filename:
                 continue
 
@@ -184,7 +210,7 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
     today = date.today().isoformat()
 
     # 카테고리 검증 및 저장 디렉토리 결정
-    if category not in NOTES_SUBDIRS:
+    if category not in WIKI_CATEGORY_MAP:
         category = "engineering"
     notes_dir = get_save_dir(note_type, category)
     os.makedirs(notes_dir, exist_ok=True)
@@ -270,8 +296,8 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
 def list_notes(limit: int = 10) -> dict:
     notes = []
 
-    for subdir in NOTES_SUBDIRS:
-        search_dir = os.path.join(NOTES_BASE, subdir)
+    for subdir in SEARCH_DIRS:
+        search_dir = os.path.join(VAULT_BASE, subdir)
         if not os.path.isdir(search_dir):
             continue
 
@@ -353,7 +379,7 @@ def main():
         if raw:
             try:
                 data = json.loads(raw)
-                content = data.get("blocks", raw)
+                content = data.get("blocks") or raw
             except json.JSONDecodeError:
                 content = raw
 

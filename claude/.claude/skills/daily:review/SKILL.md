@@ -9,6 +9,7 @@ model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/extract-work.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/llm-wiki-append.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py *)
   - AskUserQuestion
@@ -231,6 +232,52 @@ python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py upd
 
 Notion Todos는 **기록 전용**이며 진행 중인 Todo 관리의 source of truth가 아니다.
 완료/미완료 구분은 반드시 Obsidian 체크박스(`[x]`/`[ ]`) 기준으로 판단한다.
+
+---
+
+### Step 4 — LLM Wiki Raw 아카이빙 (자동, 확인 불필요)
+
+Step 3 완료 후 즉시 실행. 오늘의 핵심 결정·학습·개선점을 LLM Wiki Raw 폴더에 append한다.
+사용자 확인 없이 자동으로 실행한다 (로컬 파일 append이므로 부작용 없음).
+
+**추출 기준 (Step 1~2 데이터 기반으로 Claude가 직접 합성):**
+
+| 항목 | 소스 |
+|------|------|
+| 핵심 결정 | KPT Try + 오늘 완료 작업 중 의사결정 사항 |
+| 배운 것 | KPT Keep + Transcript에서 학습·발견 내용 |
+| 개선점/후회 | KPT Problem에서 구조적 문제 또는 반복 실수 |
+| 주요 작업 | 완료 항목 요약 (3줄 이내) |
+
+**포맷:**
+```
+## {YYYY-MM-DD} 핵심 기록
+
+**결정한 것:**
+- [결정 내용] (이유/맥락)
+
+**배운 것:**
+- [학습 내용]
+
+**개선점/후회:**
+- [문제 / 반복 패턴]
+
+**주요 작업:**
+- [작업 요약]
+```
+
+**실행:**
+```bash
+python3 /Users/changhwan/.claude/skills/daily:review/scripts/llm-wiki-append.py \
+  --date YYYY-MM-DD \
+  --content "## YYYY-MM-DD 핵심 기록\n..."
+```
+
+출력:
+```
+📚 LLM Wiki Raw 아카이빙 완료
+- 파일: 06. LLM-Wiki/raw/YYYY-MM-DD.md
+```
 
 ---
 
