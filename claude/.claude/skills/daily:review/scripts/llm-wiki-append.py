@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 
 VAULT_PATH = Path("/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home")
-LLM_WIKI_RAW_DIR = VAULT_PATH / "06. LLM-Wiki" / "raw"
+LLM_WIKI_RAW_DIR = VAULT_PATH / "04. Wiki" / "personal" / "raw"
 
 
 def append_entry(entry_date: str, content: str) -> dict:

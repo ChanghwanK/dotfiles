@@ -320,7 +320,7 @@ open('/tmp/rca_incident.md', 'w').write(content)
 "
 
 # 2. 노트 생성 (04. Wiki/incidents/ 에 저장됨)
-python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create \
+python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
   --title "{rule_name} — {service} {현상 한줄 요약}" \
   --tags "domain/{주요 도메인}" \
   --aliases "{service},{rule_name},{cluster}" \

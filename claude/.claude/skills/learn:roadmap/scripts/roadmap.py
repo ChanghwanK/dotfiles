@@ -25,35 +25,35 @@ RESOURCE_TYPE_DIRS = {
     "tech-spec": "03. Resources/tech-specs",
 }
 
-# 태그 → domain/ 네임스페이스 매핑
+# 태그 키워드 → 정규화 태그 매핑
 TAG_DOMAIN_MAP = {
-    "kubernetes": "domain/kubernetes",
-    "k8s": "domain/kubernetes",
-    "aws": "domain/aws",
-    "terraform": "domain/terraform",
+    "kubernetes": "kubernetes",
+    "k8s": "kubernetes",
+    "aws": "aws",
+    "terraform": "terraform",
     "infra": None,
-    "network": "domain/networking",
-    "networking": "domain/networking",
-    "istio": "domain/networking",
-    "envoy": "domain/networking",
-    "servicemesh": "domain/networking",
-    "observability": "domain/observability",
-    "grafana": "domain/observability",
-    "prometheus": "domain/observability",
-    "loki": "domain/observability",
-    "tracing": "domain/observability",
-    "database": "domain/database",
-    "on-premise": "domain/on-premise",
-    "onpremise": "domain/on-premise",
-    "gpu": "domain/on-premise",
-    "security": "domain/security",
-    "tls": "domain/security",
-    "pki": "domain/security",
-    "ai": "domain/ai",
-    "llm": "domain/ai",
-    "ml": "domain/ai",
-    "machinelearning": "domain/ai",
-    "agent": "domain/ai",
+    "network": "networking",
+    "networking": "networking",
+    "istio": "networking",
+    "envoy": "networking",
+    "servicemesh": "networking",
+    "observability": "observability",
+    "grafana": "observability",
+    "prometheus": "observability",
+    "loki": "observability",
+    "tracing": "observability",
+    "database": "database",
+    "on-premise": "on-premise",
+    "onpremise": "on-premise",
+    "gpu": "on-premise",
+    "security": "security",
+    "tls": "security",
+    "pki": "security",
+    "ai": "ai",
+    "llm": "ai",
+    "ml": "ai",
+    "machinelearning": "ai",
+    "agent": "ai",
 }
 
 AWS_SERVICES = {
@@ -511,10 +511,10 @@ def search_notes(domain: str) -> dict:
 
     # AWS 서비스명도 확인
     if not mapped_tag and key in AWS_SERVICES:
-        mapped_tag = "domain/aws"
+        mapped_tag = "aws"
 
-    # domain/ 형식이면 그대로 사용
-    if not mapped_tag and domain.startswith("domain/"):
+    # 이미 정규화된 태그면 그대로 사용
+    if not mapped_tag and domain and not domain.startswith("domain/"):
         mapped_tag = domain
 
     if not mapped_tag:

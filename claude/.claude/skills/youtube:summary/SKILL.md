@@ -9,7 +9,7 @@ description: |
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/youtube:summary/scripts/yt-extract.py *)
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Read(/Users/changhwan/.claude/skills/youtube:summary/assets/template.md)
   - Read(/tmp/yt-extract-result.json)
   - Write(/tmp/yt-extract-result.json)
@@ -63,7 +63,7 @@ python3 /Users/changhwan/.claude/skills/youtube:summary/scripts/yt-extract.py ex
 
 2. 기존 `obsidian:note` 스크립트 호출:
 ```bash
-python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create \
+python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
   --title "[영상제목] 유튜브 요약" \
   --tags "YouTube,태그1,태그2" \
   --content-file /tmp/obsidian-content.txt

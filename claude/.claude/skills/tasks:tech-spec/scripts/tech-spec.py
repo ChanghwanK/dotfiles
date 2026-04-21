@@ -366,13 +366,12 @@ def validate_spec(filename: str) -> dict:
         "detail": "롤백 절차 포함" if has_rollback else "롤백/복구 언급 없음",
     })
 
-    # 4. domain/ 태그 1개 이상 존재
+    # 4. 태그 1개 이상 존재
     tags = fm.get("tags", [])
-    domain_tags = [t for t in tags if t.startswith("domain/")]
     checks.append({
         "name": "domain_tags",
-        "pass": len(domain_tags) >= 1,
-        "detail": f"{len(domain_tags)}개 domain 태그: {', '.join(domain_tags)}" if domain_tags else "domain/ 태그 없음",
+        "pass": len(tags) >= 1,
+        "detail": f"{len(tags)}개 태그: {', '.join(tags)}" if tags else "태그 없음",
     })
 
     # 5. Non-Goals 섹션 존재
@@ -631,7 +630,7 @@ def read_section(filename: str, section: str, level: int = 2) -> dict:
 
 def migrate_spec(filepath: str, dry_run: bool = True) -> dict:
     """기존 Tech Spec을 새 표준으로 마이그레이션한다.
-    - 태그를 domain/ 형식으로 정규화
+    - 태그 정규화
     - aliases 자동 추출
     - last_reviewed 추가 (없으면)
     - type: tech-spec 추가 (없으면)

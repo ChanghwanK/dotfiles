@@ -1,13 +1,16 @@
 ---
-name: obsidian:note
+name: wiki:note
 description: |
-  Claude와의 학습/개념 설명 대화 결과를 Obsidian 노트로 저장하는 스킬.
-  domain/ 태그로 학습 주제를 분류하고 aliases를 자동 추출하여 검색성을 높인다.
-  사용 시점: (1) 개념 설명 요청 후 노트 저장, (2) 학습 내용 정리,
-  (3) 특정 주제에 대한 참고 문서 생성.
-  트리거 키워드: "obsidian 노트", "노트로 저장", "obsidian에 저장", "/obsidian:note", "옵시디언 노트".
+  대화 결과를 04. Wiki/ 또는 03. Resources/에 구조화된 노트로 저장하는 스킬.
+  사용자 요청(명시적) 또는 Claude 자동 제안(인사이트 감지) 두 가지 방식으로 동작.
+  지원 타입: learning-note(기술 개념) · troubleshooting(에러 해결) · runbook(운영 절차) ·
+  cheatsheet · incident(장애 post-mortem).
+  사용 시점: (1) 학습/개념 설명 대화 후 노트화, (2) 트러블슈팅 해결 패턴 기록,
+  (3) 장애 분석 post-mortem 저장, (4) 대화 인사이트 즉시 filing.
+  트리거 키워드: "wiki 노트", "노트로 저장", "wiki에 저장", "/wiki:note",
+  "위키에 저장", "wiki에 남겨", "노트로 저장해".
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Agent
 ---
 
@@ -16,7 +19,7 @@ allowed-tools:
 ## TL;DR
 
 - 대화에서 학습/설명한 내용을 **요약 없이 전체 구조화**하여 Obsidian 마크다운으로 저장
-- `domain/` 태그로 주제 분류, aliases 자동 추출로 Quick Switcher 검색성 확보
+- 태그로 주제 분류, aliases 자동 추출로 Quick Switcher 검색성 확보
 - 타입별 저장 경로 분기: `learning-note` → `04. Wiki/engineering/`, `runbook`·`troubleshooting`·`cheatsheet` → `03. Resources/`
 - 관련 노트 자동 탐색 및 wikilink 연결
 
@@ -30,6 +33,7 @@ allowed-tools:
 | `troubleshooting` | `03. Resources/troubleshooting/` |
 | `runbook` | `03. Resources/runbooks/` |
 | `cheatsheet` | `03. Resources/cheatsheets/` |
+| `incident` | `04. Wiki/incidents/` |
 
 > Resource 타입(`runbook`, `troubleshooting`, `cheatsheet`) 지정 시 `--category` 옵션은 무시되며 타입이 경로를 결정합니다.
 
@@ -37,26 +41,26 @@ allowed-tools:
 
 - **대화 내용 기반**: 현재 대화에서 설명된 내용을 구조화된 마크다운으로 정리한다.
 - **파일명 규칙**: `slugified-title.md` 형식으로 자동 생성된다 (날짜 prefix 없음).
-- **domain/ 태그**: `domain/kubernetes`, `domain/aws`, `domain/observability`, `domain/networking`, `domain/terraform`, `domain/database`, `domain/on-premise` 중 선택.
+- **태그**: `kubernetes`, `aws`, `observability`, `networking`, `terraform`, `database`, `on-premise`, `security`, `ai` 중 선택.
 - **aliases (Claude 결정)**: 노트 내용을 바탕으로 핵심 키워드 3개를 Claude가 직접 판단하여 `--aliases`로 전달한다. Quick Switcher(Cmd+O) 검색을 활성화한다.
 - **날짜 자동화**: 오늘 날짜가 `date`, `last_reviewed` 두 필드에 모두 기록된다.
-- **관련 노트 자동 링크**: 같은 domain/ 태그를 가진 기존 노트를 탐색하여 "관련 노트" 섹션에 wikilink로 자동 추가.
+- **관련 노트 자동 링크**: 같은 태그를 가진 기존 노트를 탐색하여 "관련 노트" 섹션에 wikilink로 자동 추가.
 
 ## 태그 네임스페이스
 
-| domain/ 태그 | 커버리지 |
-|-------------|---------|
-| `domain/kubernetes` | K8s, Karpenter, KEDA, Helm, ArgoCD |
-| `domain/aws` | EC2, EKS, VPC, Aurora, Route53, CloudFront, NAT |
-| `domain/observability` | Prometheus, Grafana, Tempo, Loki, OTel, VictoriaMetrics |
-| `domain/networking` | Istio, Envoy, Service Mesh, VPC 네트워킹 |
-| `domain/terraform` | Terraform, IaC |
-| `domain/database` | PostgreSQL, Aurora, CNPG, Redis |
-| `domain/on-premise` | IDC, Proxmox, GPU, Ceph, Cluster API |
-| `domain/security` | TLS, PKI, 인증서, mTLS, IAM, RBAC |
-| `domain/ai` | LLM, ML, 모델 서빙, GPU 워크로드 |
+| 태그 | 커버리지 |
+|------|---------|
+| `kubernetes` | K8s, Karpenter, KEDA, Helm, ArgoCD |
+| `aws` | EC2, EKS, VPC, Aurora, Route53, CloudFront, NAT |
+| `observability` | Prometheus, Grafana, Tempo, Loki, OTel, VictoriaMetrics |
+| `networking` | Istio, Envoy, Service Mesh, VPC 네트워킹 |
+| `terraform` | Terraform, IaC |
+| `database` | PostgreSQL, Aurora, CNPG, Redis |
+| `on-premise` | IDC, Proxmox, GPU, Ceph, Cluster API |
+| `security` | TLS, PKI, 인증서, mTLS, IAM, RBAC |
+| `ai` | LLM, ML, 모델 서빙, GPU 워크로드 |
 
-**기존 태그 자동 변환**: Kubernetes → domain/kubernetes, Istio → domain/networking 등 자동 매핑.
+**기존 태그 자동 변환**: Kubernetes → kubernetes, Istio → networking 등 자동 매핑.
 
 ## aliases 결정 기준
 
@@ -168,7 +172,7 @@ allowed-tools:
 ### Step 2 — 제목과 태그 결정
 
 - **제목**: 학습 주제를 간결하게, **하이픈(`-`) 사용 금지** — 단어 구분은 공백으로 (예: `Kubernetes Init Container 라이프사이클`)
-- **태그**: 위 domain/ 네임스페이스에서 1개 이상 선택 (기존 태그명 입력 시 자동 변환)
+- **태그**: 위 태그 목록에서 1개 이상 선택 (기존 태그명 입력 시 자동 변환)
 
 ### Step 3 — 노트 생성 스크립트 실행
 
@@ -178,7 +182,7 @@ allowed-tools:
 스크립트 호출 전에 Claude가 핵심 키워드 3개를 결정한다 (`## aliases 결정 기준` 참고).
 
 ```bash
-python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create \
+python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
   --title "제목" \
   --tags "Kubernetes,Infra" \
   --aliases "키워드1,키워드2,키워드3" \
@@ -230,7 +234,7 @@ Obsidian 노트가 생성되었습니다.
 ## 최근 노트 목록 조회
 
 ```bash
-python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py list --limit 10
+python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py list --limit 10
 ```
 
 ## 검증

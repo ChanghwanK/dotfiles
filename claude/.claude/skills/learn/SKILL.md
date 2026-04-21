@@ -8,7 +8,7 @@ description: |
   트리거 키워드: "/learn", "학습", "deep-dive", "개념 학습", "원리 파악", "학습 추천", "학습 주제 추천".
 model: sonnet
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Write(/tmp/obsidian-content.json)
 ---
 # Deep-dive Learning Session
@@ -402,7 +402,7 @@ Phase 5 Summary 출력 완료 후 반드시 아래 프롬프트를 출력하고,
 사용자가 Y/Enter로 저장을 선택하면:
 1. 제목, 태그(`domain/` 네임스페이스), aliases(검색 키워드) 결정
 2. `/tmp/obsidian-content.json` 작성
-3. `python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create --input /tmp/obsidian-content.json` 실행
+3. `python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create --input /tmp/obsidian-content.json` 실행
 4. 저장된 파일 경로 출력
 
 ---

@@ -199,14 +199,15 @@ def _find_note(note_map: dict, query: str):
 
 def _parse_scope(scope_str: str) -> tuple:
     if not scope_str or scope_str == "all":
-        return ("notes", "resources")
+        return ("notes", "resources", "wiki")
     mapping = {
         "notes": ("notes",),
         "resources": ("resources",),
         "daily": ("daily",),
-        "all": ("notes", "resources", "daily"),
+        "wiki": ("wiki",),
+        "all": ("notes", "resources", "wiki", "daily"),
     }
-    return mapping.get(scope_str, ("notes", "resources"))
+    return mapping.get(scope_str, ("notes", "resources", "wiki"))
 
 
 def _extract_issues_section(body: str) -> list:
@@ -235,7 +236,7 @@ def main():
     p_search.add_argument("--query", default="", help="검색 키워드")
     p_search.add_argument("--tags", nargs="+", help="태그 필터 (예: domain/kubernetes)")
     p_search.add_argument("--type", help="노트 타입 필터 (예: learning-note)")
-    p_search.add_argument("--scope", default="notes", help="검색 범위: notes|resources|daily|all")
+    p_search.add_argument("--scope", default="all", help="검색 범위: notes|resources|wiki|daily|all")
     p_search.add_argument("--limit", type=int, default=10)
 
     p_related = sub.add_parser("related", help="연관 노트 탐색")

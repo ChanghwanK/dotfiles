@@ -7,7 +7,7 @@ description: |
 model: sonnet
 allowed-tools:
   - Read
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Write(/tmp/obsidian-content.json)
 ---
 
@@ -244,5 +244,5 @@ Step 4 요약 완료 후 반드시 아래 프롬프트를 출력하고, "Y" 또�
 2. 태그 결정 (`domain/kubernetes` 등)
 3. aliases 추출 (주제 관련 검색 키워드)
 4. `/tmp/obsidian-content.json` 작성
-5. `python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create --input /tmp/obsidian-content.json` 실행
+5. `python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create --input /tmp/obsidian-content.json` 실행
 6. 저장된 파일 경로 출력

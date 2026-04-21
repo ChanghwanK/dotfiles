@@ -11,7 +11,7 @@ allowed-tools:
   - WebFetch
   - Read
   - Write(/tmp/setup-guide-content.json)
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
 ---
 # Setup Guide Generator
 
@@ -119,7 +119,7 @@ WebSearch와 WebFetch로 아래 정보를 수집한다:
 
 "Y" 또는 Enter 시:
 1. `/tmp/setup-guide-content.json` 작성 (title, content, tags, aliases)
-2. `python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create --input /tmp/setup-guide-content.json` 실행
+2. `python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create --input /tmp/setup-guide-content.json` 실행
 3. 저장된 파일 경로 출력
 
 **저장 메타데이터:**

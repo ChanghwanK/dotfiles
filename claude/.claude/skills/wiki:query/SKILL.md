@@ -1,16 +1,16 @@
 ---
-name: obsidian:query
+name: wiki:query
 description: |
   Obsidian 지식 베이스 검색 스킬. 키워드/태그로 관련 노트를 찾고 링크 그래프 기반 연관 노트까지 탐색.
   사용 시점: (1) 특정 주제 노트 검색, (2) 노트 작성 전 관련 지식 탐색, (3) Daily Note Issues 검색,
   (4) 도메인별 지식 인벤토리 파악.
-  트리거 키워드: "노트 검색", "관련 노트", "obsidian 검색", "지식 찾기", "노트 찾아줘", "/obsidian:query".
+  트리거 키워드: "노트 검색", "관련 노트", "obsidian 검색", "지식 찾기", "노트 찾아줘", "/wiki:query".
 model: sonnet
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:query/scripts/obsidian-query.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py *)
   - Read
 ---
-# obsidian:query
+# wiki:query
 
 Obsidian vault(217개+ 노트)에서 키워드/태그/연관 링크 그래프로 관련 지식을 찾는다.
 
@@ -31,15 +31,15 @@ Obsidian vault(217개+ 노트)에서 키워드/태그/연관 링크 그래프로
 
 ```bash
 # 키워드 검색 (기본 scope: 02. Notes + 03. Resources)
-python3 /Users/changhwan/.claude/skills/obsidian:query/scripts/obsidian-query.py \
+python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \
   search --query "검색어" [--tags domain/kubernetes] [--type learning-note] [--limit 10]
 
 # 연관 노트 탐색 (링크 그래프 BFS)
-python3 /Users/changhwan/.claude/skills/obsidian:query/scripts/obsidian-query.py \
+python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \
   related --note "노트 파일명.md" [--depth 2] [--limit 10]
 
 # Daily Note Issues 검색
-python3 /Users/changhwan/.claude/skills/obsidian:query/scripts/obsidian-query.py \
+python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \
   find-issues [--date 2026-04-20] [--days-back 7]
 ```
 

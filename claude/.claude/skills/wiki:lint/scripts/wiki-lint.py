@@ -243,7 +243,7 @@ def check_type_invalid(notes) -> list:
 
 
 def check_tags(notes) -> list:
-    """domain/ 형식 미준수 태그 탐지"""
+    """비정규화 태그 탐지"""
     issues = []
     for note in notes:
         if note.filename in WIKI_META_FILES:

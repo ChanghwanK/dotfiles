@@ -6,7 +6,7 @@ allowed-tools:
   - Agent
   - WebFetch
   - Read
-  - Bash(python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
 ---
 
 # Article Summary Skill
@@ -128,7 +128,7 @@ Agent B `DOMAIN_CLASSIFICATION`을 기반으로 `domain/` 태그를 결정한다
 Step 3에서 생성한 마크다운 본문을 heredoc stdin으로 파이프한다:
 
 ```bash
-python3 /Users/changhwan/.claude/skills/obsidian:note/scripts/obsidian-note.py create \
+python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
   --title "[페이지 제목]" \
   --tags "domain/tag1,domain/tag2" \
   --type "learning-note" \

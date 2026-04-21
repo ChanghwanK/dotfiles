@@ -116,9 +116,8 @@ def append_to_daily_note(note_slug: str, tags: list[str]) -> dict:
     if notes_idx is None:
         return {"linked": False, "reason": "notes_section_not_found"}
 
-    # domain 태그 요약 (최대 2개)
-    domain_tags = [t for t in tags if t.startswith("domain/")]
-    tags_str = ", ".join(domain_tags[:2]) if domain_tags else ""
+    # 태그 요약 (최대 2개)
+    tags_str = ", ".join(tags[:2]) if tags else ""
     entry = f"- {wikilink}" + (f" {tags_str}" if tags_str else "")
 
     # Notes 섹션 다음 줄 분석: 빈 섹션(placeholder `-`)이면 교체, 아니면 마지막 항목 뒤에 append
@@ -161,46 +160,42 @@ def find_related_notes(tags: list[str], exclude_filename: str) -> list[dict]:
     for search_dir in search_dirs:
         if not os.path.isdir(search_dir):
             continue
-        try:
-            dir_entries = os.listdir(search_dir)
-        except PermissionError:
-            continue
-        for filename in dir_entries:
-            if not filename.endswith(".md") or filename == exclude_filename:
-                continue
+        for root, _, dir_entries in os.walk(search_dir):
+            for filename in dir_entries:
+                if not filename.endswith(".md") or filename == exclude_filename:
+                    continue
 
-            filepath = os.path.join(search_dir, filename)
-            note_tags = []
-            note_title = os.path.splitext(filename)[0]  # fallback
+                filepath = os.path.join(root, filename)
+                note_tags = []
+                note_title = os.path.splitext(filename)[0]  # fallback
 
-            try:
-                with open(filepath, encoding="utf-8") as f:
-                    in_fm = False
-                    for line in f:
-                        line = line.rstrip()
-                        if line == "---":
-                            if not in_fm:
-                                in_fm = True
-                                continue
-                            else:
-                                break
-                        if in_fm:
-                            if line.startswith("title:"):
-                                note_title = line.split(":", 1)[1].strip().strip('"')
-                            elif line.startswith("  - "):
-                                val = line.strip()[2:]
-                                if val.startswith("domain/"):
+                try:
+                    with open(filepath, encoding="utf-8") as f:
+                        in_fm = False
+                        for line in f:
+                            line = line.rstrip()
+                            if line == "---":
+                                if not in_fm:
+                                    in_fm = True
+                                    continue
+                                else:
+                                    break
+                            if in_fm:
+                                if line.startswith("title:"):
+                                    note_title = line.split(":", 1)[1].strip().strip('"')
+                                elif line.startswith("  - "):
+                                    val = line.strip()[2:]
                                     note_tags.append(val)
-            except (OSError, UnicodeDecodeError):
-                continue
+                except (OSError, UnicodeDecodeError):
+                    continue
 
-            common_tags = tag_set & set(note_tags)
-            if common_tags:
-                related.append({
-                    "title": note_title,
-                    "slug": os.path.splitext(filename)[0],
-                    "common_tags": sorted(common_tags),
-                })
+                common_tags = tag_set & set(note_tags)
+                if common_tags:
+                    related.append({
+                        "title": note_title,
+                        "slug": os.path.splitext(filename)[0],
+                        "common_tags": sorted(common_tags),
+                    })
 
     related.sort(key=lambda x: len(x["common_tags"]), reverse=True)
     return related[:5]  # 최대 5개
@@ -215,8 +210,9 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
     notes_dir = get_save_dir(note_type, category)
     os.makedirs(notes_dir, exist_ok=True)
 
-    # 태그 정규화
-    domain_tags = normalize_tags(tags)
+    # 태그 정규화 후 domain/ 프리픽스 제거
+    normalized = normalize_tags(tags)
+    domain_tags = [t.split("/", 1)[1] if "/" in t else t for t in normalized]
 
     aliases = aliases or []
 
@@ -301,46 +297,47 @@ def list_notes(limit: int = 10) -> dict:
         if not os.path.isdir(search_dir):
             continue
 
-        for filename in os.listdir(search_dir):
-            if not filename.endswith(".md"):
-                continue
+        for root, _, filenames in os.walk(search_dir):
+            for filename in filenames:
+                if not filename.endswith(".md"):
+                    continue
 
-            filepath = os.path.join(search_dir, filename)
-            tags = []
-            title = filename
-            date_str = ""
-            note_type = ""
+                filepath = os.path.join(root, filename)
+                tags = []
+                title = filename
+                date_str = ""
+                note_type = ""
 
-            try:
-                with open(filepath, encoding="utf-8") as f:
-                    in_fm = False
-                    for line in f:
-                        line = line.rstrip()
-                        if line == "---":
-                            if not in_fm:
-                                in_fm = True
-                                continue
-                            else:
-                                break
-                        if in_fm:
-                            if line.startswith("title:"):
-                                title = line.split(":", 1)[1].strip().strip('"')
-                            elif line.startswith("date:"):
-                                date_str = line.split(":", 1)[1].strip()
-                            elif line.startswith("type:"):
-                                note_type = line.split(":", 1)[1].strip()
-                            elif line.startswith("  - ") and line.strip()[2:].startswith("domain/"):
-                                tags.append(line.strip()[2:])
-            except (OSError, UnicodeDecodeError):
-                continue
+                try:
+                    with open(filepath, encoding="utf-8") as f:
+                        in_fm = False
+                        for line in f:
+                            line = line.rstrip()
+                            if line == "---":
+                                if not in_fm:
+                                    in_fm = True
+                                    continue
+                                else:
+                                    break
+                            if in_fm:
+                                if line.startswith("title:"):
+                                    title = line.split(":", 1)[1].strip().strip('"')
+                                elif line.startswith("date:"):
+                                    date_str = line.split(":", 1)[1].strip()
+                                elif line.startswith("type:"):
+                                    note_type = line.split(":", 1)[1].strip()
+                                elif line.startswith("  - "):
+                                    tags.append(line.strip()[2:])
+                except (OSError, UnicodeDecodeError):
+                    continue
 
-            notes.append({
-                "title": title,
-                "date": date_str,
-                "type": note_type,
-                "tags": tags,
-                "filename": filename,
-            })
+                notes.append({
+                    "title": title,
+                    "date": date_str,
+                    "type": note_type,
+                    "tags": tags,
+                    "filename": filename,
+                })
 
     notes.sort(key=lambda x: x["date"] or x["filename"], reverse=True)
     notes = notes[:limit]
