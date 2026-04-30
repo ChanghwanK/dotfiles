@@ -52,6 +52,5 @@
     "devops@socraai-devops-skills": true
   },
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true,
-  "model": "sonnet[1m]"
+  "skipDangerousModePermissionPrompt": true
 }
