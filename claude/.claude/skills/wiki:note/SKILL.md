@@ -174,12 +174,19 @@ allowed-tools:
 - **제목**: 학습 주제를 간결하게, **하이픈(`-`) 사용 금지** — 단어 구분은 공백으로 (예: `Kubernetes Init Container 라이프사이클`)
 - **태그**: 위 태그 목록에서 1개 이상 선택 (기존 태그명 입력 시 자동 변환)
 
+### Step 2.5 — aliases 제안 (Agent)
+
+`agents/agent-alias-suggester.md`를 Read한 후 아래 변수를 치환하여 Agent tool로 호출한다:
+
+- `{title}` → Step 2에서 결정한 노트 제목
+- `{body}` → Step 1에서 작성한 마크다운 본문 전체
+
+Agent가 반환한 JSON에서 `aliases[].value`를 순서대로 추출하여 Step 3의 `--aliases` 인자에 사용한다.
+
 ### Step 3 — 노트 생성 스크립트 실행
 
 마크다운 본문을 stdin으로 직접 파이프하여 스크립트를 실행한다.
 `<< 'OBSIDIAN_CONTENT_EOF'` 방식으로 heredoc을 사용하여 특수문자(`$`, `` ` ``, 따옴표 등)가 shell에 의해 해석되지 않게 한다.
-
-스크립트 호출 전에 Claude가 핵심 키워드 3개를 결정한다 (`## aliases 결정 기준` 참고).
 
 ```bash
 python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
@@ -206,8 +213,8 @@ OBSIDIAN_CONTENT_EOF
 `agents/agent-note-reviewer.md`를 Read한 후 아래 변수를 치환하여 Agent tool로 호출한다:
 
 - `{filepath}` → 스크립트 응답의 `filepath` 값
+- `{slug}` → `filepath` basename에서 `.md` 확장자를 제거한 값 (예: `python-임포트-disk-io-병목-분석`)
 - `{title}` → 노트 제목
-- `{aliases}` → `--aliases`로 전달한 값
 - `{tags}` → 정규화된 태그 목록
 - `{related_slugs}` → 스크립트 응답의 `related` 목록 (없으면 빈 배열)
 

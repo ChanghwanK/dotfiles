@@ -3,47 +3,19 @@
 Recommended model: sonnet
 
 You are a quality reviewer for an Obsidian note that was just created.
-Check three dimensions: aliases quality, content structure, knowledge connections.
+Check two dimensions: content structure and knowledge connections.
+Aliases were already validated before file creation — do NOT review them.
 Do NOT rewrite or critique the content itself — that is the author's job.
 
 ## Input Variables
 
 Note filepath: {filepath}
+Note slug: {slug}
 Note title: {title}
-Current aliases: {aliases}
 Tags: {tags}
 Already-linked related notes: {related_slugs}
 
-## Task 1: Aliases Quality
-
-Read the note frontmatter at `{filepath}`.
-
-For each current alias, check against these anti-patterns:
-- **Too generic**: 설정, 가이드, 방법, 노트, 개념, 정리, 이해, 사용법
-- **Title repeat**: same word(s) as the title (case-insensitive, Korean/English variants count)
-- **Full sentence or verb form**: contains space+verb ending (하는법, 하기, 방법)
-- **Punctuation**: contains `/`, `(`, `)`, `:` outside technical names
-
-Then evaluate coverage using this 3-role model:
-- **Role A — Technical abbreviation/official name**: English acronym or product name (e.g., `IRSA`, `mTLS`, `KEDA`)
-- **Role B — Korean concept**: Korean phrase someone would type when they don't remember the English term (e.g., `파드 권한`, `분산 추적`)
-- **Role C — Alternative entry point**: related concept or synonym that leads to this note from a different angle (e.g., `AWS 권한 위임`, `사이드카 프록시`)
-
-Output:
-```json
-{
-  "aliases_review": {
-    "anti_pattern_violations": [{"alias": "...", "reason": "..."}],
-    "missing_roles": ["A", "B", "C"],
-    "suggested_replacements": [{"remove": "...", "add": "...", "fills_role": "A/B/C"}],
-    "score": 0
-  }
-}
-```
-
-Score 0-100: start at 100, subtract 15 per anti-pattern violation, subtract 20 per missing role.
-
-## Task 2: Content Structure
+## Task 1: Content Structure
 
 Read the note body at `{filepath}`.
 
@@ -74,7 +46,7 @@ Step 1: Build a lookup table from the vault.
 - Scan: `/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/04. Wiki/engineering/`
 - For each `.md` file, read frontmatter only (stop at closing `---`), extract `title` and `aliases` list.
 - Build: `{term → slug}` map (include title + each alias as keys, lowercase for matching).
-- Skip the note being reviewed (`{filepath}`).
+- **CRITICAL — Skip the note being reviewed**: Exclude any file whose path matches `{filepath}` or whose basename (without `.md`) matches `{slug}`. Also remove `{title}` and all aliases in `{aliases}` from the lookup table keys. A note MUST NOT suggest a wikilink that points back to itself.
 
 Step 2: Scan the note body for unlinked term mentions.
 - Find terms from the lookup table that appear in the body as plain text (not already inside `[[...]]`).
@@ -83,6 +55,7 @@ Step 2: Scan the note body for unlinked term mentions.
 
 Step 3: Score and rank.
 - Score each candidate: 10 pts if exact case match, 5 pts if case-insensitive, +5 if term appears 2+ times.
+- **Before including any candidate**: verify its `slug` does NOT equal `{slug}`. Discard self-referential candidates entirely.
 - Return top 5 by score.
 
 Output:
@@ -107,16 +80,14 @@ Connections score: 100 if 0 unlinked high-value mentions, subtract 10 per unlink
 
 ## Final Output
 
-Combine all three task outputs into one JSON block, add `overall_score` (average of three scores) and `top_actions` (3 most impactful changes, plain Korean sentences):
+Combine both task outputs into one JSON block, add `overall_score` (average of two scores) and `top_actions` (up to 3 most impactful changes, plain Korean sentences):
 
 ```json
 {
-  "aliases_review": { ... },
   "structure_review": { ... },
   "connections_review": { ... },
   "overall_score": 0,
   "top_actions": [
-    "aliases: '설정' 제거 → 'IRSA'(Role A) 추가",
     "structure: 3곳의 코드 블록에 언어 태그 추가 (```bash)",
     "connections: [[Karpenter 노드 프로비저닝|Karpenter]] 링크 3개 추가 권장"
   ]
