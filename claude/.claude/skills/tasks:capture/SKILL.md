@@ -8,11 +8,12 @@ description: |
   트리거 키워드: "캡처", "capture", "나중에 할 일", "아이디어", "메모해 둬",
   "tasks:capture", "할 일 메모", "잊기 전에",
   "Task 추가", "새 Task", "할 일 추가", "Task 만들어줘", "태스크 추가".
-model: haiku
+model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py *)
   - AskUserQuestion
 ---
+
 # tasks:capture
 
 작업 중 떠오른 아이디어를 **최소한의 인터랙션**으로 Notion Task DB에 캡처한다.

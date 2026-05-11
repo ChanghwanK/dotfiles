@@ -7,8 +7,10 @@
     "allow": [
       "Bash(kubectl config use-context:*)",
       "Bash($HOME/.claude/scripts/notify-slack.sh *)"
-    ]
+    ],
+    "defaultMode": "auto"
   },
+  "model": "sonnet[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -48,9 +50,9 @@
     "command": "python3 $HOME/.claude/statusline.py"
   },
   "enabledPlugins": {
-    "claude-mem@thedotmack": true,
-    "devops@socraai-devops-skills": true
+    "claude-mem@thedotmack": true
   },
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true
 }

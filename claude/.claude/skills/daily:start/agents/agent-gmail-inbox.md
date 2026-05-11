@@ -73,12 +73,6 @@ infra_actions:
     action: "<GitOps 리포 경로 포함 구체적 액션>"
     priority: "high | medium | low"
     source: "<messageId>"
-
-suggested_tasks:
-  - name: "<Task명>"
-    priority: "P1 | P2 | P3"
-    description: "<설명>"
-    source: "<messageId>"
 GMAIL_RESULT_END
 ```
 
@@ -89,7 +83,6 @@ GMAIL_RESULT_END
   GMAIL_RESULT_START
   email_summary: null
   infra_actions: []
-  suggested_tasks: []
   GMAIL_RESULT_END
   ```
 - 미읽음 메일이 0개이면:
@@ -99,7 +92,6 @@ GMAIL_RESULT_END
     total_unread: 0
     emails: []
   infra_actions: []
-  suggested_tasks: []
   GMAIL_RESULT_END
   ```
 
@@ -107,4 +99,4 @@ GMAIL_RESULT_END
 
 - raw JSON이나 전체 메일 본문을 반환하지 않는다.
 - 광고/소셜 카테고리는 Query 1 검색 조건으로 이미 제외되므로 추가 필터링 불필요.
-- 분석 결과는 콘솔 출력과 Obsidian Daily Note에 반영된다. Task는 자동 추가하지 않고 권장만 한다.
+- 분석 결과는 콘솔 출력과 Obsidian Daily Note에 반영된다. Task 제안/권장은 하지 않는다.

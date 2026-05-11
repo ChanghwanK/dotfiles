@@ -34,9 +34,12 @@ aliases: []
 - 🔧 {컴포넌트} {버전} — {액션}
 
 ## Todos
-- [ ] [Top 3 작업명 1]
-- [ ] [Top 3 작업명 2]
-- [ ] [Top 3 작업명 3]
+- [ ] [Top 3] [작업명 1]
+- [ ] [Top 3] [작업명 2]
+- [ ] [Top 3] [작업명 3]
+- [ ] [나머지 Notion daily task 1]
+- [ ] [나머지 Notion daily task 2]
+<!-- Top 3 이후 항목: Notion daily tasks 전체 나머지 후보 + tomorrow_tasks 미포함분 -->
 
 ## 리마인드
 - [{date}] {title}

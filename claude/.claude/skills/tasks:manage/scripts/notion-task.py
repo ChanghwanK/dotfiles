@@ -275,9 +275,43 @@ def cmd_create_task(args):
     }
 
     result = notion_request(token, "POST", "/pages", body)
+    page_id = result.get("id", "")
+
+    # 업무 노트 리마인더 블록 추가 (button 블록은 API 미지원이므로 텍스트로 대체)
+    notion_request(token, "PATCH", f"/blocks/{page_id}/children", {
+        "children": [
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {"content": "📝 업무 노트 작성하기"},
+                            "annotations": {"bold": True},
+                        }
+                    ]
+                },
+            },
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {"content": "Engineering DB에서 이 Task를 연결하여 업무 노트를 작성하세요."},
+                            "annotations": {"color": "gray"},
+                        }
+                    ]
+                },
+            },
+        ]
+    })
+
     print(json.dumps({
         "success": True,
-        "page_id": result.get("id", ""),
+        "page_id": page_id,
         "name": name,
         "priority": priority,
         "category": category,
