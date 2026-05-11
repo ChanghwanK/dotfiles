@@ -7,7 +7,6 @@ __pycache__/
 *.pyc
 *.error.log
 .secrets.zsh
-CLAUDE.md
 
 # claude 런타임 파일 제외
 claude/.claude/cache/
