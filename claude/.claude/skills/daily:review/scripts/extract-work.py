@@ -117,7 +117,10 @@ def extract_user_messages(jsonl_path: Path) -> list[str]:
 
 
 def get_file_date(path: Path) -> date:
-    mtime = path.stat().st_mtime
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return date.min
     return datetime.fromtimestamp(mtime).date()
 
 

@@ -382,9 +382,18 @@ def parse_obsidian_daily(file_path):
     total_done = top_done + sub_done_count
     total_count = top_total + sub_total_count
 
+    # Notes 파싱 (plain text, 빈 줄 "-" 제외)
+    raw_notes = sections.get("Notes", [])
+    notes = [
+        line.lstrip("- ").strip()
+        for line in raw_notes
+        if line.strip() and line.strip() != "-"
+    ]
+
     return {
         "top3": top3,
         "todos": todos,
+        "notes": notes,
         "progress": {
             "done": total_done,
             "total": total_count,
@@ -416,6 +425,7 @@ def cmd_today(args):
             "in_progress": [t for t in parsed["todos"] if not t["done"]],
             "completed": [t for t in parsed["todos"] if t["done"]],
         },
+        "notes": parsed["notes"],
         "progress": parsed["progress"],
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
