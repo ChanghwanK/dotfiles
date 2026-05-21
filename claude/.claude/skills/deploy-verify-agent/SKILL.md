@@ -144,8 +144,8 @@ ARGOCD_STATUS와 POD_STATUS를 종합하여 판정한다.
 {필요 시 추가 확인 사항}
 ```
 
-이상 감지 시 sre-agent 에스컬레이션 안내:
+이상 감지 시 /devops:infra-rca 에스컬레이션 안내:
 ```
-더 깊은 RCA가 필요하면 sre-agent를 사용하세요:
+더 깊은 RCA가 필요하면 /devops:infra-rca 스킬을 사용하세요:
   "{circle} {env} 장애 분석해줘"
 ```
