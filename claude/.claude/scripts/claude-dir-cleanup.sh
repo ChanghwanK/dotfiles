@@ -12,8 +12,10 @@
 set -euo pipefail
 
 readonly CLAUDE_DIR="${HOME}/.claude"
+readonly MEM_DIR="${HOME}/.claude-mem"   # Tier 4C 대상 — CLAUDE_DIR 가드 밖의 고정 상수(사용자 입력 아님)
 readonly RETENTION_DAYS=7
-readonly BACKUP_KEEP=3   # .claude.json.backup.* 보존 개수
+readonly TIER4_RETENTION=30              # Tier 4A 트랜스크립트 보존 기준 (RETENTION_DAYS=7 과 분리)
+readonly BACKUP_KEEP=3                   # .claude.json.backup.* 보존 개수
 
 # 오용 가드: 대상은 반드시 ~/.claude 여야 한다 (다른 경로 삭제 방지)
 case "$CLAUDE_DIR" in
@@ -22,8 +24,17 @@ case "$CLAUDE_DIR" in
 esac
 [ -d "$CLAUDE_DIR" ] || { echo "FATAL: $CLAUDE_DIR not found" >&2; exit 1; }
 
+# 플래그 스캔 — --apply 와 --tier4 는 순서 무관하게 공존 가능
+# --tier4 는 cron 에 등록되지 않은 opt-in 으로, 대용량 트랜스크립트/백업을 정리한다
 APPLY=false
-[ "${1:-}" = "--apply" ] && APPLY=true
+TIER4=false
+for arg in "$@"; do
+  case "$arg" in
+    --apply) APPLY=true ;;
+    --tier4) TIER4=true ;;
+    *) echo "unknown arg: $arg (사용법: $0 [--apply] [--tier4])" >&2; exit 1 ;;
+  esac
+done
 
 # quarantine 디렉토리는 apply 모드에서 첫 이동 시점에만 생성
 QUARANTINE=""
@@ -141,6 +152,55 @@ fi
 log ""
 
 # ──────────────────────────────────────────────────────────
+# Tier 4 — 대용량 (opt-in: --tier4, cron 미포함)
+# ──────────────────────────────────────────────────────────
+# 4A: ingest 완료된 오래된 subagent 트랜스크립트 (Claude Code 기본 cleanup이 놓치는 중첩 경로)
+tier4_transcripts() {
+  local projects_dir="$CLAUDE_DIR/projects"
+  [ -d "$projects_dir" ] || return 0
+  # */subagents/*.jsonl 만 매칭 → top-level 세션 트랜스크립트는 불가침.
+  # -mtime +30 → 오늘 파일·활성 observer 세션(<30d)은 절대 미매칭(활성 보호).
+  local pred=(-type f -path '*/subagents/*.jsonl' -mtime +"${TIER4_RETENTION}")
+  local n
+  n=$(find "$projects_dir" "${pred[@]}" 2>/dev/null | wc -l | tr -d ' ')
+  log "  subagents/*.jsonl (>${TIER4_RETENTION}d): ${n}개"
+  [ "$n" -gt 0 ] || return 0
+  while IFS= read -r f; do add_size "$f"; done < <(find "$projects_dir" "${pred[@]}" 2>/dev/null)
+  $APPLY && find "$projects_dir" "${pred[@]}" -delete 2>/dev/null || true
+}
+
+# 4C: claude-mem 일회성 마이그레이션 백업 — 적용 완료 마커가 있을 때만 삭제(마커 게이트)
+# MEM_DIR 은 CLAUDE_DIR 가드 밖이지만 고정 상수이고 glob 이 구체적이라 blast radius 가 한정된다.
+tier4_mem_backups() {
+  [ -d "$MEM_DIR" ] || return 0
+  if [ -f "$MEM_DIR/.cwd-remap-applied-v1" ]; then
+    for f in "$MEM_DIR"/claude-mem.db.bak-cwd-remap-*; do
+      [ -e "$f" ] || continue
+      add_size "$f"; log "  mem backup: ${f##*/}"; $APPLY && rm -f "$f"
+    done
+  else
+    log "  (skip cwd-remap backup: applied 마커 없음)"
+  fi
+  if [ -f "$MEM_DIR/.cleanup-v12.4.3-applied" ]; then
+    for f in "$MEM_DIR"/backups/claude-mem-pre-12.4.3-*.db; do
+      [ -e "$f" ] || continue
+      add_size "$f"; log "  mem backup: ${f##*/}"; $APPLY && rm -f "$f"
+    done
+  else
+    log "  (skip pre-12.4.3 backup: applied 마커 없음)"
+  fi
+}
+
+if $TIER4; then
+  log "── Tier 4A: subagent 트랜스크립트 (>${TIER4_RETENTION}d hard delete) ──"
+  tier4_transcripts
+  log ""
+  log "── Tier 4C: claude-mem 마이그레이션 백업 (마커 게이트) ──"
+  tier4_mem_backups
+  log ""
+fi
+
+# ──────────────────────────────────────────────────────────
 # 요약
 # ──────────────────────────────────────────────────────────
 human() { # bytes → human readable
@@ -155,5 +215,9 @@ if $APPLY; then
   [ -n "$QUARANTINE" ] && log "quarantine 위치: ${QUARANTINE}  (복원: mv 내부 파일 → 원위치)"
   log "완료. --dry-run 재실행으로 idempotency 확인 가능."
 else
-  log "실제 정리하려면: $0 --apply"
+  if $TIER4; then
+    log "실제 정리하려면: $0 --tier4 --apply"
+  else
+    log "실제 정리하려면: $0 --apply   (대용량 트랜스크립트/백업까지: --tier4 추가)"
+  fi
 fi
