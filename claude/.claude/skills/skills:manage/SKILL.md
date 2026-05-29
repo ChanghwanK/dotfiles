@@ -1,11 +1,10 @@
 ---
 name: skills:manage
 description: |
-  스킬 생명주기 관리 (CRUD + validate + backup/restore).
-  사용 시점: (1) 새 스킬 생성/수정/삭제, (2) 스킬 목록 조회 또는 구조 검증,
-  (3) 삭제된 스킬 복원.
+  스킬 생명주기 관리 (CRUD + validate).
+  사용 시점: (1) 새 스킬 생성/수정/삭제, (2) 스킬 목록 조회 또는 구조 검증.
   트리거 키워드: "스킬 만들어줘", "스킬 생성", "스킬 수정", "스킬 삭제",
-  "스킬 검증", "스킬 복원", "스킬 목록", "skill create", "skill update",
+  "스킬 검증", "스킬 목록", "skill create", "skill update",
   "skill delete", "skill show", "/skills:manage".
 model: sonnet
 allowed-tools:
@@ -27,9 +26,32 @@ allowed-tools:
 
 - **역할 분리**: 파일 조작 → 스크립트, 내용 작성 → Claude
 - **검증 우선**: create/update 후 MUST validate로 확인
-- **백업 보장**: delete는 기본적으로 `~/.claude/skills/.backups/`에 백업
-- **절대 경로**: 스크립트 참조는 반드시 절대 경로 사용
+- **삭제는 hard delete**: delete는 복구 불가. 백업 기능은 제공하지 않으므로 삭제 전 사용자 동의 필수
+- **경로 규칙**: user scope는 절대 경로, project scope는 `${CLAUDE_PROJECT_DIR}` 사용
 - **stdlib only**: Python 스크립트는 표준 라이브러리만 사용
+
+---
+
+## Scope (user vs project)
+
+스킬은 두 위치 중 하나에 배치된다:
+
+| Scope | 디렉토리 | 용도 |
+|-------|---------|------|
+| `user` | `~/.claude/skills/` | 모든 프로젝트에서 공유되는 전역 스킬 |
+| `project` | `$PWD/.claude/skills/` | 특정 프로젝트 전용 스킬 (리포에 commit 가능) |
+
+모든 subcommand는 `--scope user|project` (또는 `-s`) 플래그를 받는다.
+
+**Auto-detect (플래그 미지정 시):**
+- 현재 디렉토리에 `.claude/skills/`가 존재 → `project`
+- 그 외 → `user`
+
+**Frontmatter 경로 규칙 (create가 자동 적용):**
+- user scope: `/Users/changhwan/.claude/skills/<name>/scripts/...` (절대 경로)
+- project scope: `${CLAUDE_PROJECT_DIR}/.claude/skills/<name>/scripts/...` (이식 가능)
+
+`${CLAUDE_PROJECT_DIR}`는 Claude Code가 자동 주입하는 환경변수로, 리포를 다른 위치로 옮겨도 동작한다.
 
 ---
 
@@ -46,8 +68,7 @@ allowed-tools:
     ├─ "검증", "validate", "확인"           → Validate 워크플로우
     ├─ "리뷰", "review", "점수", "평가"     → Review 워크플로우
     ├─ "수정", "변경", "update"             → Update 워크플로우
-    ├─ "삭제", "제거", "delete"             → Delete 워크플로우
-    └─ "복원", "되돌려", "restore"          → Restore 워크플로우
+    └─ "삭제", "제거", "delete"             → Delete 워크플로우
 ```
 
 ---
@@ -121,8 +142,19 @@ Claude는 각 Sub-Agent의 작업 성격을 분석하여 **명시적으로** 모
 
 ### Step 2 — 스캐폴딩 생성 (스크립트)
 
+`--scope`를 명시하거나 (`user` | `project`), 생략하면 CWD 기반 auto-detect.
+
 ```bash
+# User scope (전역) — 기본 또는 CWD에 .claude/skills/ 없을 때 자동
 python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> \
+  --scope user \
+  --description "한국어 설명. 사용 시점: (1) ..." \
+  --model sonnet \
+  --type workflow
+
+# Project scope (현재 리포 전용) — CWD/.claude/skills/<name>/ 생성
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> \
+  --scope project \
   --description "한국어 설명. 사용 시점: (1) ..." \
   --model sonnet \
   --type workflow
@@ -325,11 +357,11 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py sh
 
 ### Step 2 — 사용자 동의 요청
 
-삭제 전 사용자에게 확인:
+delete는 **hard delete (복구 불가, 백업 없음)** 이다. 사용자에게 명시적으로 확인한다:
+
 ```
-스킬 '<name>'을 삭제합니다.
-- 경로: ~/.claude/skills/<name>/
-- 백업 위치: ~/.claude/skills/.backups/<name>-<timestamp>/
+스킬 '<name>'을 삭제합니다 (HARD DELETE — 복구 불가, 백업 없음).
+- 경로: <scope_dir>/<name>/
 
 계속할까요?
 ```
@@ -340,41 +372,17 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py sh
 # 미리보기 — 어떤 파일이 삭제되는지 확인 (write 안 함)
 python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name> --dry-run
 
-# 백업 포함 (기본)
+# hard delete (복구 불가)
 python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name>
-
-# 백업 없이 — 영구 손실 방지를 위해 --confirm-no-backup 추가 필수
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name> \
-  --no-backup --confirm-no-backup
 ```
-
----
-
-## Restore 워크플로우
-
-실수로 삭제한 스킬을 백업에서 복원한다.
-
-### 백업 목록 확인
-
-```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py restore <name> --list
-```
-
-### 최신 백업으로 복원
-
-```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py restore <name>
-```
-
-- 동일 이름의 스킬이 이미 존재하면 에러 — 덮어쓰기 방지
-- 복원 후 자동 validate 실행
 
 ---
 
 ## 주의사항
 
-- `allowed-tools`에 지정된 스크립트 경로는 **절대 경로** 필수
+- `allowed-tools`의 스크립트 경로: user scope는 **절대 경로**, project scope는 `${CLAUDE_PROJECT_DIR}/` 접두사 사용
 - TODO placeholder가 남아 있으면 validate가 warning을 출력한다 (에러는 아님)
 - 스킬 이름: `^[a-z][a-z0-9]*([:-][a-z0-9]+)*$` 형식, 최대 64자, colon 최대 2개
 - Python 스크립트는 `yaml`, `requests` 등 서드파티 라이브러리 사용 금지
-- delete는 기본적으로 백업을 생성하므로 실수로 삭제해도 복구 가능
+- delete는 hard delete — 백업 기능이 없으므로 삭제 시 영구 손실. 실행 전 사용자 동의 필수
+- `--scope` 미지정 시 CWD 기반 auto-detect — 프로젝트 디렉토리에서 user scope 작업이 필요하면 `--scope user` 명시

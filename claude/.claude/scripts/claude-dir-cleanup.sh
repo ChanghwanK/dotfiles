@@ -6,7 +6,7 @@
 # --resume·claude-mem 동작에 직접 영향이 있어 별도 신중 검토로 분리한다.
 #
 # Tier 1: 빈 디렉토리          → 즉시 삭제 (잃을 것 없음)
-# Tier 2: stale orphan/legacy  → quarantine 디렉토리로 이동 (복원 가능)
+# Tier 2: stale orphan/legacy  → 즉시 삭제 (백업 없음)
 # Tier 3: 재생성 캐시/로그      → mtime 7일 초과분만 삭제 (재생성/복구 가치 낮음)
 
 set -euo pipefail
@@ -35,15 +35,6 @@ for arg in "$@"; do
     *) echo "unknown arg: $arg (사용법: $0 [--apply] [--tier4])" >&2; exit 1 ;;
   esac
 done
-
-# quarantine 디렉토리는 apply 모드에서 첫 이동 시점에만 생성
-QUARANTINE=""
-ensure_quarantine() {
-  if [ -z "$QUARANTINE" ]; then
-    QUARANTINE="${CLAUDE_DIR}/backups/cleanup-quarantine-$(date +%Y%m%d-%H%M%S)"
-    $APPLY && mkdir -p "$QUARANTINE"
-  fi
-}
 
 freed_bytes=0
 add_size() { # $1: path — 누적 회수 용량(바이트) 합산
@@ -75,37 +66,31 @@ fi
 log ""
 
 # ──────────────────────────────────────────────────────────
-# Tier 2 — stale orphan / legacy (quarantine 이동)
+# Tier 2 — stale orphan / legacy (hard delete)
 # ──────────────────────────────────────────────────────────
-log "── Tier 2: stale orphan / legacy (quarantine 이동) ──"
-quarantine_move() { # $1: 절대경로 — 존재하면 quarantine 으로 이동
+log "── Tier 2: stale orphan / legacy (hard delete) ──"
+purge() { # $1: 절대경로 — 존재하면 삭제
   [ -e "$1" ] || return 0
   add_size "$1"
-  log "  quarantine: ${1#$CLAUDE_DIR/}"
-  if $APPLY; then
-    ensure_quarantine
-    mv "$1" "$QUARANTINE/"
-  fi
+  log "  rm: ${1#$CLAUDE_DIR/}"
+  $APPLY && rm -rf "$1"
 }
 
-quarantine_move "$CLAUDE_DIR/mcp.json.bak"
-quarantine_move "$CLAUDE_DIR/backups/mcp-20260226-083240"
+purge "$CLAUDE_DIR/mcp.json.bak"
+purge "$CLAUDE_DIR/backups/mcp-20260226-083240"
 # transcripts/ 레거시 jsonl (2월 구 포맷)
 if [ -d "$CLAUDE_DIR/transcripts" ]; then
   tcount=$(find "$CLAUDE_DIR/transcripts" -type f -name '*.jsonl' | wc -l | tr -d ' ')
   if [ "$tcount" -gt 0 ]; then
     add_size "$CLAUDE_DIR/transcripts"
-    log "  quarantine: transcripts/ (${tcount}개 레거시 jsonl)"
-    if $APPLY; then
-      ensure_quarantine
-      mv "$CLAUDE_DIR/transcripts" "$QUARANTINE/"
-    fi
+    log "  rm: transcripts/ (${tcount}개 레거시 jsonl)"
+    $APPLY && rm -rf "$CLAUDE_DIR/transcripts"
   fi
 fi
 # tmp/ 날짜별 handoff (handoff-latest.json 포인터는 보존)
 for f in "$CLAUDE_DIR"/tmp/handoff-2026-*.json; do
   [ -e "$f" ] || continue
-  quarantine_move "$f"
+  purge "$f"
 done
 log ""
 
@@ -225,7 +210,6 @@ human() { # bytes → human readable
 }
 log "=== 회수 예상/완료 용량: $(human "$freed_bytes") ==="
 if $APPLY; then
-  [ -n "$QUARANTINE" ] && log "quarantine 위치: ${QUARANTINE}  (복원: mv 내부 파일 → 원위치)"
   log "완료. --dry-run 재실행으로 idempotency 확인 가능."
 else
   if $TIER4; then

@@ -14,8 +14,38 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-SKILLS_DIR = Path.home() / ".claude" / "skills"
-BACKUPS_DIR = SKILLS_DIR / ".backups"
+USER_SKILLS_DIR = Path.home() / ".claude" / "skills"
+
+
+def resolve_scope(scope_arg: str | None) -> str:
+    """Resolve scope: explicit arg wins, else auto-detect from CWD.
+
+    Auto-detect: if `<CWD>/.claude/skills/` exists → project, else user.
+    """
+    if scope_arg in ("user", "project"):
+        return scope_arg
+    if (Path.cwd() / ".claude" / "skills").exists():
+        return "project"
+    return "user"
+
+
+def skills_dir(scope: str) -> Path:
+    if scope == "project":
+        return Path.cwd() / ".claude" / "skills"
+    return USER_SKILLS_DIR
+
+
+def scaffold_scripts_path(scope: str, name: str) -> str:
+    """Return the frontmatter-friendly absolute-or-templated scripts path."""
+    if scope == "project":
+        return f"${{CLAUDE_PROJECT_DIR}}/.claude/skills/{name}/scripts"
+    return f"/Users/changhwan/.claude/skills/{name}/scripts"
+
+
+def expand_project_dir(path_str: str) -> str:
+    """Expand ${CLAUDE_PROJECT_DIR} to CWD for filesystem checks."""
+    return path_str.replace("${CLAUDE_PROJECT_DIR}", str(Path.cwd()))
+
 
 REQUIRED_FIELDS = {"name", "description"}
 ALLOWED_FIELDS = {"name", "description", "model", "allowed-tools", "license", "metadata"}
@@ -116,15 +146,16 @@ def err(msg: str, **extra):
     sys.exit(1)
 
 
-def skill_path(name: str) -> Path:
-    return SKILLS_DIR / name
+def skill_path(name: str, scope: str) -> Path:
+    return skills_dir(scope) / name
 
 
-def list_skill_dirs() -> list[Path]:
-    if not SKILLS_DIR.exists():
+def list_skill_dirs(scope: str) -> list[Path]:
+    base = skills_dir(scope)
+    if not base.exists():
         return []
     return sorted(
-        [p for p in SKILLS_DIR.iterdir() if p.is_dir() and not p.name.startswith(".")],
+        [p for p in base.iterdir() if p.is_dir() and not p.name.startswith(".")],
         key=lambda p: p.name,
     )
 
@@ -141,8 +172,9 @@ def file_info(p: Path) -> dict:
 # ─── Commands ───────────────────────────────────────────────────────────────
 
 def cmd_list(args):
+    scope = resolve_scope(getattr(args, "scope", None))
     skills = []
-    for d in list_skill_dirs():
+    for d in list_skill_dirs(scope):
         skill_md = d / "SKILL.md"
         if not skill_md.exists():
             continue
@@ -166,12 +198,18 @@ def cmd_list(args):
             "last_modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
         })
 
-    ok({"count": len(skills), "skills": skills})
+    ok({
+        "scope": scope,
+        "scope_dir": str(skills_dir(scope)),
+        "count": len(skills),
+        "skills": skills,
+    })
 
 
 def cmd_show(args):
     name = args.name
-    sp = skill_path(name)
+    scope = resolve_scope(getattr(args, "scope", None))
+    sp = skill_path(name, scope)
     if not sp.exists():
         err(f"Skill '{name}' not found", path=str(sp))
 
@@ -194,6 +232,8 @@ def cmd_show(args):
 
     ok({
         "name": name,
+        "scope": scope,
+        "path": str(sp),
         "frontmatter": fm,
         "body_preview": body[:200].replace("\n", "\\n") + ("..." if len(body) > 200 else ""),
         "body_length": len(body),
@@ -257,18 +297,20 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
     chk("description_not_empty", bool(desc.strip()), "description must not be blank")
 
     # 8. allowed-tools script paths exist (python3 .py and bash .sh)
+    # Supports ${CLAUDE_PROJECT_DIR} expansion (resolves to CWD for filesystem check)
     tools = fm.get("allowed-tools", [])
     if isinstance(tools, list):
         missing_scripts = []
+        # Project-scope skills: also check path matches skill directory placement
         for tool in tools:
-            m_py = re.search(r"python3\s+(/[^\s]+\.py)", tool)
+            m_py = re.search(r"python3\s+(\S+\.py)", tool)
             if m_py:
-                script_p = Path(m_py.group(1))
+                script_p = Path(expand_project_dir(m_py.group(1)))
                 if not script_p.exists():
                     missing_scripts.append(str(script_p))
-            m_sh = re.search(r"bash\s+(/[^\s]+\.sh)", tool)
+            m_sh = re.search(r"bash\s+(\S+\.sh)", tool)
             if m_sh:
-                script_p = Path(m_sh.group(1))
+                script_p = Path(expand_project_dir(m_sh.group(1)))
                 if not script_p.exists():
                     missing_scripts.append(str(script_p))
         chk("script_files_exist", not missing_scripts,
@@ -308,6 +350,8 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
         SAFE_BASH = [
             re.compile(r"^Bash\(python3\s+/"),
             re.compile(r"^Bash\(bash\s+/"),
+            re.compile(r"^Bash\(python3\s+\$\{CLAUDE_PROJECT_DIR\}/"),
+            re.compile(r"^Bash\(bash\s+\$\{CLAUDE_PROJECT_DIR\}/"),
             re.compile(r"^Bash\(kubectl\s+"),
         ]
         NON_BASH = {"Read", "Write", "Edit", "Glob", "Grep"}
@@ -419,9 +463,10 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
 
 def cmd_validate(args):
     name = args.name
-    sp = skill_path(name)
+    scope = resolve_scope(getattr(args, "scope", None))
+    sp = skill_path(name, scope)
     if not sp.exists():
-        err(f"Skill '{name}' not found")
+        err(f"Skill '{name}' not found", scope=scope, path=str(sp))
 
     skill_md = sp / "SKILL.md"
     if not skill_md.exists():
@@ -431,7 +476,13 @@ def cmd_validate(args):
     checks, warnings, info = _validate_checks(name, sp, fm, body)
     valid = all(c["passed"] for c in checks)
 
-    ok({"valid": valid, "checks": checks, "warnings": warnings, "info": info})
+    ok({
+        "scope": scope,
+        "valid": valid,
+        "checks": checks,
+        "warnings": warnings,
+        "info": info,
+    })
 
 
 def _classify_finding(msg: str) -> str:
@@ -452,9 +503,10 @@ def cmd_review(args):
     Claude's parallel-agent qualitative review (see SKILL.md Review workflow).
     """
     name = args.name
-    sp = skill_path(name)
+    scope = resolve_scope(getattr(args, "scope", None))
+    sp = skill_path(name, scope)
     if not sp.exists():
-        err(f"Skill '{name}' not found")
+        err(f"Skill '{name}' not found", scope=scope, path=str(sp))
     if not (sp / "SKILL.md").exists():
         err(f"SKILL.md not found for '{name}'")
 
@@ -521,6 +573,7 @@ def cmd_review(args):
 
     ok({
         "name": name,
+        "scope": scope,
         "overall_score": overall,
         "scores": scores,
         "structural_pass": not failed_checks,
@@ -534,10 +587,15 @@ def cmd_review(args):
 
 
 def _make_scaffold(name: str, description: str, model: str, skill_type: str,
-                   with_agents: bool = False) -> str:
-    """Generate a Korean-language SKILL.md scaffold with TODO placeholders."""
+                   with_agents: bool = False, scope: str = "user") -> str:
+    """Generate a Korean-language SKILL.md scaffold with TODO placeholders.
+
+    Path style by scope:
+    - user: absolute `/Users/changhwan/.claude/skills/<name>/scripts`
+    - project: `${CLAUDE_PROJECT_DIR}/.claude/skills/<name>/scripts` (portable)
+    """
     model_line = f"\nmodel: {model}" if model else ""
-    abs_scripts = f"/Users/changhwan/.claude/skills/{name}/scripts"
+    abs_scripts = scaffold_scripts_path(scope, name)
 
     frontmatter_lines = [
         "---",
@@ -684,6 +742,7 @@ python3 {abs_scripts}/TODO_script.py --option value
 
 def cmd_create(args):
     name = args.name
+    scope = resolve_scope(getattr(args, "scope", None))
     description = args.description or "TODO: 스킬 설명을 작성하세요."
     model = args.model or ""
     skill_type = args.type or "workflow"
@@ -711,9 +770,9 @@ def cmd_create(args):
     if len(name) > MAX_NAME_LEN:
         err(f"Skill name too long ({len(name)} > {MAX_NAME_LEN})")
 
-    sp = skill_path(name)
+    sp = skill_path(name, scope)
     if sp.exists():
-        err(f"Skill '{name}' already exists", path=str(sp))
+        err(f"Skill '{name}' already exists", scope=scope, path=str(sp))
 
     # Create directories
     (sp / "scripts").mkdir(parents=True)
@@ -753,7 +812,8 @@ def cmd_create(args):
             agent_files_created.append(str(agent_path))
 
     # Write scaffold SKILL.md (with Agent in allowed-tools if agents/ created)
-    scaffold = _make_scaffold(name, description, model, skill_type, with_agents=bool(agent_roles))
+    scaffold = _make_scaffold(name, description, model, skill_type,
+                              with_agents=bool(agent_roles), scope=scope)
     (sp / "SKILL.md").write_text(scaffold, encoding="utf-8")
 
     # Write placeholder script
@@ -794,6 +854,7 @@ def cmd_create(args):
 
     ok({
         "name": name,
+        "scope": scope,
         "path": str(sp),
         "files_created": [
             str(sp / "SKILL.md"),
@@ -801,17 +862,18 @@ def cmd_create(args):
         ] + agent_files_created,
         "agents_scaffolded": [{"role": r, "model": m} for r, m in agent_specs],
         "message": (
-            f"Scaffold created. Next: fill in SKILL.md body, write scripts, "
-            f"then validate with: python3 {__file__} validate {name}"
+            f"Scaffold created ({scope} scope). Next: fill in SKILL.md body, write scripts, "
+            f"then validate with: python3 {__file__} validate {name} --scope {scope}"
         ),
     })
 
 
 def cmd_update_frontmatter(args):
     name = args.name
-    sp = skill_path(name)
+    scope = resolve_scope(getattr(args, "scope", None))
+    sp = skill_path(name, scope)
     if not sp.exists():
-        err(f"Skill '{name}' not found")
+        err(f"Skill '{name}' not found", scope=scope, path=str(sp))
 
     skill_md = sp / "SKILL.md"
     fm, body, raw = read_skill_file(sp)
@@ -883,96 +945,32 @@ def cmd_update_frontmatter(args):
 
 def cmd_delete(args):
     name = args.name
-    sp = skill_path(name)
+    scope = resolve_scope(getattr(args, "scope", None))
+    sp = skill_path(name, scope)
     if not sp.exists():
-        err(f"Skill '{name}' not found", path=str(sp))
+        err(f"Skill '{name}' not found", scope=scope, path=str(sp))
 
     # Dry-run: list what would be removed without acting
     if args.dry_run:
         files = sorted([str(p.relative_to(sp)) for p in sp.rglob("*") if p.is_file()])
         ok({
             "name": name,
+            "scope": scope,
             "dry_run": True,
             "would_delete": str(sp),
-            "would_backup": not args.no_backup,
             "file_count": len(files),
             "files": files[:20] + (["..."] if len(files) > 20 else []),
             "message": "DRY RUN — 실제 삭제하려면 --dry-run 없이 재실행하세요.",
         })
         return
 
-    # Harness: --no-backup requires explicit double-opt-in to prevent accidental loss
-    if args.no_backup and not args.confirm_no_backup:
-        err(
-            "백업 없이 삭제하려면 --confirm-no-backup 플래그를 추가로 지정해야 합니다 (실수 방지)",
-            hint=f"안전한 삭제: python3 {__file__} delete {name}",
-        )
-
-    backup_path = None
-    if not args.no_backup:
-        BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        backup_path = BACKUPS_DIR / f"{name}-{ts}"
-        shutil.copytree(str(sp), str(backup_path))
-
+    # HARD delete — 복구 불가. 백업 기능은 의도적으로 제공하지 않는다.
     shutil.rmtree(str(sp))
 
     ok({
         "name": name,
+        "scope": scope,
         "deleted": str(sp),
-        "backup": str(backup_path) if backup_path else None,
-    })
-
-
-def cmd_restore(args):
-    name = args.name
-
-    if not BACKUPS_DIR.exists():
-        err(f"No backups directory found", path=str(BACKUPS_DIR))
-
-    # Find all backups for this skill (format: <name>-YYYYMMDD-HHMMSS)
-    pattern = re.compile(rf"^{re.escape(name)}-(\d{{8}}-\d{{6}})$")
-    backups = sorted(
-        [d for d in BACKUPS_DIR.iterdir() if d.is_dir() and pattern.match(d.name)],
-        key=lambda d: d.name,
-    )
-
-    if not backups:
-        err(f"No backups found for skill '{name}'", backups_dir=str(BACKUPS_DIR))
-
-    if args.list:
-        entries = []
-        for b in reversed(backups):
-            m = pattern.match(b.name)
-            ts_raw = m.group(1)  # YYYYMMDD-HHMMSS
-            ts = f"{ts_raw[:4]}-{ts_raw[4:6]}-{ts_raw[6:8]} {ts_raw[9:11]}:{ts_raw[11:13]}:{ts_raw[13:]}"
-            entries.append({"backup": b.name, "timestamp": ts, "path": str(b)})
-        ok({"name": name, "count": len(entries), "backups": entries})
-        return
-
-    # Restore latest backup
-    latest = backups[-1]
-    sp = skill_path(name)
-
-    if sp.exists():
-        err(
-            f"Skill '{name}' already exists — delete it first before restoring",
-            existing_path=str(sp),
-            latest_backup=latest.name,
-        )
-
-    shutil.copytree(str(latest), str(sp))
-
-    # Auto-validate after restore
-    fm, body, _ = read_skill_file(sp)
-    checks, warnings, info = _validate_checks(name, sp, fm, body)
-    valid = all(c["passed"] for c in checks)
-
-    ok({
-        "name": name,
-        "restored_from": latest.name,
-        "path": str(sp),
-        "validation": {"valid": valid, "checks": checks, "warnings": warnings, "info": info},
     })
 
 
@@ -981,16 +979,27 @@ def cmd_restore(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="manage_skill.py",
-        description="Skill lifecycle management (CRUD + validate + restore)",
+        description="Skill lifecycle management (CRUD + validate)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    SCOPE_HELP = (
+        "Skill scope: 'user' (~/.claude/skills/) or 'project' ($PWD/.claude/skills/). "
+        "If omitted, auto-detects: project when CWD has .claude/skills/, else user."
+    )
+
+    def add_scope(p):
+        p.add_argument("--scope", "-s", choices=["user", "project"],
+                       default=None, help=SCOPE_HELP)
+
     # list
-    sub.add_parser("list", help="List all skills")
+    p_list = sub.add_parser("list", help="List all skills")
+    add_scope(p_list)
 
     # show
     p_show = sub.add_parser("show", help="Show skill details")
     p_show.add_argument("name", help="Skill name")
+    add_scope(p_show)
 
     # create
     p_create = sub.add_parser("create", help="Scaffold a new skill")
@@ -1004,15 +1013,18 @@ def main():
                                "model ∈ {haiku, sonnet, opus}, default sonnet. "
                                "Example: --with-agents 'collector:haiku,strategist:opus,parser'. "
                                "Creates agents/agent-<role>.md (with model annotation) and adds Agent to allowed-tools.")
+    add_scope(p_create)
 
     # validate
     p_val = sub.add_parser("validate", help="Validate skill structure")
     p_val.add_argument("name", help="Skill name")
+    add_scope(p_val)
 
     # review
     p_rev = sub.add_parser("review",
                            help="Score a skill (BP/parallelism/harness) — read-only")
     p_rev.add_argument("name", help="Skill name")
+    add_scope(p_rev)
 
     # update-frontmatter
     p_uf = sub.add_parser("update-frontmatter", help="Modify frontmatter fields")
@@ -1023,20 +1035,15 @@ def main():
     p_uf.add_argument("--remove-tool", help="Remove an allowed-tool entry")
     p_uf.add_argument("--dry-run", action="store_true",
                       help="Preview frontmatter changes without writing")
+    add_scope(p_uf)
 
     # delete
-    p_del = sub.add_parser("delete", help="Delete a skill (with backup by default)")
+    p_del = sub.add_parser("delete",
+                           help="Delete a skill (HARD delete — 복구 불가, 백업 없음)")
     p_del.add_argument("name", help="Skill name")
-    p_del.add_argument("--no-backup", action="store_true", help="Skip backup (REQUIRES --confirm-no-backup)")
-    p_del.add_argument("--confirm-no-backup", action="store_true",
-                       help="Required gate when using --no-backup (prevents accidental data loss)")
     p_del.add_argument("--dry-run", action="store_true",
                        help="List files that would be removed without acting")
-
-    # restore
-    p_rst = sub.add_parser("restore", help="Restore skill from latest backup")
-    p_rst.add_argument("name", help="Skill name")
-    p_rst.add_argument("--list", action="store_true", help="List available backups without restoring")
+    add_scope(p_del)
 
     args = parser.parse_args()
 
@@ -1048,7 +1055,6 @@ def main():
         "review": cmd_review,
         "update-frontmatter": cmd_update_frontmatter,
         "delete": cmd_delete,
-        "restore": cmd_restore,
     }
     dispatch[args.command](args)
 
