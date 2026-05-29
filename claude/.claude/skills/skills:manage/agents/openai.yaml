@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skills Manager"
+  short_description: "Manage local skills and validation"
+  default_prompt: "Use $skills:manage to list and validate my local skills."
