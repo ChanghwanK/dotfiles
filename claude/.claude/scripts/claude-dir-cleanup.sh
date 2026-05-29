@@ -130,6 +130,19 @@ prune_old "$CLAUDE_DIR/paste-cache"
 prune_old "$CLAUDE_DIR/telemetry"
 prune_old "$CLAUDE_DIR/cache"
 
+# tmp/ daily 센티넬 마커 — daily:start 의 once-per-day 중복실행 가드(0바이트, 날짜별 누적).
+# 가드는 "오늘" 파일만 확인하므로 7일 초과분은 무의미. prefix 매칭으로
+# handoff-*.json·pending-notification.txt·CLAUDE.md 는 보호된다.
+if [ -d "$CLAUDE_DIR/tmp" ]; then
+  sentinel=(-maxdepth 1 -type f -name 'start-daily-*' -mtime +${RETENTION_DAYS})
+  n=$(find "$CLAUDE_DIR/tmp" "${sentinel[@]}" 2>/dev/null | wc -l | tr -d ' ')
+  log "  tmp/start-daily-* 센티넬: ${n}개 (>${RETENTION_DAYS}d)"
+  if [ "$n" -gt 0 ]; then
+    while IFS= read -r f; do add_size "$f"; done < <(find "$CLAUDE_DIR/tmp" "${sentinel[@]}" 2>/dev/null)
+    $APPLY && find "$CLAUDE_DIR/tmp" "${sentinel[@]}" -delete 2>/dev/null || true
+  fi
+fi
+
 # daemon.log (rotatable)
 if [ -f "$CLAUDE_DIR/daemon.log" ]; then
   add_size "$CLAUDE_DIR/daemon.log"
