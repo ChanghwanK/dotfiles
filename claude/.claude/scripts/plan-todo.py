@@ -287,7 +287,12 @@ def cmd_check(args):
     step_num = int(args.step)
     session_id = args.session_id
 
-    if session_id:
+    if getattr(args, "plan_id", ""):
+        path = find_plan_file(args.plan_id)
+        if path is None:
+            print(f"[plan-todo] Plan not found: {args.plan_id}", file=sys.stderr)
+            sys.exit(1)
+    elif session_id:
         path = get_active_plan_for_session(session_id)
     else:
         path = None
@@ -334,6 +339,93 @@ def cmd_check(args):
 
     fm["updated"] = now_kst()
     write_plan_file(path, fm, body)
+
+
+def cmd_steps_fzf(args):
+    """fzf plan_view용 — <step_num>\t<icon> Step N: title  (완료: ...)"""
+    path = find_plan_file(args.plan_id)
+    if not path:
+        print(f"0\t(plan not found: {args.plan_id})")
+        return
+    fm, _ = parse_plan_file(path)
+    todos = (fm or {}).get("todos", [])
+    if not todos:
+        print("0\t(steps 없음 — plan init 필요)")
+        return
+    icons = {"done": "✅", "in_progress": "⏳", "pending": "⬜"}
+    for t in todos:
+        icon = icons.get(t.get("status", "pending"), "⬜")
+        completed = t.get("completed_at")
+        at = f"  (완료: {completed[:16]})" if completed else ""
+        print(f"{t['step']}\t{icon} Step {t['step']}: {t.get('title', '')}{at}")
+
+
+def cmd_list_fzf(args):
+    """plan picker용 — <plan_id>\t<icon> <title>  [done/total]  <updated>"""
+    status_icons = {"active": "⏳", "completed": "✅", "abandoned": "🚫", "legacy": "📦"}
+    plans = []
+    for p in sorted(PLANS_DIR.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
+        if p.name.startswith("."):
+            continue
+        fm, body = parse_plan_file(p)
+        if not fm:
+            continue
+        pid = plan_id_from_file(p)
+        todos = fm.get("todos", [])
+        done = sum(1 for t in todos if t.get("status") == "done")
+        title = fm.get("title") or parse_title(body) or pid
+        status = fm.get("status", "legacy")
+        updated = str(fm.get("updated") or "")[:10]
+        icon = status_icons.get(status, "·")
+        plans.append((status, pid, icon, title, done, len(todos), updated))
+    plans.sort(key=lambda x: (0 if x[0] == "active" else 1, x[6]))
+    print(f"__none__\t  (연결 해제)")
+    for status, pid, icon, title, done, total, updated in plans:
+        print(f"{pid}\t{icon} {title}  [{done}/{total}]  {updated}")
+
+
+def cmd_uncheck(args):
+    """step을 pending으로 복원."""
+    step_num = int(args.step)
+    if args.plan_id:
+        path = find_plan_file(args.plan_id)
+        if path is None:
+            print(f"[plan-todo] Plan not found: {args.plan_id}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        path = None
+        for p in sorted(PLANS_DIR.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
+            if p.name.startswith("."):
+                continue
+            fm, _ = parse_plan_file(p)
+            if fm and fm.get("status") in ("active", "completed"):
+                path = p
+                break
+    if path is None:
+        print("[plan-todo] No plan found.", file=sys.stderr)
+        sys.exit(1)
+    fm, body = parse_plan_file(path)
+    todos = fm.get("todos", [])
+    matched = False
+    for t in todos:
+        if t["step"] == step_num:
+            t["status"] = "pending"
+            t["completed_at"] = None
+            matched = True
+            break
+    if not matched:
+        print(f"[plan-todo] Step {step_num} not found.", file=sys.stderr)
+        sys.exit(1)
+    if fm.get("status") == "completed":
+        fm["status"] = "active"
+        state = load_state()
+        pid = fm.get("plan_id")
+        if pid and pid not in state.get("active", []):
+            state.setdefault("active", []).append(pid)
+        save_state(state)
+    fm["updated"] = now_kst()
+    write_plan_file(path, fm, body)
+    print(f"[plan-todo] Step {step_num} restored to pending.")
 
 
 def cmd_statusline(args):
@@ -416,6 +508,21 @@ def main():
     p_check = sub.add_parser("check", help="Mark a step as done")
     p_check.add_argument("step", type=int, help="Step number to mark done")
     p_check.add_argument("--session-id", default="")
+    p_check.add_argument("--plan-id", default="", dest="plan_id",
+                         help="Plan ID to use directly (skips session/auto detection)")
+
+    # uncheck
+    p_uncheck = sub.add_parser("uncheck", help="Restore a step to pending")
+    p_uncheck.add_argument("step", type=int, help="Step number to restore")
+    p_uncheck.add_argument("--session-id", default="")
+    p_uncheck.add_argument("--plan-id", default="", dest="plan_id")
+
+    # steps-fzf
+    p_sfzf = sub.add_parser("steps-fzf", help="Print plan steps as fzf TSV")
+    p_sfzf.add_argument("--plan-id", required=True, dest="plan_id")
+
+    # list-fzf
+    sub.add_parser("list-fzf", help="Print all plans as fzf TSV for picker")
 
     # statusline
     p_sl = sub.add_parser("statusline", help="Print 1-line statusline text")
@@ -428,6 +535,9 @@ def main():
         "show": cmd_show,
         "todo": cmd_todo,
         "check": cmd_check,
+        "uncheck": cmd_uncheck,
+        "steps-fzf": cmd_steps_fzf,
+        "list-fzf": cmd_list_fzf,
         "statusline": cmd_statusline,
     }
     dispatch[args.command](args)
