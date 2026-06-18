@@ -210,13 +210,14 @@ def _task_display(task, done, total):
 
 def _todo_display(todo):
     """Level 2 및 preview용 — 터미널 너비 기반 동적 컬럼."""
-    box = "☑" if todo.get("done") else "☐"
+    box = "✓" if todo.get("done") else "□"
     title = todo.get("title", "")
     plan_badge = " 📋" if todo.get("plan_id") else ""
+    desc_badge = " 📝" if todo.get("description") else ""
     # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + buffer(2) = 13
     _cols = shutil.get_terminal_size((120, 24)).columns
     title_width = max(44, _cols - 13)
-    title_col = _fit(title + plan_badge, title_width)
+    title_col = _fit(title + plan_badge + desc_badge, title_width)
     due = todo.get("due", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD 5칸
     dirty = " *" if todo.get("dirty") else "  "
@@ -324,16 +325,18 @@ def cmd_list_all_todos(args):
         print(json.dumps({"todos": [{**t, "context": ctx_of(t), "repo": repo_of(t)} for t in todos]},
                          ensure_ascii=False, indent=2))
         return
-    # title_width: 터미널 너비에서 고정 오버헤드를 뺀 값으로 동적 계산
+    # title_width: preview 창(right:42%) 고려 → 리스트 영역 ≈ 56%
     # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + max_repo(20) + buffer(4) = 35
     _term_cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(44, _term_cols - 35)
+    title_width = max(36, int(_term_cols * 0.54) - 35)
 
     # fzf: "{box} {title:dynamic} {due:5} {dirty}  [· {task명}]  [{repo}]"
     # Todos 버킷 소속은 ctx 생략 (자명하므로), Task 연결 시만 Task명 표시
     for t in todos:
-        box = "☑" if t.get("done") else "☐"
-        title_field = t.get("title", "") + (" 📋" if t.get("plan_id") else "")
+        box = "✓" if t.get("done") else "□"
+        title_field = (t.get("title", "")
+                       + (" 📋" if t.get("plan_id") else "")
+                       + (" 📝" if t.get("description") else ""))
         title_col = _fit(title_field, title_width)
         due = t.get("due", "")
         due_str = f"~{due[5:10]}" if due else "     "
@@ -370,6 +373,7 @@ def cmd_add(args):
         "task_page_id": args.task,
         "notion_block_id": None,  # push 시점에 채워짐 (Backlog은 항상 None)
         "title": args.title.strip(),
+        "description": (getattr(args, "description", None) or "").strip(),
         "done": False,
         "due": args.due or "",
         "created_at": now,
@@ -403,13 +407,17 @@ def cmd_toggle(args):
 
 
 def cmd_edit(args):
-    if not args.title.strip():
+    if not getattr(args, "description_only", False) and not args.title.strip():
         _err("--title은 비어 있을 수 없습니다")
     doc = load_todos()
     todo = _find_todo(doc, args.id)
     if not todo or todo.get("deleted"):
         _err(f"todo not found: {args.id}")
-    todo["title"] = args.title.strip()
+    if args.title.strip():
+        todo["title"] = args.title.strip()
+    desc = getattr(args, "description", None)
+    if desc is not None:
+        todo["description"] = desc.strip()
     todo["updated_at"] = nc.now_kst()
     todo["dirty"] = todo.get("task_page_id") != BACKLOG_ID  # Backlog은 로컬 전용
     save_todos(doc)
@@ -481,6 +489,57 @@ def cmd_preview_task(args):
     todos.sort(key=lambda t: t.get("done", False))  # stable: 미완료 먼저
     for t in todos:
         print(f"    {_todo_display(t)}")
+        if t.get("description"):
+            # 설명 첫 줄만 preview에 표시
+            first_line = t["description"].splitlines()[0][:60]
+            print(f"      {first_line}")
+
+
+def cmd_preview_todo(args):
+    """fzf preview window용 — 선택 Todo의 상세 정보."""
+    doc = load_todos()
+    todo = _find_todo(doc, args.todo_id)
+    if not todo or todo.get("deleted"):
+        print("  (todo not found)")
+        return
+
+    box = "✓" if todo.get("done") else "□"
+    print(f"  {box} {todo.get('title', '')}")
+    if todo.get("due"):
+        print(f"  마감: {todo['due']}")
+    if todo.get("repo"):
+        print(f"  레포: {todo['repo']}")
+    if todo.get("dirty"):
+        print(f"  미동기화 *")
+
+    desc = todo.get("description", "")
+    if desc:
+        print(f"\n  📝 설명")
+        for line in desc.splitlines():
+            print(f"     {line}")
+
+    plan_id = todo.get("plan_id")
+    if plan_id:
+        fm = _parse_plan_light(plan_id)
+        if fm:
+            steps = fm.get("todos", [])
+            done_cnt = sum(1 for s in steps if s.get("status") == "done")
+            plan_title = fm.get("title", plan_id)
+            step_icons = {"done": "✅", "in_progress": "⏳", "pending": "⬜"}
+            print(f"\n  📋 Plan: {plan_title} ({done_cnt}/{len(steps)})")
+            for s in steps:
+                icon = step_icons.get(s.get("status", "pending"), "⬜")
+                at = f"  ({s['completed_at'][:10]})" if s.get("completed_at") else ""
+                print(f"     {icon} Step {s['step']}: {s.get('title', '')}{at}")
+        else:
+            print(f"\n  📋 Plan: {plan_id} (파일 없음)")
+
+    task_id = todo.get("task_page_id")
+    if task_id and task_id != BACKLOG_ID:
+        task = next((t for t in load_tasks()["tasks"] if t["page_id"] == task_id), None)
+        if task:
+            print(f"\n  Task: {task.get('name', '')}")
+            print(f"  상태: {task.get('status', '')}  우선순위: {task.get('priority', '')}")
 
 
 def cmd_set_task_status(args):
@@ -646,6 +705,7 @@ def main():
     ad.add_argument("--task", required=True)
     ad.add_argument("--title", required=True)
     ad.add_argument("--due", default=None)
+    ad.add_argument("--description", default=None, help="배경·문제·이유 등 자유 텍스트")
     ad.add_argument("--memory-path", dest="memory_path", default=None,
                     help="Backlog import 시 원본 memory 경로 링크")
     ad.add_argument("--repo", default=None, help="이 Todo의 소속 repo 라벨")
@@ -660,13 +720,18 @@ def main():
 
     ed = sub.add_parser("edit")
     ed.add_argument("--id", required=True)
-    ed.add_argument("--title", required=True)
+    ed.add_argument("--title", default="")
+    ed.add_argument("--description", default=None, help="설명 업데이트 (빈 문자열로 삭제)")
+    ed.add_argument("--description-only", dest="description_only", action="store_true")
 
     dl = sub.add_parser("delete")
     dl.add_argument("--id", required=True)
 
     pv = sub.add_parser("preview-task")
     pv.add_argument("page_id")
+
+    pvt = sub.add_parser("preview-todo")
+    pvt.add_argument("todo_id")
 
     ss = sub.add_parser("set-task-status")
     ss.add_argument("--task", required=True)
@@ -691,6 +756,7 @@ def main():
         "edit": cmd_edit,
         "delete": cmd_delete,
         "preview-task": cmd_preview_task,
+        "preview-todo": cmd_preview_todo,
         "set-task-status": cmd_set_task_status,
         "import-memory": cmd_import_memory,
         "summary": cmd_summary,

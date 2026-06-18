@@ -118,18 +118,35 @@ todo_menu() {
     local out key line todo_id
     out=$(python3 "$STORE" list-todos --task "$page_id" --format fzf \
       | fzf --delimiter='\t' --with-nth='2..' --ansi \
-            --header="enter:토글  ctrl-a:추가  ctrl-e:편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  esc:뒤로" \
-            --expect=enter,ctrl-a,ctrl-e,ctrl-d,ctrl-l,ctrl-r,ctrl-p)
+            --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
+            --header="enter:Claude열기  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  esc:뒤로" \
+            --expect=enter,space,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-l,ctrl-r,ctrl-p)
     [ -z "$out" ] && return  # esc/취소 → Level 1 복귀
     key=$(sed -n 1p <<<"$out")
     line=$(sed -n 2p <<<"$out")
     todo_id=$(cut -f1 <<<"$line")
     case "$key" in
-      enter)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
+      enter)   [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
+      space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
       ctrl-a)  local t; t=$(prompt_input "새 todo 제목"); [ -n "$t" ] && python3 "$STORE" add --task "$page_id" --title "$t" >/dev/null ;;
       ctrl-e)  [ -z "$todo_id" ] && continue
                local cur t; cur=$(cut -f2- <<<"$line" | sed 's/^[☐☑] //; s/  \*$//')
                t=$(prompt_input "제목 수정" "$cur"); [ -n "$t" ] && python3 "$STORE" edit --id "$todo_id" --title "$t" >/dev/null ;;
+      ctrl-n)  [ -z "$todo_id" ] && continue
+               local cur_desc new_desc
+               cur_desc=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null \
+                 | python3 -c "import sys,json;print(json.load(sys.stdin).get('description',''))" 2>/dev/null)
+               if have_gum; then
+                 new_desc=$(gum write --placeholder "배경, 문제, 이유 등 자유 기술..." \
+                   --value "$cur_desc" --width 72 --height 8)
+               else
+                 local tmp; tmp=$(mktemp /tmp/todo-desc.XXXX.txt)
+                 printf '%s' "$cur_desc" > "$tmp"
+                 "${EDITOR:-vi}" "$tmp"
+                 new_desc=$(cat "$tmp"); rm -f "$tmp"
+               fi
+               python3 "$STORE" edit --id "$todo_id" --title "" \
+                 --description "$new_desc" --description-only >/dev/null ;;
       ctrl-d)  [ -z "$todo_id" ] && continue
                prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
       ctrl-p)
@@ -254,11 +271,11 @@ open_todo_session() {
   todo_json=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null)
   [ -z "$todo_json" ] && return 1
 
-  local title repo plan_id ctx
-  title=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('title',''))"   <<<"$todo_json")
-  repo=$(python3  -c "import sys,json; d=json.load(sys.stdin); print(d.get('repo',''))"    <<<"$todo_json")
-  plan_id=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('plan_id',''))" <<<"$todo_json")
-  ctx=$(python3   -c "import sys,json; d=json.load(sys.stdin); print(d.get('context',''))" <<<"$todo_json")
+  local title repo plan_id desc
+  title=$(python3   -c "import sys,json; d=json.load(sys.stdin); print(d.get('title',''))"       <<<"$todo_json")
+  repo=$(python3    -c "import sys,json; d=json.load(sys.stdin); print(d.get('repo',''))"         <<<"$todo_json")
+  plan_id=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('plan_id',''))"     <<<"$todo_json")
+  desc=$(python3    -c "import sys,json; d=json.load(sys.stdin); print(d.get('description',''))" <<<"$todo_json")
 
   # 레포 디렉토리 결정 (기본: ~/)
   local repo_dir="$HOME"
@@ -267,22 +284,24 @@ open_todo_session() {
     [ -d "$candidate" ] && repo_dir="$candidate"
   fi
 
-  # Claude Code 초기 메시지 — 줄바꿈 포함 문자열을 nl 변수로 안전하게 구성
+  # Claude Code 초기 메시지 — 한글+줄바꿈을 파일로 분리 (printf %q 토큰 분리 버그 회피)
   local nl=$'\n'
   local msg="이 세션에서 다음 Todo를 수행합니다.${nl}Todo: $title"
-  [ -n "$ctx" ]     && msg+="${nl}작업: $ctx"
-  [ -n "$repo" ]    && msg+="${nl}레포: $repo"
+  [ -n "$desc" ]    && msg+="${nl}${nl}배경/설명:${nl}$desc"
+  [ -n "$repo" ]    && msg+="${nl}${nl}레포: $repo"
   [ -n "$plan_id" ] && msg+="${nl}Plan: $plan_id"
 
-  # 중첩 quote 이슈를 피하기 위해 런처 스크립트로 분리
-  local launcher
+  local msg_file launcher
+  msg_file=$(mktemp /tmp/claude-todo-msg.XXXXXX.txt)
+  printf '%s' "$msg" > "$msg_file"
+
   launcher=$(mktemp /tmp/claude-todo-launch.XXXXXX.sh 2>/dev/null) || \
     launcher="/tmp/claude-todo-launch.$$.$(date +%s).sh"
   {
     echo "#!/bin/bash"
     printf 'cd %q\n' "$repo_dir"
-    printf 'claude %q\n' "$msg"
-    printf 'rm -f %q\n' "$launcher"
+    printf 'claude "$(cat %q)"\n' "$msg_file"
+    printf 'rm -f %q %q\n' "$launcher" "$msg_file"
   } > "$launcher"
   chmod +x "$launcher"
 
@@ -293,12 +312,19 @@ _launch_claude_session() {
   local dir="$1" launcher="$2" title="${3:-todo}"
 
   if [ -n "${CMUX_WORKSPACE_ID:-}" ] || [ -n "${CMUX_SURFACE_ID:-}" ]; then
-    # cmux: 새 워크스페이스 생성 후 Claude Code 실행
-    cmux new-workspace \
-      --name "$title" \
+    # cmux: 워크스페이스 생성 → shell 준비 대기 → send로 명령 주입
+    # (--command는 shell 초기화 전 실행돼 PATH 미설정 문제 발생)
+    local ws_ref ts
+    ts=$(date +%H%M)
+    ws_ref=$(CMUX_QUIET=1 cmux new-workspace \
+      --name "${title:0:26} ${ts}" \
       --cwd "$dir" \
-      --command "bash $(printf '%q' "$launcher")" \
-      --focus true 2>/dev/null &
+      --focus true 2>/dev/null | grep "^OK " | awk '{print $2}')
+    if [ -n "$ws_ref" ]; then
+      sleep 0.8  # shell prompt 준비 대기
+      CMUX_QUIET=1 cmux send --workspace "$ws_ref" "bash $(printf '%q' "$launcher")"
+      CMUX_QUIET=1 cmux send-key --workspace "$ws_ref" "Enter"
+    fi
     return
   fi
 
@@ -333,8 +359,9 @@ todos_tab() {
   fhdr=${REPO_FILTER:+ [repo:$REPO_FILTER]}
   out=$(list_todos_filtered \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
-          --header="$(tab_bar)$fhdr  enter:세션열기  ctrl-t:탭전환  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
+          --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
+          --header="$(tab_bar)$fhdr  enter:Claude열기  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -345,6 +372,21 @@ todos_tab() {
     ctrl-e)  [ -z "$todo_id" ] && return
              cur=$(python3 "$STORE" list-all-todos --format json | python3 -c "import sys,json;print(next((x['title'] for x in json.load(sys.stdin)['todos'] if x['id']=='$todo_id'),''))")
              t=$(prompt_input "제목 수정" "$cur"); [ -n "$t" ] && python3 "$STORE" edit --id "$todo_id" --title "$t" >/dev/null ;;
+    ctrl-n)  [ -z "$todo_id" ] && return
+             local cur_desc new_desc
+             cur_desc=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null \
+               | python3 -c "import sys,json;print(json.load(sys.stdin).get('description',''))" 2>/dev/null)
+             if have_gum; then
+               new_desc=$(gum write --placeholder "배경, 문제, 이유 등 자유 기술..." \
+                 --value "$cur_desc" --width 72 --height 8)
+             else
+               local tmp; tmp=$(mktemp /tmp/todo-desc.XXXX.txt)
+               printf '%s' "$cur_desc" > "$tmp"
+               "${EDITOR:-vi}" "$tmp"
+               new_desc=$(cat "$tmp"); rm -f "$tmp"
+             fi
+             python3 "$STORE" edit --id "$todo_id" --title "" \
+               --description "$new_desc" --description-only >/dev/null ;;
     ctrl-d)  [ -z "$todo_id" ] && return
              prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
     ctrl-p)  [ -z "$todo_id" ] && return
