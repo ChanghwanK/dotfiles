@@ -345,6 +345,19 @@ def cmd_list_all_todos(args):
         print(f"{t['id']}\t{box} {title_col}  {due_str}{dirty}{ctx_part}{repo_tag}")
 
 
+def cmd_get(args):
+    """단일 Todo의 전체 JSON을 반환 — Enter 키로 Claude Code 세션 열 때 사용"""
+    doc = load_todos()
+    tasks_map = {t["page_id"]: t.get("name", "") for t in load_tasks()["tasks"]}
+    todo = next((t for t in doc["todos"] if t["id"] == args.id and not t.get("deleted")), None)
+    if todo is None:
+        print(json.dumps({"error": "not_found"}))
+        return
+    pid = todo.get("task_page_id", BACKLOG_ID)
+    ctx = BACKLOG_LABEL if pid == BACKLOG_ID else (tasks_map.get(pid) or "(task?)")
+    print(json.dumps({**todo, "context": ctx, "repo": repo_of(todo)}, ensure_ascii=False))
+
+
 def cmd_add(args):
     if not args.title.strip():
         _err("--title은 비어 있을 수 없습니다")
@@ -626,6 +639,9 @@ def main():
     la.add_argument("--format", choices=["fzf", "json"], default="fzf")
     la.add_argument("--repo", default=None, help="해당 repo의 Todo만 필터")
 
+    gt = sub.add_parser("get")
+    gt.add_argument("--id", required=True)
+
     ad = sub.add_parser("add")
     ad.add_argument("--task", required=True)
     ad.add_argument("--title", required=True)
@@ -669,6 +685,7 @@ def main():
         "list-tasks": cmd_list_tasks,
         "list-todos": cmd_list_todos,
         "list-all-todos": cmd_list_all_todos,
+        "get": cmd_get,
         "add": cmd_add,
         "toggle": cmd_toggle,
         "edit": cmd_edit,

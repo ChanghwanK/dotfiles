@@ -246,17 +246,79 @@ choose_repo() {
   case "$sel" in ""|전체) REPO_FILTER="" ;; *) REPO_FILTER="$sel" ;; esac
 }
 
+# Todo Enter → 해당 레포 디렉토리에서 Claude Code 세션 오픈
+open_todo_session() {
+  local todo_id="$1"
+
+  local todo_json
+  todo_json=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null)
+  [ -z "$todo_json" ] && return 1
+
+  local title repo plan_id ctx
+  title=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('title',''))"   <<<"$todo_json")
+  repo=$(python3  -c "import sys,json; d=json.load(sys.stdin); print(d.get('repo',''))"    <<<"$todo_json")
+  plan_id=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('plan_id',''))" <<<"$todo_json")
+  ctx=$(python3   -c "import sys,json; d=json.load(sys.stdin); print(d.get('context',''))" <<<"$todo_json")
+
+  # 레포 디렉토리 결정 (기본: ~/)
+  local repo_dir="$HOME"
+  if [ -n "$repo" ]; then
+    local candidate="$HOME/workspace/riiid/$repo"
+    [ -d "$candidate" ] && repo_dir="$candidate"
+  fi
+
+  # Claude Code 초기 메시지 — 줄바꿈 포함 문자열을 nl 변수로 안전하게 구성
+  local nl=$'\n'
+  local msg="이 세션에서 다음 Todo를 수행합니다.${nl}Todo: $title"
+  [ -n "$ctx" ]     && msg+="${nl}작업: $ctx"
+  [ -n "$repo" ]    && msg+="${nl}레포: $repo"
+  [ -n "$plan_id" ] && msg+="${nl}Plan: $plan_id"
+
+  # 중첩 quote 이슈를 피하기 위해 런처 스크립트로 분리
+  local launcher
+  launcher=$(mktemp /tmp/claude-todo-launch.XXXXXX.sh)
+  {
+    echo "#!/bin/bash"
+    printf 'cd %q\n' "$repo_dir"
+    printf 'claude %q\n' "$msg"
+    printf 'rm -f %q\n' "$launcher"
+  } > "$launcher"
+  chmod +x "$launcher"
+
+  _launch_claude_session "$repo_dir" "$launcher"
+}
+
+_launch_claude_session() {
+  local dir="$1" launcher="$2"
+
+  if [ -n "${TMUX:-}" ]; then
+    tmux new-window -c "$dir" -n "todo" bash "$launcher"
+  elif osascript -e 'tell application "iTerm2" to get version' >/dev/null 2>&1; then
+    osascript << APPLESCRIPT
+tell application "iTerm2"
+  set newWin to (create window with default profile)
+  tell current session of newWin
+    write text "bash $(printf '%q' "$launcher")"
+  end tell
+end tell
+APPLESCRIPT
+  else
+    osascript -e "tell application \"Terminal\" to do script \"bash $(printf '%q' "$launcher")\""
+  fi
+}
+
 # Todos 탭: 모든 Todo를 평면으로 — 소속 Task/Backlog + [repo] 표시, ctrl-g로 repo 필터
 todos_tab() {
   local out key line todo_id cur t fhdr
   fhdr=${REPO_FILTER:+ [repo:$REPO_FILTER]}
   out=$(list_todos_filtered \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
-          --header="$(tab_bar)$fhdr  ctrl-t:탭전환  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
-          --expect=space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
+          --header="$(tab_bar)$fhdr  enter:세션열기  ctrl-t:탭전환  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
+    enter)  [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
     tab|ctrl-t) TAB="tasks" ;;
     space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
     ctrl-a)  t=$(prompt_input "새 Backlog todo"); [ -n "$t" ] && python3 "$STORE" add --task __backlog__ --title "$t" ${REPO_FILTER:+--repo "$REPO_FILTER"} >/dev/null ;;
