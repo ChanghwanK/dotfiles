@@ -60,6 +60,24 @@ TODO_STATUS_VALUES = ("시작전", "진행중", "완료")
 TODO_STATUS_ICON = {"시작전": "□", "진행중": "▷", "완료": "✓"}
 TODO_STATUS_SORT = {"진행중": 0, "시작전": 1, "완료": 2}  # 진행중 최상단
 
+# ANSI 색상 — fzf --ansi 플래그 전제
+_STATUS_COLOR = {"시작전": "", "진행중": "\033[1;33m", "완료": "\033[2;32m"}
+_RESET = "\033[0m"
+
+
+def _colored_icon(status):
+    icon = TODO_STATUS_ICON.get(status, "□")
+    c = _STATUS_COLOR.get(status, "")
+    return f"{c}{icon}{_RESET}" if c else icon
+
+
+def _status_badge(status):
+    """[시작전] / [진행중](노랑) / [완료](녹색) — 괄호 포함 8 display cols 고정."""
+    label = _fit(status, 6)  # 시작전·진행중 = 6cols, 완료 = 4cols → 패딩
+    c = _STATUS_COLOR.get(status, "")
+    inner = f"{c}{label}{_RESET}" if c else label
+    return f"[{inner}]"
+
 # memory import 대상 — 파일명 prefix로 선별한다.
 # 기본은 actionable한 reminder_/task_만. project_*는 진행상황·지식 노트가 대부분
 # 섞여 backlog를 희석하므로 --include-projects 옵션일 때만 포함한다.
@@ -222,19 +240,20 @@ def _task_display(task, done, total):
 def _todo_display(todo):
     """Level 2 및 preview용 — 터미널 너비 기반 동적 컬럼."""
     status = _get_status(todo)
-    box = TODO_STATUS_ICON.get(status, "□")
+    box = _colored_icon(status)
     title = todo.get("title", "")
     plan_badge = " 📋" if todo.get("plan_id") else ""
     desc_badge = " 📝" if todo.get("description") else ""
     img_badge = " 🖼" if todo.get("images") else ""
-    # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + buffer(2) = 13
+    # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + status_badge(10) + buffer(4) = 25
     _cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(44, _cols - 13)
+    title_width = max(36, _cols - 25)
     title_col = _fit(title + plan_badge + desc_badge + img_badge, title_width)
     due = todo.get("due", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD 5칸
     dirty = " *" if todo.get("dirty") else "  "
-    return f"{box} {title_col}  {due_str}{dirty}"
+    badge = _status_badge(status)
+    return f"{box} {title_col}  {due_str}{dirty}  {badge}"
 
 
 # ── 커맨드 ────────────────────────────────────────────────────
@@ -339,14 +358,15 @@ def cmd_list_all_todos(args):
                          ensure_ascii=False, indent=2))
         return
     # title_width: preview 창(right:42%) 고려 → 리스트 영역 ≈ 56%
-    # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + max_repo(20) + buffer(4) = 35
+    # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + status_badge(10) + max_repo(20) + buffer(6) = 47
     _term_cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(36, int(_term_cols * 0.54) - 35)
+    title_width = max(28, int(_term_cols * 0.54) - 47)
 
-    # fzf: "{box} {title:dynamic} {due:5} {dirty}  [· {task명}]  [{repo}]"
+    # fzf: "{box} {title:dynamic} {due:5} {dirty}  {badge}  [· {task명}]  [{repo}]"
     # Todos 버킷 소속은 ctx 생략 (자명하므로), Task 연결 시만 Task명 표시
     for t in todos:
-        box = TODO_STATUS_ICON.get(_get_status(t), "□")
+        status = _get_status(t)
+        box = _colored_icon(status)
         title_field = (t.get("title", "")
                        + (" 📋" if t.get("plan_id") else "")
                        + (" 📝" if t.get("description") else "")
@@ -355,11 +375,12 @@ def cmd_list_all_todos(args):
         due = t.get("due", "")
         due_str = f"~{due[5:10]}" if due else "     "
         dirty = " *" if t.get("dirty") else "  "
+        badge = _status_badge(status)
         repo = repo_of(t)
         repo_tag = f"  [{repo}]" if repo else ""
         ctx = ctx_of(t)
         ctx_part = f"  · {_fit(ctx, 16)}" if ctx != BACKLOG_LABEL else ""
-        print(f"{t['id']}\t{box} {title_col}  {due_str}{dirty}{ctx_part}{repo_tag}")
+        print(f"{t['id']}\t{box} {title_col}  {due_str}{dirty}  {badge}{ctx_part}{repo_tag}")
 
 
 def cmd_get(args):
@@ -542,8 +563,10 @@ def cmd_preview_todo(args):
         return
 
     status = _get_status(todo)
-    box = TODO_STATUS_ICON.get(status, "□")
-    print(f"  {box} {todo.get('title', '')}  [{status}]")
+    box = _colored_icon(status)
+    badge = _status_badge(status)
+    print(f"  {box} {todo.get('title', '')}")
+    print(f"  상태: {badge}")
     if todo.get("due"):
         print(f"  마감: {todo['due']}")
     if todo.get("repo"):

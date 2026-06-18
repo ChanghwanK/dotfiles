@@ -119,7 +119,7 @@ todo_menu() {
     out=$(python3 "$STORE" list-todos --task "$page_id" --format fzf \
       | fzf --delimiter='\t' --with-nth='2..' --ansi \
             --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-            --header="enter:Claude열기  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  esc:뒤로" \
+            --header="enter:Claude열기  space:상태전환(□▷✓)  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  esc:뒤로" \
             --expect=enter,space,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-l,ctrl-r,ctrl-p)
     [ -z "$out" ] && return  # esc/취소 → Level 1 복귀
     key=$(sed -n 1p <<<"$out")
@@ -176,14 +176,14 @@ todo_menu() {
 
 # ── 탭 UI: Tasks 탭 / Todos 탭 (tab 키로 전환) ────────────────
 
-# 현재 탭 상태 — Tasks(Notion Project 목록) ↔ Todos(전체 평면 목록)
-TAB="tasks"
+# 현재 탭 상태 — Todos(전체 평면 목록) ↔ Tasks(Notion Project 목록)
+TAB="todos"
 NAV=""           # 탭 함수가 "quit"을 세우면 최상위 루프 종료
 REPO_FILTER=""   # Todos 탭의 repo 필터 (빈값 = 전체)
 PRIO_FILTER="P1" # Tasks 탭의 우선순위 필터 (P1|P2|P3|P4|"" 전체)
 
 tab_bar() {
-  if [ "$TAB" = "tasks" ]; then echo "[ ●Tasks │ ○Todos ]"; else echo "[ ○Tasks │ ●Todos ]"; fi
+  if [ "$TAB" = "todos" ]; then echo "[ ●Todos │ ○Tasks ]"; else echo "[ ○Todos │ ●Tasks ]"; fi
 }
 
 prio_bar() {
@@ -212,7 +212,7 @@ tasks_tab() {
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48% \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1/2/3/0:우선순위  enter:todo목록  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:todo목록  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
           --expect=enter,tab,ctrl-t,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
@@ -360,7 +360,7 @@ todos_tab() {
   out=$(list_todos_filtered \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-          --header="$(tab_bar)$fhdr  enter:Claude열기  space:완료토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --header="$(tab_bar)$fhdr  enter:Claude열기  space:상태전환(□▷✓)  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
           --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
