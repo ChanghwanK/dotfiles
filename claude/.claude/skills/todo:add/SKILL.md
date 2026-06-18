@@ -34,6 +34,7 @@ allowed-tools:
 | **title** (필수) | 메타 키워드 제거 후 핵심 동작/목표 추출 | — |
 | **description** | 배경·문제·이유 등 자유 텍스트 (멀티라인 가능) | 없음 |
 | **due** | "내일"/"이번주 금요일"/YYYY-MM-DD → 절대 날짜 변환 (KST) | 없음 |
+| **status** | "시작전"/"진행중"/"완료" 명시 시 그대로 사용 | `시작전` |
 | **task** | "X task에", "X 작업 하위에" → task 이름 추출 | `__backlog__` |
 | **repo** | CWD 마지막 경로 컴포넌트 자동 추출 | `""` |
 | **images** | 파일 경로 또는 URL 목록 (아래 "이미지 파싱" 참조) | 없음 |
@@ -96,11 +97,18 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-
 확정된 속성으로 add 커맨드를 실행한다.
 
 ```bash
-# Backlog (기본)
+# Backlog (기본, 시작전)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
   --task __backlog__ \
   --title "VictoriaMetrics stg 클러스터 버전 업데이트" \
   --due "2026-06-18" \
+  --repo "kubernetes"
+
+# 진행 상태 명시 (진행중)
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
+  --task __backlog__ \
+  --title "PR 코드 리뷰" \
+  --status "진행중" \
   --repo "kubernetes"
 
 # description 포함 (사용자가 배경/이유를 언급한 경우)

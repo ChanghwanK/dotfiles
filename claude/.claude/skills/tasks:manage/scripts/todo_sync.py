@@ -112,7 +112,14 @@ def _resolve_matched(local, remote, conflicts):
 
 def _adopt_remote(local, remote):
     local["title"] = remote["title"]
-    local["done"] = remote["done"]
+    new_done = remote["done"]
+    # done 변경 시 status도 일관되게 조정.
+    # 진행중은 로컬 컨텍스트이므로 Notion unchecked일 때 보존한다.
+    if new_done:
+        local["status"] = "완료"
+    elif local.get("status") == "완료":
+        local["status"] = "시작전"
+    local["done"] = new_done
     local["notion_last_edited"] = remote["last_edited"]
     local["dirty"] = False
 
@@ -217,6 +224,7 @@ def _todo_from_remote(page_id, rb):
         "task_page_id": page_id,
         "notion_block_id": rb["block_id"],
         "title": rb["title"],
+        "status": "완료" if rb["done"] else "시작전",
         "done": rb["done"],
         "due": "",
         "created_at": now,
