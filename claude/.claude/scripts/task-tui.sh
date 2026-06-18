@@ -22,6 +22,134 @@ PLAN_TODO="$HOME/.claude/scripts/plan-todo.py"
 # NOTION_TOKEN 확보 (sync에 필요). secrets.zsh의 단순 export 라인을 bash로 로드.
 [ -z "${NOTION_TOKEN:-}" ] && [ -f "$HOME/.secrets.zsh" ] && source "$HOME/.secrets.zsh" 2>/dev/null
 
+# ── CLI 서브커맨드: add / --add / add-task / --add-task ──────────
+# TUI 없이 Backlog(또는 특정 Task)에 Todo를, 또는 Notion Task(=Project)를
+# 즉시 추가한다.
+#
+# Todo 추가 — 인터랙티브 모드 (제목 입력 프롬프트):
+#   todo --add                    → gum input으로 제목 입력 후 Backlog에 추가
+#
+# Todo 추가 — 논인터랙티브 모드 (Claude `!` 실행, 파이프 환경):
+#   todo add "제목"               → Backlog에 즉시 추가
+#   todo add "제목" --task <id>   → 특정 Task에 추가
+#   todo add "제목" --repo <repo> --status 진행중
+#
+# Task 추가 — 인터랙티브 모드 (이름→우선순위→카테고리→마감일 순서 입력):
+#   todo --add-task               → gum 프롬프트로 Notion Task 생성
+#   todo --add-task "이름"        → 이름만 인자로, 나머지는 프롬프트
+#
+# Task 추가 — 논인터랙티브 모드:
+#   todo add-task "이름"                              → P3/WORK 기본값으로 생성
+#   todo add-task "이름" --priority "P1 - Must Have" --category MY --due 2026-06-30
+
+# --add 플래그: 제목을 gum input으로 입력받아 Backlog에 추가
+if [ "${1:-}" = "--add" ]; then
+  shift
+  _ADD_TITLE="${1:-}"
+  if [ -z "$_ADD_TITLE" ]; then
+    if command -v gum >/dev/null; then
+      _ADD_TITLE=$(gum input --placeholder "새 todo 제목..." --width 60)
+    else
+      read -rp "새 todo 제목: " _ADD_TITLE
+    fi
+  fi
+  [ -z "$_ADD_TITLE" ] && exit 0
+  python3 "$STORE" add --task __backlog__ --title "$_ADD_TITLE"
+  exit $?
+fi
+
+# add 서브커맨드: 논인터랙티브, 추가 옵션 지원
+if [ "${1:-}" = "add" ]; then
+  shift
+  if [ $# -eq 0 ]; then
+    echo "usage: todo add <제목> [--task <page_id>] [--repo <repo>] [--description <text>] [--status 시작전|진행중|완료]" >&2
+    exit 1
+  fi
+  _ADD_TITLE="$1"; shift
+  _ADD_TASK="__backlog__"
+  _ADD_EXTRA=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --task)        _ADD_TASK="$2"; shift 2 ;;
+      --repo)        _ADD_EXTRA+=(--repo "$2"); shift 2 ;;
+      --description) _ADD_EXTRA+=(--description "$2"); shift 2 ;;
+      --status)      _ADD_EXTRA+=(--status "$2"); shift 2 ;;
+      *) echo "알 수 없는 옵션: $1" >&2; exit 1 ;;
+    esac
+  done
+  python3 "$STORE" add --task "$_ADD_TASK" --title "$_ADD_TITLE" "${_ADD_EXTRA[@]}"
+  exit $?
+fi
+
+# --add-task 플래그: Notion Task(=Project)를 대화형으로 생성한다.
+# Task는 name/priority/category가 필수이므로 gum 프롬프트로 순서대로 입력받는다
+# (gum 없으면 read로 degrade). 기본값은 백로그 적재에 흔한 P3/WORK.
+if [ "${1:-}" = "--add-task" ]; then
+  shift
+  _TASK_NAME="${1:-}"
+  if [ -z "$_TASK_NAME" ]; then
+    if command -v gum >/dev/null; then
+      _TASK_NAME=$(gum input --placeholder "새 Task 이름..." --width 60)
+    else
+      read -rp "새 Task 이름: " _TASK_NAME
+    fi
+  fi
+  [ -z "$_TASK_NAME" ] && exit 0
+
+  if command -v gum >/dev/null; then
+    _TASK_PRIO=$(gum choose --header "우선순위" --selected "P3 - Could Have" \
+      "P1 - Must Have" "P2 - Should Have" "P3 - Could Have" "P4 - Won't Have")
+    _TASK_CAT=$(gum choose --header "카테고리" --selected "WORK" "WORK" "MY")
+    _TASK_DUE=$(gum input --placeholder "마감일 YYYY-MM-DD (선택 — 비우면 없음)")
+  else
+    read -rp "우선순위 [P3 - Could Have]: " _TASK_PRIO; _TASK_PRIO="${_TASK_PRIO:-P3 - Could Have}"
+    read -rp "카테고리 WORK/MY [WORK]: " _TASK_CAT; _TASK_CAT="${_TASK_CAT:-WORK}"
+    read -rp "마감일 YYYY-MM-DD (선택): " _TASK_DUE
+  fi
+  # 프롬프트를 ESC로 취소하면 빈 값 — 생성하지 않고 종료
+  [ -z "$_TASK_PRIO" ] && exit 0
+  [ -z "$_TASK_CAT" ]  && exit 0
+
+  _TASK_EXTRA=()
+  [ -n "$_TASK_DUE" ] && _TASK_EXTRA+=(--due "$_TASK_DUE")
+  python3 "$NOTION_TASK" create-task \
+    --name "$_TASK_NAME" --priority "$_TASK_PRIO" --category "$_TASK_CAT" "${_TASK_EXTRA[@]}"
+  exit $?
+fi
+
+# add-task 서브커맨드: 논인터랙티브 Task 생성 (Claude `!` 실행, 파이프 환경)
+if [ "${1:-}" = "add-task" ]; then
+  shift
+  if [ $# -eq 0 ]; then
+    echo "usage: todo add-task <이름> [--priority \"P3 - Could Have\"] [--category WORK|MY] [--due YYYY-MM-DD] [--description <text>]" >&2
+    exit 1
+  fi
+  _TASK_NAME="$1"; shift
+  _TASK_PRIO="P3 - Could Have"
+  _TASK_CAT="WORK"
+  _TASK_EXTRA=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --priority)    _TASK_PRIO="$2"; shift 2 ;;
+      --category)    _TASK_CAT="$2"; shift 2 ;;
+      --due)         _TASK_EXTRA+=(--due "$2"); shift 2 ;;
+      --description) _TASK_EXTRA+=(--description "$2"); shift 2 ;;
+      *) echo "알 수 없는 옵션: $1" >&2; exit 1 ;;
+    esac
+  done
+  python3 "$NOTION_TASK" create-task \
+    --name "$_TASK_NAME" --priority "$_TASK_PRIO" --category "$_TASK_CAT" "${_TASK_EXTRA[@]}"
+  exit $?
+fi
+
+# today 서브커맨드: 비인터랙티브 텍스트 뷰 (Claude `!` 실행 등 non-TTY 환경용)
+#   todo today   → 오늘 처리할 Task/Todo를 지남/오늘/진행 그룹으로 출력
+if [ "${1:-}" = "today" ]; then
+  shift
+  python3 "$STORE" today --format text
+  exit $?
+fi
+
 command -v fzf >/dev/null || { echo "fzf 필요: brew install fzf"; exit 1; }
 
 # fzf는 인터랙티브 tty가 필요하다. Claude Code의 `!` 실행이나 파이프 환경에서는
@@ -183,7 +311,22 @@ REPO_FILTER=""   # Todos 탭의 repo 필터 (빈값 = 전체)
 PRIO_FILTER="P1" # Tasks 탭의 우선순위 필터 (P1|P2|P3|P4|"" 전체)
 
 tab_bar() {
-  if [ "$TAB" = "todos" ]; then echo "[ ●Todos │ ○Tasks ]"; else echo "[ ○Todos │ ●Tasks ]"; fi
+  local a="○Todos" b="○Tasks" c="○Today"
+  case "$TAB" in
+    todos) a="●Todos" ;;
+    tasks) b="●Tasks" ;;
+    today) c="●Today" ;;
+  esac
+  echo "[ $a │ $b │ $c ]"
+}
+
+# ctrl-t/tab: todos → tasks → today → todos 순환
+next_tab() {
+  case "$TAB" in
+    todos) TAB="tasks" ;;
+    tasks) TAB="today" ;;
+    today) TAB="todos" ;;
+  esac
 }
 
 prio_bar() {
@@ -217,7 +360,7 @@ tasks_tab() {
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
-    tab|ctrl-t) TAB="todos" ;;
+    tab|ctrl-t) next_tab ;;
     1) PRIO_FILTER="P1" ;;
     2) PRIO_FILTER="P2" ;;
     3) PRIO_FILTER="P3" ;;
@@ -366,7 +509,7 @@ todos_tab() {
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
     enter)  [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
-    tab|ctrl-t) TAB="tasks" ;;
+    tab|ctrl-t) next_tab ;;
     space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
     ctrl-a)  t=$(prompt_input "새 Backlog todo"); [ -n "$t" ] && python3 "$STORE" add --task __backlog__ --title "$t" ${REPO_FILTER:+--repo "$REPO_FILTER"} >/dev/null ;;
     ctrl-e)  [ -z "$todo_id" ] && return
@@ -404,10 +547,41 @@ todos_tab() {
   esac
 }
 
+# Today 탭: 오늘 처리할 Task/Todo를 한 화면에 — 지남(overdue)·오늘(today)·진행(doing).
+# Task는 page_id, Todo는 td_ 접두사 id로 구분 → enter 동작을 분기한다
+#   (Task=하위 Todo 드릴인 / Todo=Claude 세션 오픈).
+today_tab() {
+  local out key line id
+  out=$(python3 "$STORE" today --format fzf \
+    | fzf --delimiter='\t' --with-nth='2..' --ansi \
+          --preview "python3 '$STORE' preview-today {1}" --preview-window=right:46% \
+          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기/드릴인  space:Todo상태전환  ctrl-t:탭전환  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-l,ctrl-r)
+  if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
+  key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); id=$(cut -f1 <<<"$line")
+  [ "$id" = "__none__" ] && id=""  # 빈 뷰 sentinel
+  case "$key" in
+    tab|ctrl-t) next_tab ;;
+    enter)
+      [ -z "$id" ] && return
+      if [[ "$id" == td_* ]]; then open_todo_session "$id"  # Todo → 세션
+      else todo_menu "$id"; fi ;;                            # Task → 하위 Todo 목록
+    space)
+      # 상태 전환은 Todo만 (Task 상태는 Tasks 탭의 ctrl-s에서 변경)
+      [[ "$id" == td_* ]] && python3 "$STORE" toggle --id "$id" >/dev/null ;;
+    ctrl-l)  : ;;  # no-op → while loop 재진입으로 today 재렌더
+    ctrl-r)  run_sync ;;
+  esac
+}
+
 main_menu() {
   NAV=""
   while true; do
-    if [ "$TAB" = "tasks" ]; then tasks_tab; else todos_tab; fi
+    case "$TAB" in
+      tasks) tasks_tab ;;
+      today) today_tab ;;
+      *)     todos_tab ;;
+    esac
     [ "$NAV" = "quit" ] && return
   done
 }
