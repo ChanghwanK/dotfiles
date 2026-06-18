@@ -76,7 +76,27 @@ end tell
         subprocess.run(['osascript', '-e', script], capture_output=True)
         return
 
-    # Terminal.app fallback
+    if TERM_PROGRAM == 'ghostty':
+        # ghostty 기반 터미널(cmux 등) — 앱 활성화 후 System Events로 키 전달
+        # 앱 이름은 cmux.app 또는 Ghostty.app 중 하나
+        activate_script = '''
+set ghosttyApps to {"cmux", "Ghostty"}
+repeat with appName in ghosttyApps
+    try
+        tell application appName to activate
+        exit repeat
+    end try
+end repeat
+delay 0.2
+tell application "System Events"
+    keystroke "''' + key + '''"
+    key code 36
+end tell
+'''
+        subprocess.run(['osascript', '-e', activate_script], capture_output=True)
+        return
+
+    # Terminal.app fallback (최후 수단)
     script = f'tell application "Terminal" to do script "{key}" in front window'
     subprocess.run(['osascript', '-e', script], capture_output=True)
 

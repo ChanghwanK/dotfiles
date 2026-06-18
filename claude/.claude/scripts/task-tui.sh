@@ -276,7 +276,8 @@ open_todo_session() {
 
   # 중첩 quote 이슈를 피하기 위해 런처 스크립트로 분리
   local launcher
-  launcher=$(mktemp /tmp/claude-todo-launch.XXXXXX.sh)
+  launcher=$(mktemp /tmp/claude-todo-launch.XXXXXX.sh 2>/dev/null) || \
+    launcher="/tmp/claude-todo-launch.$$.$(date +%s).sh"
   {
     echo "#!/bin/bash"
     printf 'cd %q\n' "$repo_dir"
@@ -293,6 +294,15 @@ _launch_claude_session() {
 
   if [ -n "${TMUX:-}" ]; then
     tmux new-window -c "$dir" -n "todo" bash "$launcher"
+  elif [ "${TERM_PROGRAM:-}" = "ghostty" ]; then
+    # ghostty -e로 새 창에서 launcher 실행 (cmux.app 포함)
+    local ghostty_bin
+    ghostty_bin=$(command -v ghostty 2>/dev/null || echo "")
+    if [ -n "$ghostty_bin" ]; then
+      "$ghostty_bin" -e bash "$launcher" &
+    else
+      bash "$launcher" &
+    fi
   elif osascript -e 'tell application "iTerm2" to get version' >/dev/null 2>&1; then
     osascript << APPLESCRIPT
 tell application "iTerm2"
