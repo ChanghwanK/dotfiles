@@ -286,16 +286,26 @@ open_todo_session() {
   } > "$launcher"
   chmod +x "$launcher"
 
-  _launch_claude_session "$repo_dir" "$launcher"
+  _launch_claude_session "$repo_dir" "$launcher" "$title"
 }
 
 _launch_claude_session() {
-  local dir="$1" launcher="$2"
+  local dir="$1" launcher="$2" title="${3:-todo}"
+
+  if [ -n "${CMUX_WORKSPACE_ID:-}" ] || [ -n "${CMUX_SURFACE_ID:-}" ]; then
+    # cmux: 새 워크스페이스 생성 후 Claude Code 실행
+    cmux new-workspace \
+      --name "$title" \
+      --cwd "$dir" \
+      --command "bash $(printf '%q' "$launcher")" \
+      --focus true 2>/dev/null &
+    return
+  fi
 
   if [ -n "${TMUX:-}" ]; then
     tmux new-window -c "$dir" -n "todo" bash "$launcher"
   elif [ "${TERM_PROGRAM:-}" = "ghostty" ]; then
-    # ghostty -e로 새 창에서 launcher 실행 (cmux.app 포함)
+    # ghostty -e로 새 창에서 launcher 실행
     local ghostty_bin
     ghostty_bin=$(command -v ghostty 2>/dev/null || echo "")
     if [ -n "$ghostty_bin" ]; then

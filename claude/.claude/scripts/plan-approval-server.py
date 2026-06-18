@@ -9,6 +9,7 @@ Auto-exits after 10 minutes.
 """
 import sys
 import os
+import shutil
 import subprocess
 import threading
 import socket
@@ -21,6 +22,8 @@ ITERM_SESSION_ID = os.environ.get('ITERM_SESSION_ID', '')
 TMUX = os.environ.get('TMUX', '')
 TMUX_PANE = os.environ.get('TMUX_PANE', '')
 TERM_PROGRAM = os.environ.get('TERM_PROGRAM', '')
+CMUX_SURFACE_ID = os.environ.get('CMUX_SURFACE_ID', '')
+CMUX_WORKSPACE_ID = os.environ.get('CMUX_WORKSPACE_ID', '')
 
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -39,6 +42,15 @@ def load_plan_to_html():
 
 def send_to_terminal(key):
     """Send 'y' or 'n' + Enter to the Claude Code terminal."""
+    if CMUX_SURFACE_ID:
+        # cmux: Unix socket 기반 send — 가장 정확한 방법
+        cmux_bin = shutil.which('cmux') or '/Applications/cmux.app/Contents/Resources/bin/cmux'
+        subprocess.run([cmux_bin, 'send', '--surface', CMUX_SURFACE_ID, key],
+                       capture_output=True)
+        subprocess.run([cmux_bin, 'send-key', '--surface', CMUX_SURFACE_ID, 'Enter'],
+                       capture_output=True)
+        return
+
     if TMUX and TMUX_PANE:
         subprocess.run(['tmux', 'send-keys', '-t', TMUX_PANE, key, 'Enter'],
                        check=False, capture_output=True)
