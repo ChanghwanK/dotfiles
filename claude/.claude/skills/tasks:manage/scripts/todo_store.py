@@ -616,6 +616,153 @@ def cmd_preview_todo(args):
             print(f"  상태: {task.get('status', '')}  우선순위: {task.get('priority', '')}")
 
 
+# ── Today 뷰 ──────────────────────────────────────────────────
+# "오늘 처리할 것"의 정의 — Todoist/Things의 Today 스마트 리스트와 동일하게
+# (1) 마감 지남(overdue) (2) 오늘 마감(today) (3) 진행 중(doing) 을 모은다.
+# 완료 항목은 제외한다. 진행 중은 마감이 없거나 미래여도 "지금 붙잡고 있는 일"
+# 이므로 today 대상에 포함한다.
+
+_TODAY_RANK = {"overdue": 0, "today": 1, "doing": 2}
+_TODAY_COLOR = {"overdue": "\033[1;31m", "today": "\033[1;33m", "doing": "\033[1;34m"}
+_TODAY_LABEL = {"overdue": "지남", "today": "오늘", "doing": "진행"}
+
+
+def _today_urgency(due, is_done, is_doing, today):
+    """항목을 overdue/today/doing 중 하나로 분류. today 대상이 아니면 None."""
+    if is_done:
+        return None
+    if due:
+        if due < today:
+            return "overdue"
+        if due == today:
+            return "today"
+    if is_doing:
+        return "doing"
+    return None
+
+
+def _today_badge(urgency):
+    """[지남](빨강) / [오늘](노랑) / [진행](파랑) — fzf --ansi 전제, 괄호 포함 6 cols."""
+    return f"[{_TODAY_COLOR[urgency]}{_TODAY_LABEL[urgency]}{_RESET}]"
+
+
+def _collect_today(today):
+    """오늘 처리 대상 Task(드릴인) / Todo(세션 오픈)를 urgency와 함께 모은다.
+
+    정렬: urgency(지남>오늘>진행) → 마감일 → 제목. Task와 Todo를 한 리스트에 섞되
+    kind로 구분해 셸이 enter 동작(Task=드릴인 / Todo=세션 오픈)을 분기할 수 있게 한다.
+    """
+    tdoc = load_todos()
+    tasks = load_tasks()["tasks"]
+    tasks_map = {t["page_id"]: t.get("name", "") for t in tasks}
+    items = []
+
+    for task in tasks:
+        u = _today_urgency(task.get("due_date", ""),
+                           task.get("status") == "완료",
+                           task.get("status") == "진행 중",
+                           today)
+        if u:
+            done, total = _counts_for(tdoc, task["page_id"])
+            items.append({"kind": "task", "urgency": u, "obj": task,
+                          "due": task.get("due_date", ""), "done": done, "total": total})
+
+    for t in _visible_todos(tdoc):
+        st = _get_status(t)
+        u = _today_urgency(t.get("due", ""), st == "완료", st == "진행중", today)
+        if u:
+            pid = t.get("task_page_id")
+            ctx = BACKLOG_LABEL if pid == BACKLOG_ID else (tasks_map.get(pid) or "(task?)")
+            items.append({"kind": "todo", "urgency": u, "obj": t,
+                          "due": t.get("due", ""), "context": ctx})
+
+    items.sort(key=lambda i: (i["obj"].get("title") or i["obj"].get("name") or ""))
+    items.sort(key=lambda i: i["due"] or "9999-99-99")
+    items.sort(key=lambda i: _TODAY_RANK[i["urgency"]])  # stable: urgency가 1차 키
+    return items
+
+
+def cmd_today(args):
+    """오늘 처리할 Task/Todo 통합 뷰 — Today 탭(fzf) · /task(text) · 자동화(json)."""
+    today = nc.now_kst()[:10]
+    items = _collect_today(today)
+
+    if args.format == "json":
+        out = []
+        for i in items:
+            o = i["obj"]
+            if i["kind"] == "task":
+                out.append({"kind": "task", "urgency": i["urgency"], "page_id": o["page_id"],
+                            "name": o.get("name", ""), "due": i["due"],
+                            "priority": _priority_short(o.get("priority", "")),
+                            "todo_done": i["done"], "todo_count": i["total"]})
+            else:
+                out.append({"kind": "todo", "urgency": i["urgency"], "id": o["id"],
+                            "title": o.get("title", ""), "due": i["due"],
+                            "status": _get_status(o), "context": i["context"], "repo": repo_of(o)})
+        print(json.dumps({"date": today, "items": out}, ensure_ascii=False, indent=2))
+        return
+
+    if args.format == "text":
+        if not items:
+            print("오늘 처리할 Task/Todo가 없습니다.")
+            return
+        cur = None
+        for i in items:
+            if i["urgency"] != cur:
+                cur = i["urgency"]
+                print(f"\n[{_TODAY_LABEL[cur]}]")
+            o = i["obj"]
+            due = f" (~{i['due'][5:10]})" if i["due"] else ""
+            if i["kind"] == "task":
+                print(f"  📁 {o.get('name', '')}{due}  ({i['done']}/{i['total']})")
+            else:
+                print(f"  {_colored_icon(_get_status(o))} {o.get('title', '')}{due}  · {i['context']}")
+        return
+
+    # fzf: "<id>\t<표시줄>". Task는 page_id, Todo는 td_ 접두사 id → 셸이 enter 분기.
+    if not items:
+        print("__none__\t  ✨ 오늘 처리할 Task/Todo가 없습니다  (ctrl-t: 다른 탭)")
+        return
+    _cols = shutil.get_terminal_size((120, 24)).columns
+    title_width = max(26, int(_cols * 0.50) - 22)
+    for i in items:
+        o = i["obj"]
+        badge = _today_badge(i["urgency"])
+        due = i["due"]
+        due_str = f"~{due[5:10]}" if due else "     "
+        if i["kind"] == "task":
+            title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
+            title_col = _fit(title_field, title_width)
+            tail = f"[{_priority_short(o.get('priority', ''))}] ({i['done']}/{i['total']})"
+            print(f"{o['page_id']}\t📁 {badge} {title_col}  {due_str}  {tail}")
+        else:
+            status = _get_status(o)
+            glyph_col = _colored_icon(status) + " "  # box(1) + space → Task 📁(2)와 폭 정렬
+            title_field = (o.get("title", "")
+                           + (" 📋" if o.get("plan_id") else "")
+                           + (" 📝" if o.get("description") else "")
+                           + (" 🖼" if o.get("images") else ""))
+            title_col = _fit(title_field, title_width)
+            ctx = i["context"]
+            ctx_part = "" if ctx == BACKLOG_LABEL else f"  · {_fit(ctx, 14)}"
+            repo = repo_of(o)
+            repo_tag = f"  [{repo}]" if repo else ""
+            print(f"{o['id']}\t{glyph_col} {badge} {title_col}  {due_str}{ctx_part}{repo_tag}")
+
+
+def cmd_preview_today(args):
+    """Today 뷰 preview — id 접두사로 Task(page_id) / Todo(td_)를 자동 분기."""
+    tid = args.id
+    if tid == "__none__":
+        print("  오늘 처리할 항목이 없습니다.")
+        return
+    if tid.startswith("td_"):
+        cmd_preview_todo(argparse.Namespace(todo_id=tid))
+    else:
+        cmd_preview_task(argparse.Namespace(page_id=tid))
+
+
 def cmd_set_task_status(args):
     """Task 상태를 로컬에서 변경하고 meta_dirty 표식 — push가 Notion에 반영한다.
     모든 로컬 쓰기는 store가 소유하므로(sync는 Notion I/O만) 여기에 둔다."""
@@ -824,6 +971,12 @@ def main():
     sm = sub.add_parser("summary")
     sm.add_argument("--format", choices=["text", "json"], default="text")
 
+    td = sub.add_parser("today")
+    td.add_argument("--format", choices=["fzf", "json", "text"], default="fzf")
+
+    pty = sub.add_parser("preview-today")
+    pty.add_argument("id")
+
     lp = sub.add_parser("link-plan")
     lp.add_argument("--target", choices=["task", "todo"], required=True)
     lp.add_argument("--id", required=True)
@@ -844,6 +997,8 @@ def main():
         "set-task-status": cmd_set_task_status,
         "import-memory": cmd_import_memory,
         "summary": cmd_summary,
+        "today": cmd_today,
+        "preview-today": cmd_preview_today,
         "link-plan": cmd_link_plan,
     }
     dispatch[args.command](args)
