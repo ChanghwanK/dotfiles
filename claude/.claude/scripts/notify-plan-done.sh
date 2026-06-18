@@ -39,7 +39,15 @@ if [ -n "$PLAN_FILE" ] && [ -f "$PLAN_FILE" ]; then
         --session-id "$SESSION_ID" 2>/dev/null || true
 fi
 
-# ── 4. Slack 알림 (기존 로직 유지) ───────────────────────────────────────────
+# ── 4. HTML 렌더링 + 브라우저 오픈 (Approve/Reject 버튼 포함) ────────────────
+if [ -n "$PLAN_FILE" ] && [ -f "$PLAN_FILE" ]; then
+    # approval server를 background에서 실행 (10분 후 자동 종료)
+    nohup python3 "${HOME}/.claude/scripts/plan-approval-server.py" "$PLAN_FILE" \
+        >/tmp/plan-approval-server.log 2>&1 &
+    disown
+fi
+
+# ── 5. Slack 알림 (기존 로직 유지) ───────────────────────────────────────────
 FLAG="${HOME}/.claude/scripts/.notify-enabled"
 [ -f "$FLAG" ] || exit 0
 
