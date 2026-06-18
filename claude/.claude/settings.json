@@ -1,7 +1,9 @@
 {
+  "cleanupPeriodDays": 30,
   "env": {
     "ENABLE_TOOL_SEARCH": "auto:5",
-    "CLAUDE_CODE_NO_FLICKER": "1"
+    "CLAUDE_CODE_NO_FLICKER": "1",
+    "CLAUDE_MEM_MODE": "code--ko"
   },
   "permissions": {
     "allow": [
@@ -45,6 +47,9 @@
       }
     ]
   },
+  "worktree": {
+    "baseRef": "fresh"
+  },
   "statusLine": {
     "type": "command",
     "command": "python3 $HOME/.claude/statusline.py"
@@ -54,5 +59,6 @@
   },
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
+  "editorMode": "vim",
   "skipAutoPermissionPrompt": true
 }

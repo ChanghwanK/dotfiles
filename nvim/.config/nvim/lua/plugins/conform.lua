@@ -16,7 +16,7 @@ return {
                 json = { "prettier" },
                 
                 -- Python
-                python = { "black", "isort" },
+                python = { "ruff_organize_imports", "ruff_format" },
                 
                 -- Lua
                 lua = { "stylua" },
@@ -47,13 +47,7 @@ return {
                 stylua = {
                     args = { "--stdin-filepath", "$FILENAME", "-" },
                 },
-                black = {
-                    args = { "--quiet", "-" },
-                },
-                isort = {
-                    args = { "--quiet", "-" },
-                },
-                shfmt = {
+shfmt = {
                     args = { "-i", "2" },  -- 2칸 들여쓰기
                 },
                 terraform_fmt = {
@@ -69,7 +63,7 @@ return {
             
             -- 저장 시 자동 포맷 설정
             format_on_save = {
-                timeout_ms = 500,
+                timeout_ms = 3000,
                 lsp_fallback = true,
             },
         })

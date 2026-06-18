@@ -170,7 +170,8 @@ return {
               local win = picker.layout.root.win
               if win and vim.api.nvim_win_is_valid(win) then
                 local width = vim.api.nvim_win_get_width(win)
-                require("barbar.api").set_offset(width + 1, "Explorer", nil, "left")
+                local ok, barbar = pcall(require, "barbar.api")
+                if ok then barbar.set_offset(width + 1, "Explorer", nil, "left") end
               end
               -- 활성 버퍼 디렉토리만 펼침 (나머지 모두 접기)
               local buf_path = vim.api.nvim_buf_get_name(0)
@@ -184,7 +185,8 @@ return {
             end)
           end,
           on_close = function()
-            require("barbar.api").set_offset(0, "", nil, "left")
+            local ok, barbar = pcall(require, "barbar.api")
+            if ok then barbar.set_offset(0, "", nil, "left") end
           end,
         },
       },
@@ -325,8 +327,7 @@ return {
     mapKey("<leader>S", function() Snacks.scratch.select() end, "n", { desc = "Select Scratch Buffer" })
 
     -- Toggle Terminal
-    -- mapKey("<c-/>", function() Snacks.terminal() end, { "n", "t" }, { desc = "Toggle Terminal" })
-    mapKey("<c-_>", function() Snacks.terminal() end, { "n", "t" }, { desc = "Toggle Terminal" })
+    mapKey("<leader>`", function() Snacks.terminal() end, { "n", "t" }, { desc = "Toggle Terminal" })
 
     -- Lazygit
     mapKey("<leader>gg", function() Snacks.lazygit() end, "n", { desc = "Lazygit" })

@@ -1,6 +1,7 @@
 ---
-name: summary:article
-description: 웹 URL의 콘텐츠를 fetch하여 심층 분석/인사이트 추가 후 Obsidian 노트로 저장하는 스킬. 병렬 에이전트로 콘텐츠 추출 + 보충 리서치를 동시 수행. 블로그, 기술 문서, 아티클, PDF 등 지원. 사용 시점: (1) 기술 블로그 읽고 정리, (2) 공식 문서 분석 후 노트화, (3) 아티클에서 인사이트 추출. 트리거 키워드: "웹 요약", "아티클 요약", "URL 분석", "web summary", "/summary:article".
+name: "summary:article"
+description: >-
+  웹 URL의 콘텐츠를 fetch하여 심층 분석/인사이트 추가 후 Obsidian 노트로 저장하는 스킬. 병렬 에이전트로 콘텐츠 추출 + 보충 리서치를 동시 수행. 블로그, 기술 문서, 아티클, PDF 등 지원. 사용 시점: (1) 기술 블로그 읽고 정리, (2) 공식 문서 분석 후 노트화, (3) 아티클에서 인사이트 추출. 트리거 키워드: "웹 요약", "아티클 요약", "URL 분석", "web summary", "/summary:article".
 model: sonnet
 allowed-tools:
   - Agent

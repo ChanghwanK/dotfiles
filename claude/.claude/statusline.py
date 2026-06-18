@@ -163,6 +163,41 @@ def ctx_bar(pct, width=10):
     return "[" + "=" * filled + "-" * (width - filled) + "]"
 
 
+TASKTUI_TASKS = os.path.expanduser("~/.claude/tasktui/tasks.json")
+TASKTUI_TODOS = os.path.expanduser("~/.claude/tasktui/todos.json")
+
+
+def get_task_line():
+    """진행 중 Task의 Todo 진행률을 1줄로. tasktui 캐시(JSON)만 읽어 API 호출 0.
+
+    캐시 파일이 없거나 진행 중 Task가 없으면 None을 반환해 라인을 생략한다.
+    """
+    try:
+        with open(TASKTUI_TASKS) as f:
+            tasks = json.load(f).get("tasks", [])
+    except (OSError, ValueError):
+        return None
+    in_prog = [t for t in tasks if t.get("status") == "진행 중"]
+    if not in_prog:
+        return None
+    # page_id별 (완료, 전체) Todo 수 — tombstone 제외
+    counts = {}
+    try:
+        with open(TASKTUI_TODOS) as f:
+            for td in json.load(f).get("todos", []):
+                if td.get("deleted"):
+                    continue
+                pid = td.get("task_page_id")
+                d, n = counts.get(pid, (0, 0))
+                counts[pid] = (d + (1 if td.get("done") else 0), n + 1)
+    except (OSError, ValueError):
+        pass
+    top = in_prog[0]  # query_active_tasks가 우선순위 정렬한 첫 항목
+    done, total = counts.get(top.get("page_id"), (0, 0))
+    prog = f" ({done}/{total})" if total else ""
+    return f"📋 {co(C, top.get('name', ''))}{co(DIM + W, prog)}"
+
+
 def main():
     raw = sys.stdin.read()
     try:
@@ -271,6 +306,10 @@ def main():
             f"⚡ {co(R, 'bypass permissions on')}"
             f" {co(DIM + W, '(shift+tab to cycle)')}"
         )
+
+    task_line = get_task_line()
+    if task_line:
+        lines.append(task_line)
 
     print("\n".join(lines))
 
