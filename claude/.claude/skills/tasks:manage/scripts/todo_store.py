@@ -214,10 +214,11 @@ def _todo_display(todo):
     title = todo.get("title", "")
     plan_badge = " 📋" if todo.get("plan_id") else ""
     desc_badge = " 📝" if todo.get("description") else ""
+    img_badge = " 🖼" if todo.get("images") else ""
     # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + buffer(2) = 13
     _cols = shutil.get_terminal_size((120, 24)).columns
     title_width = max(44, _cols - 13)
-    title_col = _fit(title + plan_badge + desc_badge, title_width)
+    title_col = _fit(title + plan_badge + desc_badge + img_badge, title_width)
     due = todo.get("due", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD 5칸
     dirty = " *" if todo.get("dirty") else "  "
@@ -336,7 +337,8 @@ def cmd_list_all_todos(args):
         box = "✓" if t.get("done") else "□"
         title_field = (t.get("title", "")
                        + (" 📋" if t.get("plan_id") else "")
-                       + (" 📝" if t.get("description") else ""))
+                       + (" 📝" if t.get("description") else "")
+                       + (" 🖼" if t.get("images") else ""))
         title_col = _fit(title_field, title_width)
         due = t.get("due", "")
         due_str = f"~{due[5:10]}" if due else "     "
@@ -368,12 +370,14 @@ def cmd_add(args):
     now = nc.now_kst()
     # Backlog(로컬 전용) Todo는 sync 대상이 아니므로 dirty를 세우지 않는다.
     is_backlog = args.task == BACKLOG_ID
+    images = [p for p in (getattr(args, "images", None) or []) if p.strip()]
     todo = {
         "id": _new_todo_id(),
         "task_page_id": args.task,
         "notion_block_id": None,  # push 시점에 채워짐 (Backlog은 항상 None)
         "title": args.title.strip(),
         "description": (getattr(args, "description", None) or "").strip(),
+        "images": images,
         "done": False,
         "due": args.due or "",
         "created_at": now,
@@ -418,6 +422,14 @@ def cmd_edit(args):
     desc = getattr(args, "description", None)
     if desc is not None:
         todo["description"] = desc.strip()
+    # --image 는 전체 이미지 목록 교체, --add-image 는 기존 목록에 append
+    images = getattr(args, "images", None)
+    if images is not None:
+        todo["images"] = [p for p in images if p.strip()]
+    add_images = getattr(args, "add_images", None)
+    if add_images:
+        existing = todo.get("images") or []
+        todo["images"] = existing + [p for p in add_images if p.strip()]
     todo["updated_at"] = nc.now_kst()
     todo["dirty"] = todo.get("task_page_id") != BACKLOG_ID  # Backlog은 로컬 전용
     save_todos(doc)
@@ -517,6 +529,18 @@ def cmd_preview_todo(args):
         print(f"\n  📝 설명")
         for line in desc.splitlines():
             print(f"     {line}")
+
+    images = todo.get("images") or []
+    if images:
+        print(f"\n  🖼 이미지 ({len(images)})")
+        for img in images:
+            exists = Path(img).exists() if not img.startswith("http") else True
+            status = "" if exists else " (파일 없음)"
+            print(f"     {img}{status}")
+        # imgcat 또는 macOS open 힌트
+        if any(Path(img).exists() for img in images if not img.startswith("http")):
+            first_local = next(img for img in images if not img.startswith("http") and Path(img).exists())
+            print(f"     → open \"{first_local}\"")
 
     plan_id = todo.get("plan_id")
     if plan_id:
@@ -706,6 +730,8 @@ def main():
     ad.add_argument("--title", required=True)
     ad.add_argument("--due", default=None)
     ad.add_argument("--description", default=None, help="배경·문제·이유 등 자유 텍스트")
+    ad.add_argument("--image", dest="images", action="append", default=None,
+                    help="이미지 파일 경로 또는 URL (여러 번 사용 가능)")
     ad.add_argument("--memory-path", dest="memory_path", default=None,
                     help="Backlog import 시 원본 memory 경로 링크")
     ad.add_argument("--repo", default=None, help="이 Todo의 소속 repo 라벨")
@@ -723,6 +749,10 @@ def main():
     ed.add_argument("--title", default="")
     ed.add_argument("--description", default=None, help="설명 업데이트 (빈 문자열로 삭제)")
     ed.add_argument("--description-only", dest="description_only", action="store_true")
+    ed.add_argument("--image", dest="images", action="append", default=None,
+                    help="이미지 목록 전체 교체 (여러 번 사용 가능, 빈 값으로 전체 삭제)")
+    ed.add_argument("--add-image", dest="add_images", action="append", default=None,
+                    help="기존 이미지 목록에 추가")
 
     dl = sub.add_parser("delete")
     dl.add_argument("--id", required=True)

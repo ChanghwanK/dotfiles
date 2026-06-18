@@ -36,6 +36,20 @@ allowed-tools:
 | **due** | "내일"/"이번주 금요일"/YYYY-MM-DD → 절대 날짜 변환 (KST) | 없음 |
 | **task** | "X task에", "X 작업 하위에" → task 이름 추출 | `__backlog__` |
 | **repo** | CWD 마지막 경로 컴포넌트 자동 추출 | `""` |
+| **images** | 파일 경로 또는 URL 목록 (아래 "이미지 파싱" 참조) | 없음 |
+
+### 이미지 파싱
+
+이미지 첨부 신호가 있으면 `--image PATH` 플래그를 추가한다.
+
+**신호:**
+- 사용자가 파일 경로를 명시: `"/Users/changhwan/Desktop/screenshot.png"`
+- 대화에서 이미지(스크린샷)가 시각적으로 첨부됨 → Claude가 해당 이미지를 `~/.claude/todo-images/<title-slug>.png`로 저장 후 경로 사용
+- URL 형태: `https://...` 
+
+**규칙:**
+- 경로가 여러 개면 `--image PATH1 --image PATH2` 형태로 반복
+- 이미지 없으면 플래그 생략
 
 ### 제목 추출 원칙
 
@@ -95,6 +109,13 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
   --title "EBS 볼륨 22개 삭제" \
   --description "비용 절감 목적. okta-devops 계정의 미연결 볼륨으로 월 $X 낭비 중." \
   --repo "terraform"
+
+# 이미지 첨부 (스크린샷 경로 또는 URL 포함 시)
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
+  --task __backlog__ \
+  --title "OOM 발생 Pod 조사" \
+  --image "/Users/changhwan/Desktop/oom-screenshot.png" \
+  --repo "kubernetes"
 
 # Task-scoped (task 명시 시)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \

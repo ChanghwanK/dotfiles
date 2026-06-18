@@ -277,36 +277,69 @@ def cmd_create_task(args):
     result = notion_request(token, "POST", "/pages", body)
     page_id = result.get("id", "")
 
-    # 업무 노트 리마인더 블록 추가 (button 블록은 API 미지원이므로 텍스트로 대체)
+    # 업무 노트 리마인더 + 이미지 블록 추가
+    children_blocks = [
+        {
+            "object": "block",
+            "type": "callout",
+            "callout": {
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text": {"content": "업무 노트 작성하기\n"},
+                        "annotations": {"bold": True},
+                    },
+                    {
+                        "type": "text",
+                        "text": {"content": "Engineering DB에서 이 Task를 연결하여 업무 노트를 작성하세요."},
+                        "annotations": {"color": "gray"},
+                    }
+                ],
+                "icon": {"type": "emoji", "emoji": "📝"},
+                "color": "blue_background",
+            },
+        },
+    ]
+
+    images = getattr(args, "images", None) or []
+    url_images = [img for img in images if img.startswith("http://") or img.startswith("https://")]
+    local_images = [img for img in images if not (img.startswith("http://") or img.startswith("https://"))]
+
+    for img_url in url_images:
+        children_blocks.append({
+            "object": "block",
+            "type": "image",
+            "image": {
+                "type": "external",
+                "external": {"url": img_url},
+            },
+        })
+
+    if local_images:
+        paths_text = "\n".join(local_images)
+        children_blocks.append({
+            "object": "block",
+            "type": "callout",
+            "callout": {
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text": {"content": "로컬 이미지 경로\n"},
+                        "annotations": {"bold": True},
+                    },
+                    {
+                        "type": "text",
+                        "text": {"content": paths_text},
+                        "annotations": {"code": True},
+                    },
+                ],
+                "icon": {"type": "emoji", "emoji": "🖼"},
+                "color": "gray_background",
+            },
+        })
+
     notion_request(token, "PATCH", f"/blocks/{page_id}/children", {
-        "children": [
-            {
-                "object": "block",
-                "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [
-                        {
-                            "type": "text",
-                            "text": {"content": "📝 업무 노트 작성하기"},
-                            "annotations": {"bold": True},
-                        }
-                    ]
-                },
-            },
-            {
-                "object": "block",
-                "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [
-                        {
-                            "type": "text",
-                            "text": {"content": "Engineering DB에서 이 Task를 연결하여 업무 노트를 작성하세요."},
-                            "annotations": {"color": "gray"},
-                        }
-                    ]
-                },
-            },
-        ]
+        "children": children_blocks
     })
 
     print(json.dumps({
@@ -468,6 +501,8 @@ def main():
     ct.add_argument("--category", required=True, choices=["WORK", "MY"], help="카테고리")
     ct.add_argument("--due", default=None, help="마감일 (YYYY-MM-DD)")
     ct.add_argument("--description", default=None, help="부연 설명")
+    ct.add_argument("--image", dest="images", action="append", default=None,
+                    help="이미지 URL 또는 로컬 파일 경로 (여러 번 사용 가능)")
 
     # update-status
     us = subparsers.add_parser("update-status", help="Task 상태 변경")
