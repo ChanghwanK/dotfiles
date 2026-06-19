@@ -47,9 +47,6 @@ DATA_DIR = Path.home() / ".claude" / "tasktui"
 TODOS_FILE = DATA_DIR / "todos.json"
 TASKS_FILE = DATA_DIR / "tasks.json"
 
-# Notion 상태 → 표시 아이콘. 목록에서 Task 진행 상태를 한눈에 보이게 한다.
-STATUS_ICON = {"진행 중": "⏳", "시작 전": "⬜", "대기": "⏸", "완료": "✅"}
-
 # Todo는 Task 하위뿐 아니라 독립(backlog/리마인드)으로도 존재한다.
 # 독립 Todo는 이 sentinel page_id를 갖는 가상 버킷에 모이며, 실제 Notion 페이지가
 # 없으므로 sync(pull/push) 대상에서 제외된다 — 로컬 전용이다.
@@ -75,6 +72,28 @@ def _status_badge(status):
     """[시작전] / [진행중](노랑) / [완료](녹색) — 괄호 포함 8 display cols 고정."""
     label = _fit(status, 6)  # 시작전·진행중 = 6cols, 완료 = 4cols → 패딩
     c = _STATUS_COLOR.get(status, "")
+    inner = f"{c}{label}{_RESET}" if c else label
+    return f"[{inner}]"
+
+
+# Task(Notion) 상태 → 텍스트 badge. Todo 상태와 값 집합이 다르므로(공백 포함
+# '진행 중'·'시작 전', Todo에 없는 '대기' 존재) Todo용 _status_badge를 재사용하지
+# 않고 별도로 둔다. 정렬을 위해 공백을 제거(진행 중→진행중)해 6 display cols로 맞춘다.
+_TASK_STATUS_COLOR = {
+    "진행 중": "\033[1;33m",  # 노랑 — 진행 중 강조
+    "완료":    "\033[2;32m",  # 흐린 녹색
+    "대기":    "\033[2;36m",  # 흐린 청록 — 보류 구분
+    "시작 전": "",
+}
+
+
+def _task_status_badge(status):
+    """[진행중](노랑)·[완료](녹색)·[대기]·[시작전] — 괄호 포함 8 display cols 고정.
+    빈 상태(Backlog 등)는 같은 폭의 공백을 반환해 목록 정렬을 유지한다."""
+    if not status:
+        return " " * 8
+    label = _fit(status.replace(" ", ""), 6)
+    c = _TASK_STATUS_COLOR.get(status, "")
     inner = f"{c}{label}{_RESET}" if c else label
     return f"[{inner}]"
 
@@ -217,24 +236,23 @@ def _parse_plan_light(plan_id: str):
 
 
 def _task_display(task, done, total):
-    icon = STATUS_ICON.get(task.get("status", ""), "·")
-    # 아이콘은 이모지(2칸)와 ASCII(1칸)가 섞이므로 2칸으로 통일
-    icon_col = icon if _display_width(icon) >= 2 else icon + " "
+    # 상태는 텍스트 badge로 표시한다(아이콘과 중복이라 아이콘은 제거).
     pri = _priority_short(task.get("priority", ""))
+    badge = _task_status_badge(task.get("status", ""))
     name = task.get("name", "(이름 없음)")
     plan_badge = " 📋" if task.get("plan_id") else ""
     # 이름+배지를 터미널 너비 기반 동적 컬럼에 맞춤
     # Tasks 탭은 preview 창(right:48%)이 있으므로 리스트 영역 ≈ 52%
-    # 오버헤드: icon(2)+space(1)+[Pn](4)+sep(2)+todo(7)+sep(2)+due(5)+sep(2) = 25
+    # 오버헤드: [Pn](4)+space(1)+badge(8)+sep(2)+todo(7)+sep(2)+due(5)+sep(2) = 31
     _cols = shutil.get_terminal_size((120, 24)).columns
-    name_width = max(36, int(_cols * 0.50) - 25)
+    name_width = max(36, int(_cols * 0.50) - 31)
     name_col = _fit(name + plan_badge, name_width)
     due = task.get("due_date", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD (5칸) 또는 공백
     tags = task.get("tags", [])
     tag_str = " ".join(f"#{t}" for t in tags)
     todo_str = f"({done}/{total})".rjust(7)
-    return f"{icon_col} [{pri}]  {name_col}  {todo_str}  {due_str}  {tag_str}".rstrip()
+    return f"[{pri}] {badge}  {name_col}  {todo_str}  {due_str}  {tag_str}".rstrip()
 
 
 def _todo_display(todo):
@@ -646,12 +664,18 @@ def _today_badge(urgency):
     return f"[{_TODAY_COLOR[urgency]}{_TODAY_LABEL[urgency]}{_RESET}]"
 
 
-def _collect_today(today):
+def _collect_today(today, include_overdue=True):
     """오늘 처리 대상 Task(드릴인) / Todo(세션 오픈)를 urgency와 함께 모은다.
 
     정렬: urgency(지남>오늘>진행) → 마감일 → 제목. Task와 Todo를 한 리스트에 섞되
     kind로 구분해 셸이 enter 동작(Task=드릴인 / Todo=세션 오픈)을 분기할 수 있게 한다.
+
+    include_overdue=False면 지남(overdue)을 제외한다 — "오늘 할 일"에 집중하기 위함.
+    누적된 carry-over 지남이 많을 때 오늘/진행 항목이 묻히는 것을 막는다.
     """
+    def _keep(u):
+        return u and (include_overdue or u != "overdue")
+
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
     tasks_map = {t["page_id"]: t.get("name", "") for t in tasks}
@@ -662,7 +686,7 @@ def _collect_today(today):
                            task.get("status") == "완료",
                            task.get("status") == "진행 중",
                            today)
-        if u:
+        if _keep(u):
             done, total = _counts_for(tdoc, task["page_id"])
             items.append({"kind": "task", "urgency": u, "obj": task,
                           "due": task.get("due_date", ""), "done": done, "total": total})
@@ -670,7 +694,7 @@ def _collect_today(today):
     for t in _visible_todos(tdoc):
         st = _get_status(t)
         u = _today_urgency(t.get("due", ""), st == "완료", st == "진행중", today)
-        if u:
+        if _keep(u):
             pid = t.get("task_page_id")
             ctx = BACKLOG_LABEL if pid == BACKLOG_ID else (tasks_map.get(pid) or "(task?)")
             items.append({"kind": "todo", "urgency": u, "obj": t,
@@ -683,9 +707,18 @@ def _collect_today(today):
 
 
 def cmd_today(args):
-    """오늘 처리할 Task/Todo 통합 뷰 — Today 탭(fzf) · /task(text) · 자동화(json)."""
+    """오늘 처리할 Task/Todo 통합 뷰 — Today 탭(fzf) · /task(text) · 자동화(json).
+
+    기본은 지남(overdue) 제외(오늘 할 일 집중). --include-overdue로 지남까지 포함.
+    """
     today = nc.now_kst()[:10]
-    items = _collect_today(today)
+    include_overdue = getattr(args, "include_overdue", False)
+    items = _collect_today(today, include_overdue=include_overdue)
+    # 지남을 숨길 때 몇 건 숨겼는지 알려줘 사용자가 ctrl-o 토글 필요성을 판단하게 한다.
+    overdue_hidden = 0
+    if not include_overdue:
+        overdue_hidden = sum(1 for i in _collect_today(today, include_overdue=True)
+                             if i["urgency"] == "overdue")
 
     if args.format == "json":
         out = []
@@ -700,12 +733,15 @@ def cmd_today(args):
                 out.append({"kind": "todo", "urgency": i["urgency"], "id": o["id"],
                             "title": o.get("title", ""), "due": i["due"],
                             "status": _get_status(o), "context": i["context"], "repo": repo_of(o)})
-        print(json.dumps({"date": today, "items": out}, ensure_ascii=False, indent=2))
+        print(json.dumps({"date": today, "overdue_hidden": overdue_hidden, "items": out},
+                         ensure_ascii=False, indent=2))
         return
 
     if args.format == "text":
         if not items:
             print("오늘 처리할 Task/Todo가 없습니다.")
+            if overdue_hidden:
+                print(f"(지남 {overdue_hidden}건 숨김)")
             return
         cur = None
         for i in items:
@@ -718,11 +754,15 @@ def cmd_today(args):
                 print(f"  📁 {o.get('name', '')}{due}  ({i['done']}/{i['total']})")
             else:
                 print(f"  {_colored_icon(_get_status(o))} {o.get('title', '')}{due}  · {i['context']}")
+        if overdue_hidden:
+            print(f"\n(지남 {overdue_hidden}건 숨김 — 전체 보기: todo today --include-overdue)")
         return
 
     # fzf: "<id>\t<표시줄>". Task는 page_id, Todo는 td_ 접두사 id → 셸이 enter 분기.
+    # __none__/__info__ 등 __ 접두사 id는 셸이 선택 동작 없는 정보 행으로 취급한다.
     if not items:
-        print("__none__\t  ✨ 오늘 처리할 Task/Todo가 없습니다  (ctrl-t: 다른 탭)")
+        hint = f"  (지남 {overdue_hidden}건은 ctrl-o로 표시)" if overdue_hidden else "  (ctrl-t: 다른 탭)"
+        print(f"__none__\t  ✨ 오늘 처리할 Task/Todo가 없습니다{hint}")
         return
     _cols = shutil.get_terminal_size((120, 24)).columns
     title_width = max(26, int(_cols * 0.50) - 22)
@@ -749,6 +789,8 @@ def cmd_today(args):
             repo = repo_of(o)
             repo_tag = f"  [{repo}]" if repo else ""
             print(f"{o['id']}\t{glyph_col} {badge} {title_col}  {due_str}{ctx_part}{repo_tag}")
+    if overdue_hidden:
+        print(f"__info__\t   ⋯ 지남 {overdue_hidden}건 숨김 — ctrl-o로 표시")
 
 
 def cmd_preview_today(args):
@@ -973,6 +1015,8 @@ def main():
 
     td = sub.add_parser("today")
     td.add_argument("--format", choices=["fzf", "json", "text"], default="fzf")
+    td.add_argument("--include-overdue", dest="include_overdue", action="store_true",
+                    help="지남(overdue)까지 포함 (기본: 오늘/진행만)")
 
     pty = sub.add_parser("preview-today")
     pty.add_argument("id")
