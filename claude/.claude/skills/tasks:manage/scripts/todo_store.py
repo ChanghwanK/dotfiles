@@ -822,6 +822,28 @@ def cmd_set_task_status(args):
                      ensure_ascii=False))
 
 
+def cmd_delete_task_local(args):
+    """로컬 캐시에서 Task와 그 하위 Todo를 제거한다.
+    실제 Notion 아카이브는 notion-task.py delete-task가 담당하고, 이 명령은
+    그 직후 로컬 tasks.json/todos.json을 정리해 화면을 즉시 갱신하고 orphan
+    Todo를 남기지 않게 한다(Notion에서 페이지가 아카이브되면 하위 to_do 블록도
+    함께 사라지므로 로컬에서도 제거하는 것이 일관적이다)."""
+    page_id = args.task
+    tdoc = load_tasks()
+    removed_task = len(tdoc["tasks"])
+    tdoc["tasks"] = [t for t in tdoc["tasks"] if t["page_id"] != page_id]
+    removed_task -= len(tdoc["tasks"])
+    save_tasks(tdoc)
+    doc = load_todos()
+    removed_todos = len(doc["todos"])
+    doc["todos"] = [t for t in doc["todos"] if t.get("task_page_id") != page_id]
+    removed_todos -= len(doc["todos"])
+    save_todos(doc)
+    print(json.dumps({"success": True, "page_id": page_id,
+                      "removed_task": removed_task, "removed_todos": removed_todos},
+                     ensure_ascii=False))
+
+
 def _parse_memory_frontmatter(path):
     """memory 파일의 name/description를 가볍게 추출(yaml 의존 없이).
 
@@ -1010,6 +1032,9 @@ def main():
     ss.add_argument("--task", required=True)
     ss.add_argument("--status", required=True)
 
+    dtl = sub.add_parser("delete-task-local")
+    dtl.add_argument("--task", required=True)
+
     sm = sub.add_parser("summary")
     sm.add_argument("--format", choices=["text", "json"], default="text")
 
@@ -1039,6 +1064,7 @@ def main():
         "preview-task": cmd_preview_task,
         "preview-todo": cmd_preview_todo,
         "set-task-status": cmd_set_task_status,
+        "delete-task-local": cmd_delete_task_local,
         "import-memory": cmd_import_memory,
         "summary": cmd_summary,
         "today": cmd_today,

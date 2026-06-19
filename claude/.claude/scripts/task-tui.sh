@@ -362,15 +362,48 @@ open_notion_page() {
     || open "https://www.notion.so/$slug"
 }
 
-# Tasks 탭: Notion Task(Project) 목록 — enter로 해당 Task의 Todo로 드릴인
+# Tasks 탭에서 선택 Task를 삭제한다.
+# Notion API에는 페이지 영구 삭제 엔드포인트가 없다 — 삭제는 archived:true로
+# 휴지통에 보내는 것이며, 이것이 Notion UI의 "삭제"와 동일한 동작이다.
+# Notion 삭제 성공 시에만 로컬 캐시(tasks + 하위 todo)를 제거해 화면을 즉시
+# 갱신한다. Notion 호출이 실패하면 로컬은 건드리지 않는다(정합성 보호).
+# Backlog은 Task가 아니므로 제외.
+delete_task() {
+  local page_id="$1"
+  [ -z "$page_id" ] && return
+  [ "$page_id" = "__backlog__" ] && { echo "Backlog은 삭제할 수 없습니다"; sleep 1; return; }
+  local name
+  name=$(python3 "$STORE" list-tasks --format json \
+    | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t['name'] for t in d['tasks'] if t['page_id']=='$page_id'),''))")
+  prompt_confirm "이 Task를 삭제할까요?  $name" || return
+  local ok
+  if have_gum; then
+    gum spin --title "Notion에서 Task 삭제 중..." -- \
+      python3 "$NOTION_TASK" delete-task --page-id "$page_id" >/dev/null
+    ok=$?
+  else
+    echo "Notion에서 Task 삭제 중..."
+    python3 "$NOTION_TASK" delete-task --page-id "$page_id" >/dev/null
+    ok=$?
+  fi
+  if [ "$ok" -eq 0 ]; then
+    python3 "$STORE" delete-task-local --task "$page_id" >/dev/null
+  else
+    echo "Notion 삭제 실패 — 로컬 변경 없음"; sleep 1
+  fi
+}
+
+# Tasks 탭: Notion Task(Project) 목록.
+#   enter=Task 단위 Claude 세션 / space=하위 Todo 드릴인 /
+#   ctrl-d=Task 삭제(Notion)
 tasks_tab() {
   local out key line page_id prio_arg
   prio_arg=${PRIO_FILTER:+--priority "$PRIO_FILTER"}
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48% \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  ctrl-d:todo목록  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
-          --expect=enter,tab,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -380,7 +413,8 @@ tasks_tab() {
     3) PRIO_FILTER="P3" ;;
     0) PRIO_FILTER="" ;;
     enter)   [ -n "$page_id" ] && open_task_session "$page_id" ;;
-    ctrl-d)  [ -n "$page_id" ] && todo_menu "$page_id" ;;
+    space)   [ -n "$page_id" ] && todo_menu "$page_id" ;;
+    ctrl-d)  [ -n "$page_id" ] && delete_task "$page_id" ;;
     ctrl-o)  [ -n "$page_id" ] && open_notion_page "$page_id" ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-tasks 재렌더
     ctrl-r)  run_sync ;;
