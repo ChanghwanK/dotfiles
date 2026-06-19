@@ -34,7 +34,7 @@ def notion_request(token, method, path, body=None):
     url = f"https://api.notion.com/v1{path}"
     headers = {
         "Authorization": f"Bearer {token}",
-        "Notion-Version": "2022-06-28",
+        "Notion-Version": "2025-09-03",
         "Content-Type": "application/json",
     }
     data = json.dumps(body).encode() if body is not None else None
@@ -46,6 +46,23 @@ def notion_request(token, method, path, body=None):
         err_body = e.read().decode()
         print(f"HTTP {e.code}: {err_body}", file=sys.stderr)
         sys.exit(1)
+
+
+# ── data source resolution (Notion-Version 2025-09-03) ────────
+# 2025-09-03부터 쿼리는 database가 아니라 data source 단위다.
+# 단일 data source DB를 전제로 db_id→ds_id를 1회 조회 후 프로세스 내 캐시한다.
+_DS_CACHE = {}
+
+
+def resolve_ds_id(token, db_id):
+    """db_id → data source id (프로세스 내 캐시). 2025-09-03 쿼리/생성에 필요."""
+    if db_id not in _DS_CACHE:
+        db = notion_request(token, "GET", f"/databases/{db_id}")
+        sources = db.get("data_sources", [])
+        if not sources:
+            raise RuntimeError(f"database {db_id} has no data_sources")
+        _DS_CACHE[db_id] = sources[0]["id"]
+    return _DS_CACHE[db_id]
 
 
 def rich_text_to_plain(rich_text_list):
@@ -92,7 +109,7 @@ def query_tasks_in_range(token, start_date, end_date):
         },
         "sorts": [{"property": "Priority", "direction": "ascending"}],
     }
-    resp = notion_request(token, "POST", f"/databases/{TASK_DB_ID}/query", body)
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
     tasks = []
     for page in resp.get("results", []):
@@ -130,7 +147,7 @@ def query_daily_pages_in_range(token, start_date, end_date):
         },
         "sorts": [{"property": "Due Date", "direction": "ascending"}],
     }
-    resp = notion_request(token, "POST", f"/databases/{DAILY_DB_ID}/query", body)
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, DAILY_DB_ID)}/query", body)
     return resp.get("results", [])
 
 
@@ -317,7 +334,7 @@ def cmd_quarterly_goals(args):
         },
         "sorts": [{"property": "Priority", "direction": "ascending"}],
     }
-    resp = notion_request(token, "POST", f"/databases/{TASK_DB_ID}/query", body)
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
     tasks = []
     for page in resp.get("results", []):

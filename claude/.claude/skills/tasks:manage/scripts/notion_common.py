@@ -19,7 +19,7 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 
 NOTION_API = "https://api.notion.com/v1"
-NOTION_VERSION = "2022-06-28"
+NOTION_VERSION = "2025-09-03"
 TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
 VALID_STATUSES = {"시작 전", "진행 중", "완료", "대기"}
@@ -104,6 +104,23 @@ def notion_request(token, method, path, body=None, *, max_retries=3):
             raise NotionError(0, str(e.reason))
 
 
+# ── data source resolution (Notion-Version 2025-09-03) ────────
+# 2025-09-03부터 쿼리는 database가 아니라 data source 단위다.
+# 단일 data source DB를 전제로 db_id→ds_id를 1회 조회 후 프로세스 내 캐시한다.
+_DS_CACHE = {}
+
+
+def resolve_ds_id(token, db_id):
+    """db_id → data source id (프로세스 내 캐시). 2025-09-03 쿼리/생성에 필요."""
+    if db_id not in _DS_CACHE:
+        db = notion_request(token, "GET", f"/databases/{db_id}")
+        sources = db.get("data_sources", [])
+        if not sources:
+            raise NotionError(0, f"database {db_id} has no data_sources")
+        _DS_CACHE[db_id] = sources[0]["id"]
+    return _DS_CACHE[db_id]
+
+
 # ── rich_text 변환 ────────────────────────────────────────────
 
 def rich_text_to_plain(rich_text_list):
@@ -152,7 +169,7 @@ def query_active_tasks(token):
         "filter": {"property": "상태", "status": {"does_not_equal": "완료"}},
         "sorts": [{"property": "Priority", "direction": "ascending"}],
     }
-    resp = notion_request(token, "POST", f"/databases/{TASK_DB_ID}/query", body)
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
     return [parse_page(p) for p in resp.get("results", [])]
 
 

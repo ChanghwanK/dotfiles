@@ -45,7 +45,7 @@ def notion_request(method, path, body=None):
     url = f"https://api.notion.com/v1{path}"
     headers = {
         "Authorization": f"Bearer {token}",
-        "Notion-Version": "2022-06-28",
+        "Notion-Version": "2025-09-03",
         "Content-Type": "application/json",
     }
     data = json.dumps(body).encode() if body is not None else None
@@ -59,6 +59,23 @@ def notion_request(method, path, body=None):
             return json.loads(err)
         except Exception:
             return {"object": "error", "message": f"HTTP {e.code}: {err}"}
+
+
+# ── data source resolution (Notion-Version 2025-09-03) ────────
+# 2025-09-03부터 쿼리는 database가 아니라 data source 단위다.
+# 단일 data source DB를 전제로 db_id→ds_id를 1회 조회 후 프로세스 내 캐시한다.
+_DS_CACHE = {}
+
+
+def resolve_ds_id(db_id):
+    """db_id → data source id (프로세스 내 캐시). 2025-09-03 쿼리/생성에 필요."""
+    if db_id not in _DS_CACHE:
+        db = notion_request("GET", f"/databases/{db_id}")
+        sources = db.get("data_sources", [])
+        if not sources:
+            raise RuntimeError(f"database {db_id} has no data_sources")
+        _DS_CACHE[db_id] = sources[0]["id"]
+    return _DS_CACHE[db_id]
 
 
 def md_to_rich_text(text):
@@ -302,7 +319,7 @@ def cmd_create(args):
 
     # Create the page
     page_body = {
-        "parent": {"database_id": DB_ID},
+        "parent": {"type": "data_source_id", "data_source_id": resolve_ds_id(DB_ID)},
         "properties": properties,
         "children": make_template_blocks(sections),
     }
@@ -334,7 +351,7 @@ def cmd_list(args):
         "sorts": [{"property": "Created At", "direction": "descending"}],
         "page_size": limit,
     }
-    resp = notion_request("POST", f"/databases/{DB_ID}/query", body)
+    resp = notion_request("POST", f"/data_sources/{resolve_ds_id(DB_ID)}/query", body)
 
     if resp.get("object") == "error":
         print(json.dumps({"success": False, "error": resp.get("message", str(resp))}, ensure_ascii=False))
