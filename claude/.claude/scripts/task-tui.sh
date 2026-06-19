@@ -369,8 +369,8 @@ tasks_tab() {
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48% \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:todo목록  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
-          --expect=enter,tab,ctrl-t,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  ctrl-d:todo목록  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
+          --expect=enter,tab,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -379,7 +379,8 @@ tasks_tab() {
     2) PRIO_FILTER="P2" ;;
     3) PRIO_FILTER="P3" ;;
     0) PRIO_FILTER="" ;;
-    enter)   [ -n "$page_id" ] && todo_menu "$page_id" ;;
+    enter)   [ -n "$page_id" ] && open_task_session "$page_id" ;;
+    ctrl-d)  [ -n "$page_id" ] && todo_menu "$page_id" ;;
     ctrl-o)  [ -n "$page_id" ] && open_notion_page "$page_id" ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-tasks 재렌더
     ctrl-r)  run_sync ;;
@@ -471,12 +472,19 @@ open_todo_session() {
   [ -n "$repo" ]    && msg+="${nl}${nl}레포: $repo"
   [ -n "$plan_id" ] && msg+="${nl}Plan: $plan_id"
 
+  _build_and_launch_session "$repo_dir" "$msg" "$title"
+}
+
+# 초기 메시지를 임시 파일에 담아 repo_dir에서 Claude Code 세션을 띄운다.
+# Todo/Task 세션이 공유하는 공통 경로 — mktemp 수정(끝-고정 템플릿)이 한 곳에 모인다.
+#   macOS BSD mktemp는 X가 템플릿 "끝"에 있을 때만 치환한다. `.txt`/`.sh` 접미사를
+#   붙이면 X를 그대로 둔 리터럴 파일을 만들고, 재실행 때 "File exists"로 실패한다
+#   → msg_file이 비면 launcher가 `claude "$(cat )"`로 빈 컨텍스트 세션을 연다.
+#   끝-고정 템플릿 + fallback으로 막는다.
+_build_and_launch_session() {
+  local repo_dir="$1" msg="$2" title="${3:-todo}"
+
   local msg_file launcher
-  # macOS BSD mktemp는 X가 템플릿 "끝"에 있을 때만 치환한다. `.txt`/`.sh` 접미사를
-  # 붙이면 X를 그대로 둔 리터럴 파일(claude-todo-msg.XXXXXX.txt)을 만들고,
-  # 재실행 때 같은 이름이라 "File exists"로 실패한다 → msg_file이 빈 문자열이 되고
-  # launcher가 `claude "$(cat )"`로 빈 프롬프트를 띄워 컨텍스트 없는 세션이 열린다.
-  # 끝-고정 템플릿으로 바꾸고, 만일을 대비해 양쪽 모두 fallback을 둔다.
   msg_file=$(mktemp "${TMPDIR:-/tmp}/claude-todo-msg.XXXXXX" 2>/dev/null) || \
     msg_file="/tmp/claude-todo-msg.$$.$(date +%s)"
   printf '%s' "$msg" > "$msg_file"
@@ -492,6 +500,53 @@ open_todo_session() {
   chmod +x "$launcher"
 
   _launch_claude_session "$repo_dir" "$launcher" "$title"
+}
+
+# Task(Project) Enter → repo를 골라 Task 컨텍스트로 Claude Code 세션 오픈.
+# Task에는 repo 필드가 없어 항상 repo 선택(pick_riiid_repo)을 거친다.
+# __backlog__는 Notion Task가 아니므로 하위 Todo 드릴인으로 분기한다.
+open_task_session() {
+  local page_id="$1"
+  [ -z "$page_id" ] && return 1
+  [ "$page_id" = "__backlog__" ] && { todo_menu "$page_id"; return; }
+
+  local task_json
+  task_json=$(python3 "$STORE" list-tasks --format json 2>/dev/null \
+    | python3 -c "import sys,json;d=json.load(sys.stdin);print(json.dumps(next((t for t in d['tasks'] if t['page_id']=='$page_id'),{}),ensure_ascii=False))")
+  [ -z "$task_json" ] || [ "$task_json" = "{}" ] && return 1
+
+  local name status priority plan_id
+  name=$(python3     -c "import sys,json;print(json.load(sys.stdin).get('name',''))"     <<<"$task_json")
+  status=$(python3   -c "import sys,json;print(json.load(sys.stdin).get('status',''))"   <<<"$task_json")
+  priority=$(python3 -c "import sys,json;print(json.load(sys.stdin).get('priority',''))" <<<"$task_json")
+  plan_id=$(python3  -c "import sys,json;print(json.load(sys.stdin).get('plan_id',''))"  <<<"$task_json")
+
+  # 하위 Todo 목록을 체크박스 형태로 컨텍스트에 담는다 (Task 단위 작업 시작 시 유용)
+  local todos_block
+  todos_block=$(python3 "$STORE" list-todos --task "$page_id" --format json 2>/dev/null \
+    | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print('\n'.join(('[x] ' if t.get('done') else '[ ] ')+t.get('title','') for t in d.get('todos',[])))
+" 2>/dev/null)
+
+  # repo 결정: Task는 repo가 없으므로 항상 선택 (esc 취소 시 riiid 루트)
+  local riiid_root="$HOME/workspace/riiid"
+  local repo_dir="$riiid_root"
+  [ -d "$repo_dir" ] || repo_dir="$HOME"
+  if [ -d "$riiid_root" ]; then
+    local picked; picked=$(pick_riiid_repo)
+    [ -n "$picked" ] && repo_dir="$riiid_root/$picked"
+  fi
+
+  local nl=$'\n'
+  local msg="이 세션에서 다음 Task(프로젝트)를 수행합니다.${nl}Task: $name"
+  [ -n "$status" ]      && msg+="${nl}상태: $status"
+  [ -n "$priority" ]    && msg+="${nl}우선순위: $priority"
+  [ -n "$plan_id" ]     && msg+="${nl}Plan: $plan_id"
+  [ -n "$todos_block" ] && msg+="${nl}${nl}하위 Todo:${nl}$todos_block"
+
+  _build_and_launch_session "$repo_dir" "$msg" "$name"
 }
 
 _launch_claude_session() {
