@@ -421,6 +421,19 @@ choose_repo() {
   case "$sel" in ""|전체) REPO_FILTER="" ;; *) REPO_FILTER="$sel" ;; esac
 }
 
+# repo 미지정 todo를 열 때, riiid 작업공간의 디렉토리를 골라 cwd로 쓴다.
+# 선택값은 이번 세션 열기에만 적용하고 todo의 repo 필드에는 저장하지 않는다
+# (TUI에 repo 편집 수단이 없어, 잘못 저장하면 되돌릴 길이 없기 때문).
+# stdout으로 repo 이름만 반환(없으면 빈 문자열). 호출부에서 fzf 출력만 캡처하도록
+# fzf의 화면 출력은 /dev/tty로 보낸다.
+pick_riiid_repo() {
+  local root="$HOME/workspace/riiid"
+  [ -d "$root" ] || return 0
+  ( cd "$root" && ls -d */ 2>/dev/null | sed 's#/$##' ) \
+    | fzf --layout=reverse --height=40% \
+          --header="repo 미지정 — 세션을 열 repo 선택 (esc: riiid 루트)"
+}
+
 # Todo Enter → 해당 레포 디렉토리에서 Claude Code 세션 오픈
 open_todo_session() {
   local todo_id="$1"
@@ -435,11 +448,20 @@ open_todo_session() {
   plan_id=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('plan_id',''))"     <<<"$todo_json")
   desc=$(python3    -c "import sys,json; d=json.load(sys.stdin); print(d.get('description',''))" <<<"$todo_json")
 
-  # 레포 디렉토리 결정 (기본: ~/)
-  local repo_dir="$HOME"
+  # 레포 디렉토리 결정.
+  # - repo 필드가 있고 디렉토리가 존재 → $HOME/workspace/riiid/<repo>
+  # - repo 미지정 → riiid 작업공간에서 repo를 골라 그 디렉토리로 연다(선택은 저장 안 함).
+  #   고르지 않고 esc로 취소하면 riiid 작업공간 루트로 연다.
+  # - riiid 워크스페이스가 없는 머신에서는 $HOME으로 최종 fallback.
+  local riiid_root="$HOME/workspace/riiid"
+  local repo_dir="$riiid_root"
+  [ -d "$repo_dir" ] || repo_dir="$HOME"
   if [ -n "$repo" ]; then
-    local candidate="$HOME/workspace/riiid/$repo"
+    local candidate="$riiid_root/$repo"
     [ -d "$candidate" ] && repo_dir="$candidate"
+  elif [ -d "$riiid_root" ]; then
+    local picked; picked=$(pick_riiid_repo)
+    [ -n "$picked" ] && repo_dir="$riiid_root/$picked"
   fi
 
   # Claude Code 초기 메시지 — 한글+줄바꿈을 파일로 분리 (printf %q 토큰 분리 버그 회피)
@@ -450,11 +472,17 @@ open_todo_session() {
   [ -n "$plan_id" ] && msg+="${nl}Plan: $plan_id"
 
   local msg_file launcher
-  msg_file=$(mktemp /tmp/claude-todo-msg.XXXXXX.txt)
+  # macOS BSD mktemp는 X가 템플릿 "끝"에 있을 때만 치환한다. `.txt`/`.sh` 접미사를
+  # 붙이면 X를 그대로 둔 리터럴 파일(claude-todo-msg.XXXXXX.txt)을 만들고,
+  # 재실행 때 같은 이름이라 "File exists"로 실패한다 → msg_file이 빈 문자열이 되고
+  # launcher가 `claude "$(cat )"`로 빈 프롬프트를 띄워 컨텍스트 없는 세션이 열린다.
+  # 끝-고정 템플릿으로 바꾸고, 만일을 대비해 양쪽 모두 fallback을 둔다.
+  msg_file=$(mktemp "${TMPDIR:-/tmp}/claude-todo-msg.XXXXXX" 2>/dev/null) || \
+    msg_file="/tmp/claude-todo-msg.$$.$(date +%s)"
   printf '%s' "$msg" > "$msg_file"
 
-  launcher=$(mktemp /tmp/claude-todo-launch.XXXXXX.sh 2>/dev/null) || \
-    launcher="/tmp/claude-todo-launch.$$.$(date +%s).sh"
+  launcher=$(mktemp "${TMPDIR:-/tmp}/claude-todo-launch.XXXXXX" 2>/dev/null) || \
+    launcher="/tmp/claude-todo-launch.$$.$(date +%s)"
   {
     echo "#!/bin/bash"
     printf 'cd %q\n' "$repo_dir"
