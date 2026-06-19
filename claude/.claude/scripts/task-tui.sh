@@ -309,6 +309,7 @@ TAB="todos"
 NAV=""           # 탭 함수가 "quit"을 세우면 최상위 루프 종료
 REPO_FILTER=""   # Todos 탭의 repo 필터 (빈값 = 전체)
 PRIO_FILTER="P1" # Tasks 탭의 우선순위 필터 (P1|P2|P3|P4|"" 전체)
+TODAY_OVERDUE="0" # Today 탭의 지남(overdue) 표시 여부 (0=숨김 기본, 1=표시 / ctrl-o 토글)
 
 tab_bar() {
   local a="○Todos" b="○Tasks" c="○Today"
@@ -348,6 +349,19 @@ run_import() {
   else echo "import 중..."; python3 "$STORE" import-memory >/dev/null; fi
 }
 
+# Notion Task(=Project)의 Notion 페이지를 연다.
+# page_id는 Notion 페이지 UUID이므로 dash를 제거한 32-hex가 곧 Notion URL 슬러그다.
+# 데스크톱 앱(notion:// 딥링크) 우선 — 앱 미설치로 핸들러가 없으면 open이 실패하므로
+# 웹(https://www.notion.so)으로 fallback한다.
+open_notion_page() {
+  local page_id="$1"
+  [ -z "$page_id" ] && return
+  [ "$page_id" = "__backlog__" ] && return  # Backlog은 Notion 페이지가 없음
+  local slug="${page_id//-/}"
+  open "notion://www.notion.so/$slug" 2>/dev/null \
+    || open "https://www.notion.so/$slug"
+}
+
 # Tasks 탭: Notion Task(Project) 목록 — enter로 해당 Task의 Todo로 드릴인
 tasks_tab() {
   local out key line page_id prio_arg
@@ -355,8 +369,8 @@ tasks_tab() {
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48% \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:todo목록  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
-          --expect=enter,tab,ctrl-t,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:todo목록  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
+          --expect=enter,tab,ctrl-t,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -366,6 +380,7 @@ tasks_tab() {
     3) PRIO_FILTER="P3" ;;
     0) PRIO_FILTER="" ;;
     enter)   [ -n "$page_id" ] && todo_menu "$page_id" ;;
+    ctrl-o)  [ -n "$page_id" ] && open_notion_page "$page_id" ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-tasks 재렌더
     ctrl-r)  run_sync ;;
     ctrl-s)  [ -z "$page_id" ] && return
@@ -551,17 +566,19 @@ todos_tab() {
 # Task는 page_id, Todo는 td_ 접두사 id로 구분 → enter 동작을 분기한다
 #   (Task=하위 Todo 드릴인 / Todo=Claude 세션 오픈).
 today_tab() {
-  local out key line id
-  out=$(python3 "$STORE" today --format fzf \
+  local out key line id ov_flag ov_label
+  if [ "$TODAY_OVERDUE" = "1" ]; then ov_flag="--include-overdue"; ov_label="지남:표시"; else ov_flag=""; ov_label="지남:숨김"; fi
+  out=$(python3 "$STORE" today --format fzf $ov_flag \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-today {1}" --preview-window=right:46% \
-          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기/드릴인  space:Todo상태전환  ctrl-t:탭전환  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-l,ctrl-r)
+          --header="$(tab_bar) [$ov_label]  📁=Task ▷=Todo  enter:열기/드릴인  space:Todo상태전환  ctrl-o:지남토글  ctrl-t:탭전환  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-o,ctrl-l,ctrl-r)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); id=$(cut -f1 <<<"$line")
-  [ "$id" = "__none__" ] && id=""  # 빈 뷰 sentinel
+  [[ "$id" == __* ]] && id=""  # __none__/__info__ 등 정보 행은 선택 동작 없음
   case "$key" in
     tab|ctrl-t) next_tab ;;
+    ctrl-o)  [ "$TODAY_OVERDUE" = "1" ] && TODAY_OVERDUE="0" || TODAY_OVERDUE="1" ;;
     enter)
       [ -z "$id" ] && return
       if [[ "$id" == td_* ]]; then open_todo_session "$id"  # Todo → 세션
