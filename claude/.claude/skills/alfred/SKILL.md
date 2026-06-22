@@ -20,6 +20,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carry-over --dry-run*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today*)
   - Bash(python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py *)
@@ -161,6 +162,8 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 ```
 - Top 목표·Todos 진행률을 파악한다.
 - **1순위 기준**: Daily Note `top3[0]`을 오늘의 1순위로 간주한다.
+- ⚠️ `today`는 `source: obsidian` — Daily Note 체크박스(`done`)만 읽고 **Notion status를 모른다**.
+  체크 표기는 갱신 지연으로 Notion 실제 상태와 어긋날 수 있다. **진행률 {N}은 이 `done`을 그대로 신뢰하지 말고, 2단계 (C)에서 Notion status로 보정한 값을 진실 소스로 쓴다.**
 
 ### 2단계: 교차 검증 — state + claude-mem timeline (best-effort)
 
@@ -180,17 +183,37 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 - 활성 Task 이름(또는 주요 키워드)이 오늘 세션 관찰에 등장하면 → **"세션 작업 감지"** 로 표시.
 - Notion 상태가 "시작 전"인데 세션 작업이 감지된 Task → **상태 불일치**로 분류.
 
+**(C) Daily Note ↔ Notion 역방향 교차 검증 (Daily Note 지연 감지) — 진행률 진실 소스**
+
+> (A)·(B)는 *Notion이 뒤처진* 케이스(시작 전인데 실제 작업 있음)만 잡는다.
+> 반대 방향 — *Daily Note가 뒤처진* 케이스(미완료 표기인데 Notion은 완료/진행 중) — 은 여기서 잡는다.
+> 이 방향을 빠뜨리면 진행률이 실제보다 비관적으로 집계된다.
+
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
+```
+- Daily Note의 top3·todos 각 항목 텍스트(`[검토]`·`[Top 3]` 등 prefix 제거)를 Notion `name`과 fuzzy 매칭한다.
+- 매칭된 Notion `status`를 **진실 소스**로 삼아 항목 상태를 보정한다:
+  - Notion `완료` 인데 Daily Note `done:false` → **Daily Note 지연**. 진행률 집계 시 **완료로 카운트**.
+  - Notion `진행 중` 인데 Daily Note `done:false` → 진행 중으로 표시(완료 카운트는 아님).
+- **진행률 {N}/{M}의 {N}은 Daily Note 체크 개수가 아니라 이 보정 후 Notion `완료` 개수로 센다.**
+- 실패하면(스크립트 오류 등) 이 단계를 건너뛰고 1단계 `done` 값으로 폴백하되, 출력에 "(Notion 미대조)"를 표시한다.
+
 ### 3단계: 판단 및 출력
 
-**케이스 A — 상태 불일치 감지 시** (Notion "시작 전" + state/세션 작업 있음):
+**케이스 A — 상태 불일치 감지 시** (방향 무관: Notion↔Daily Note 어긋남):
 ```
 🎩 중간 점검 — 2026-MM-DD (요일)
 
-진행률: {N}/{M} 완료 ({%})
+진행률: {N}/{M} 완료 ({%})   ← Notion status 보정 후 값
 
 [상태 동기화 필요]
+# A-1) Notion 뒤처짐 (2단계 A·B):
 - '{Task명}': Notion은 '시작 전'이지만 {TUI 선택 / 오늘 세션 관찰}에서 작업이 감지됐습니다.
   → '진행 중'으로 변경할까요? 또는 완료됐다면 '/alfred gate'로 마무리를 권합니다.
+# A-2) Daily Note 뒤처짐 (2단계 C):
+- '{Task명}': Notion은 '{완료/진행 중}'인데 Daily Note는 미완료 표기입니다.
+  → Daily Note를 동기화할까요? (진행률은 Notion 기준으로 이미 보정했습니다)
 
 남은 핵심 항목:
 - [ ] ...
@@ -373,41 +396,40 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 복구: update-status --page-id {id} --status "진행 중" 으로 되돌릴 수 있습니다.
 ```
 
-### 5단계: task:review + wiki 저장 (선택적)
+### 5단계: task:review + Notion 본문 저장 (선택적)
 
 클로징 시퀀스 완료 직후 **1회만** 제안한다. 잔소리 방지 — 사용자가 생략해도 재촉하지 않는다.
+
+> **저장 위치 정책**: task:review 결과는 **완료 처리한 Notion Task 페이지 본문**에 누적한다(개인 Obsidian이 아님). 성과·회고가 해당 Task와 한 곳에 묶여 나중에 그 Task를 열면 바로 보이게 하기 위함이다. 4단계(A)에서 사용한 `page_id`를 그대로 재사용한다.
 
 **제안 문구:**
 ```
 이 작업을 task:review로 기록하시겠습니까?
-성과 측정(Part A) + 성장 회고(Part B)가 wiki에 저장됩니다. (Y/N)
+성과 측정(Part A) + 성장 회고(Part B)가 Notion Task 본문에 저장됩니다. (Y/N)
 ```
 
 **Y 선택 시:**
 
 1. 현재 대화 컨텍스트를 기반으로 `task:review/SKILL.md`의 Step 0~9 절차를 인라인으로 수행한다 (별도 스킬 호출 없이 Alfred 내에서 실행).
 
-2. review 결과를 임시 파일에 저장 후 wiki:note로 기록한다:
+2. review 결과를 임시 파일에 저장 후 Notion Task 본문에 append한다:
    ```bash
-   # review 텍스트를 임시 파일에 저장
+   # review 텍스트(Markdown)를 임시 파일에 저장 — 맨 앞에 구분선(---) + 제목 헤딩 포함
    cat > /tmp/task-review-{slug}.md << 'EOF'
-   {review 전체 텍스트}
+   {review 전체 텍스트 — task:review 출력 포맷 그대로}
    EOF
 
-   # Obsidian wiki에 저장
-   python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
-     --title "{Task명} 작업 리뷰" \
-     --type troubleshooting \
-     --category engineering \
-     --tags "task-review,{작업타입키워드}" \
+   # Notion Task 페이지 본문에 누적 (Markdown → Notion 블록 자동 변환)
+   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
+     --page-id <4단계에서 사용한 page_id> \
      --content-file /tmp/task-review-{slug}.md
    ```
-   - 작업 타입 매핑: RCA/트러블슈팅 → `troubleshooting`, 배포/운영 → `operations`, 설계 → `learning-note`
+   - `append-content`는 heading(#~####)·bullet·numbered·quote·divider·code fence·인라인 bold/code를 Notion 블록으로 변환한다. **마크다운 표는 미지원** — review 본문은 표 대신 bullet로 작성한다.
    - `{slug}` = Task명을 소문자·하이픈으로 변환
 
 3. 저장 완료 보고:
    ```
-   → 리뷰가 wiki에 저장됐습니다: {파일명}
+   → 리뷰가 Notion Task 본문에 저장됐습니다 (blocks_appended: {N}).
    → 파생 액션 (즉시): {Step 8 결과 중 즉시 항목 1~2건}
    ```
 
@@ -438,11 +460,15 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 
 ### 데이터 수집
 
-**(A) Daily Note 진행 현황 (기본 소스)**
+**(A) Daily Note 진행 현황 (기본 소스) + Notion 보정 (진실 소스)**
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
 ```
+- `today`는 `source: obsidian` — Daily Note 체크박스만 읽어 Notion status와 어긋날 수 있다.
+- **check 모드 2단계 (C)와 동일하게** Daily Note 항목명을 Notion `name`과 fuzzy 매칭하고, Notion `status`를 진실 소스로 삼아 completed 집계를 보정한다. 진행률·"완료 N건"을 출력할 때는 **보정 후 Notion 기준** 수치를 쓴다.
+- 매칭 실패/스크립트 오류 시 `today` 값으로 폴백하고 "(Notion 미대조)"를 표기한다.
 
 **(B) 오늘 세션 작업 — claude-mem timeline (best-effort, 가시성 축 전용)**
 
