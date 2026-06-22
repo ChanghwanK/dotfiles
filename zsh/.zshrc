@@ -193,3 +193,56 @@ export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 alias claude-mem="$HOME/.bun/bin/bun $HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"
+alias cdk8s="cd $HOME/workspace/riiid/kubernetes"
+alias cdonprem="cd $HOME/workspace/riiid/k8s-on-premise"
+
+# === cmux Raycast 워크스페이스 런처 훅 ===
+# Raycast 등 cmux 외부 프로세스는 cmux 소켓 CLI(new-workspace/send)를 못 쓴다
+# (cmux가 앱 자손이 아닌 클라이언트의 연결을 거부 → Broken pipe). 그래서 외부에서는
+# `open -a cmux <dir>`로 워크스페이스만 열고, 초기 프롬프트는 스풀 파일로 넘긴다.
+# 이 훅은 새로 열린 cmux 워크스페이스의 zsh가 자기 cwd에 해당하는 스풀 요청을
+# 발견하면 그 프롬프트로 claude를 실행한다. (런처: ~/.claude/scripts/claude-session-launch.sh)
+# 첫 프롬프트 시점에 claude를 실행하는 일회성 precmd 훅.
+# .zshrc 본문에서 직접 실행하면 p10k instant prompt가 stdin/stdout을 가로채
+# claude가 TTY 없는 --print 모드로 빠져 실패한다. 셸이 TTY를 완전히 점유한
+# 첫 프롬프트로 미뤄야 claude가 정상적으로 대화형 실행된다.
+_cmux_raycast_launch() {
+  add-zsh-hook -d precmd _cmux_raycast_launch   # 일회성: 즉시 자기 자신 해제
+  # claude는 stdin이 tty가 아니면 --print(비대화형) 모드로 빠진다. precmd 시점이라도
+  # fd가 리다이렉트된 경우를 대비해 controlling terminal(/dev/tty)에 명시적으로 연결한다.
+  if [[ -n "${_CMUX_RAYCAST_PROMPT:-}" ]]; then
+    claude "$_CMUX_RAYCAST_PROMPT" < /dev/tty
+  else
+    claude < /dev/tty
+  fi
+  unset _CMUX_RAYCAST_PROMPT
+}
+
+_cmux_raycast_consume() {
+  [[ -o interactive ]] || return                                   # 대화형 셸만
+  [[ -n "${CMUX_WORKSPACE_ID:-}" || -n "${CMUX_SURFACE_ID:-}" ]] || return  # cmux 워크스페이스만
+  local spool="${XDG_STATE_HOME:-$HOME/.local/state}/cmux-raycast"
+  [[ -d "$spool" ]] || return
+
+  # 런처와 동일한 키(물리 경로 sha)로 이 워크스페이스에 대한 요청을 찾는다.
+  # printf '%s'로 개행 없이 넘겨야 런처(_cmux_spool_key)와 해시가 일치한다.
+  local req
+  req="$spool/$(printf '%s' "$(pwd -P)" | shasum | awk '{print $1}').req"
+  [[ -f "$req" ]] || return
+
+  # 신선도(TTL 60s) 검사 — 오래된 요청은 오발화 방지를 위해 폐기.
+  local now mtime
+  now=$(date +%s); mtime=$(stat -f %m "$req" 2>/dev/null || echo 0)
+  if (( now - mtime > 60 )); then rm -f "$req"; return; fi
+
+  # 원자적 클레임 — 동시에 뜬 셸 중 하나만 소비(mv 성공자가 소유권 획득).
+  local claim="$req.claimed.$$"
+  mv "$req" "$claim" 2>/dev/null || return
+  _CMUX_RAYCAST_PROMPT=$(cat "$claim"); rm -f "$claim"
+
+  # 실제 claude 실행은 첫 프롬프트(precmd)로 미룬다(위 주석 참고).
+  autoload -Uz add-zsh-hook
+  add-zsh-hook precmd _cmux_raycast_launch
+}
+_cmux_raycast_consume
+# === /cmux Raycast 워크스페이스 런처 훅 ===
