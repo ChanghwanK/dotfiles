@@ -275,7 +275,7 @@ options:
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "항목명" --priority "P3 - Could Have" --category "WORK" \
+  create-task --name "항목명" --priority "P3" --category "WORK" \
   --due "오늘 날짜(YYYY-MM-DD)"
 ```
 

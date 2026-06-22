@@ -8,7 +8,7 @@ description: |
      대화형 호명에 직접 발동하지 말 것 — 에이전트로 위임한다. 인격·톤은 ~/.claude/agents/alfred.md.
   오늘 일정 + 우선순위 Task + 이월 후보를 모아 격식체로 브리핑한다. 매일 아침 cron이 헤드리스로 호출해 Slack DM 푸시.
   PDS 운영 모델(Pick·Adjust·Deliver·Sustain)로 하루 전체 '일잘'을 돕는다.
-  작업 완료 선언 시 done 전 "완료 게이트"(안심 5체크·점수화)로 '끝남'과 '동작함'을 구분한다.
+  작업 완료 선언 시 done 전 "완료 게이트"(안심 4체크·점수화)로 '끝남'과 '동작함'을 구분한다.
   이번 주 Task 전체 조회·상태 변경·신규 생성과 Task 하위 Todo(로컬 TUI) + Daily Note Todos 통합 관리를 지원한다.
   모드: briefing(아침 브리핑) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리).
   직접 호출(슬래시/cron 전용): "/alfred", "/alfred briefing", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom".
@@ -62,7 +62,7 @@ allowed-tools:
 | `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (cron 경로) |
 | `check` | 중간 점검 | 오늘 진행률만 가볍게 |
 | `groom` | 그루밍 (Triage) | 미분류 Task의 ROI를 판단·부여 (게이트된 자율성 — 승인 후 쓰기) |
-| `gate` / `done` | 완료 게이트 (Deliver) | "끝났다" 선언 시 done 전 안심 5체크·점수화 |
+| `gate` / `done` | 완료 게이트 (Deliver) | "끝났다" 선언 시 done 전 안심 4체크·점수화 |
 | `review` | 저녁 일잘 리뷰 (Sustain) | 가시성·레버리지·소진 3점검 후 `daily:review`로 인계 |
 | `week` | 주간 Task 관리 | 이번 주 Task 전체 뷰 + 상태 변경·신규 생성 자율 실행 |
 | `task <Task명>` | Task 드릴다운 + Todo 관리 | 특정 Task의 TUI Todo + Daily Note Todos 통합 조회·추가·완료 처리 자율 실행 |
@@ -189,15 +189,13 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 > 반대 방향 — *Daily Note가 뒤처진* 케이스(미완료 표기인데 Notion은 완료/진행 중) — 은 여기서 잡는다.
 > 이 방향을 빠뜨리면 진행률이 실제보다 비관적으로 집계된다.
 
+fuzzy 매칭·보정은 **코드가 결정론적으로 수행**한다(LLM 판단 아님 — 같은 입력엔 같은 결과, 회귀 테스트로 보호):
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
+python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress
 ```
-- Daily Note의 top3·todos 각 항목 텍스트(`[검토]`·`[Top 3]` 등 prefix 제거)를 Notion `name`과 fuzzy 매칭한다.
-- 매칭된 Notion `status`를 **진실 소스**로 삼아 항목 상태를 보정한다:
-  - Notion `완료` 인데 Daily Note `done:false` → **Daily Note 지연**. 진행률 집계 시 **완료로 카운트**.
-  - Notion `진행 중` 인데 Daily Note `done:false` → 진행 중으로 표시(완료 카운트는 아님).
-- **진행률 {N}/{M}의 {N}은 Daily Note 체크 개수가 아니라 이 보정 후 Notion `완료` 개수로 센다.**
-- 실패하면(스크립트 오류 등) 이 단계를 건너뛰고 1단계 `done` 값으로 폴백하되, 출력에 "(Notion 미대조)"를 표시한다.
+- 출력 `corrected_progress.{done,total}` 이 **진행률 진실 소스**다. {N}/{M} = done/total을 그대로 쓴다.
+- `corrections[]` 에 보정이 일어난 항목만 담긴다 — 각 `correction`: `daily-note-lag`(Notion 완료인데 Daily Note 미완료) / `in-progress`(Notion 진행 중). 케이스 A-2 출력은 이 배열을 근거로 작성한다.
+- 비-0 종료(Daily Note 없음·스크립트 오류 등)면 이 단계를 건너뛰고 1단계 `done` 값으로 폴백하되, 출력에 "(Notion 미대조)"를 표시한다.
 
 ### 3단계: 판단 및 출력
 
@@ -317,7 +315,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
 
 ## 워크플로우 — gate (완료 게이트, v1)
 
-주인이 작업을 "끝났다 / 완료 / done"이라고 선언하면, done 처리 **전에** 5개 항목을 점검한다.
+주인이 작업을 "끝났다 / 완료 / done"이라고 선언하면, done 처리 **전에** 4개 항목을 점검한다.
 목적은 추상어 "안심"을 **"4개 중 몇 개 충족"이라는 숫자**로 바꿔 **'동작함'과 '끝남'을 구분**하는 것이다.
 
 > 안심되게 끝냄의 조작적 정의: **내가 "끝났습니다"라고 한 뒤, 맡긴 사람이 검증하려고 추가로 손댈 일이 0인 상태.**
@@ -339,10 +337,10 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
 3. **나쁜 소식 선공유** — 지연·리스크를 마감 전에 알렸습니까? (없으면 "리스크 없음")
 4. **상대 추가 작업** — 맡긴 사람이 추가로 할 일이 있습니까?
 
-판정 — 충족 항목 수 기준:
-- 3개 이상 ✓ → 안심
-- 1~2개 ✓ → 경계
-- 0개 (아무 언급 없음) → 보류 권고 (강제하지 않음 — 사용자가 진행 결정)
+판정 — 충족 항목 수 기준 (**자율 완료 클로징 임계값: 충족 3개 이상**):
+- 4개 ✓ → **안심** → 클로징 자율 실행 (4단계)
+- 3개 ✓ → **경계** → 클로징 자율 실행 (4단계). 미언급 1개는 보완 권고로 병기
+- 0~2개 ✓ → **보류** → 클로징 실행 안 함. 강제하지 않으며 진행 여부는 사용자가 결정
 
 판정 출력 형식(Alfred 톤, 결론 먼저):
 
@@ -359,8 +357,8 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
 
 ### 4단계: 완료 클로징 시퀀스 (자율 실행)
 
-판정이 **안심(4~5점) 또는 경계(3점)** 이면 사용자 재확인 없이 즉시 실행한다.
-**보류**이면 이 단계를 건너뛴다.
+판정이 **안심(4점) 또는 경계(3점)** — 즉 **충족 3개 이상** — 이면 사용자 재확인 없이 즉시 실행한다.
+**보류(0~2점)**이면 이 단계를 건너뛴다.
 
 실행 순서 — 실패는 개별 격리, 나머지는 계속 진행한다:
 
@@ -462,13 +460,12 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 
 **(A) Daily Note 진행 현황 (기본 소스) + Notion 보정 (진실 소스)**
 
+진행률 보정은 check (C)와 **동일한 결정론적 명령**을 쓴다(LLM fuzzy 판단 아님):
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
+python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress
 ```
-- `today`는 `source: obsidian` — Daily Note 체크박스만 읽어 Notion status와 어긋날 수 있다.
-- **check 모드 2단계 (C)와 동일하게** Daily Note 항목명을 Notion `name`과 fuzzy 매칭하고, Notion `status`를 진실 소스로 삼아 completed 집계를 보정한다. 진행률·"완료 N건"을 출력할 때는 **보정 후 Notion 기준** 수치를 쓴다.
-- 매칭 실패/스크립트 오류 시 `today` 값으로 폴백하고 "(Notion 미대조)"를 표기한다.
+- `corrected_progress.{done,total}` 을 진행률·"완료 N건"의 **진실 소스**로 쓴다. `corrections[]` 로 Daily Note 지연 항목을 파악한다.
+- 비-0 종료(Daily Note 없음·스크립트 오류 등) 시 `today` 값으로 폴백하고 "(Notion 미대조)"를 표기한다.
 
 **(B) 오늘 세션 작업 — claude-mem timeline (best-effort, 가시성 축 전용)**
 
@@ -564,9 +561,9 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
 **신규 Task 생성**:
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
-  --name "..." --priority "P2 - Should Have" --category WORK [--due YYYY-MM-DD] [--roi Medium]
+  --name "..." --priority "P2" --category WORK [--due YYYY-MM-DD] [--roi Medium]
 ```
-- priority 매핑: P1 → "P1 - Must Have", P2 → "P2 - Should Have", P3 → "P3 - Could Have", P4 → "P4 - Won't Have"
+- priority 매핑: P1 → "P1", P2 → "P2", P3 → "P3" (3단계, 명시 없으면 P3 추천)
 - 생성 후 1줄 보고: "'{Task명}' Task를 생성했습니다 (P2, due MM/DD)."
 
 ---
