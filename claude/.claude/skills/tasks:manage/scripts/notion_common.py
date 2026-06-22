@@ -172,6 +172,37 @@ def query_active_tasks(token):
     return [parse_page(p) for p in resp.get("results", [])]
 
 
+# 완료 Task는 Notion에 영구 누적되므로, 전부 가져오면 로컬 캐시가 무한히 커지고
+# 목록이 완료본으로 도배된다. Due Date 기준 최근 윈도우만 가져와 범위를 제한한다.
+#
+# Due Date를 기준으로 쓰는 이유: 완료 시점을 직접 기록하는 속성이 DB에 없고,
+# last_edited_time은 status 일괄 편집 등으로 쉽게 흔들려(완료 시점과 무관하게
+# 최근값으로 바뀜) "최근 완료" 신호로 부적합하다. Due Date는 편집으로 흔들리지
+# 않아 안정적이다. 단, Due Date가 없는 완료 Task는 이 조회에 잡히지 않는다.
+COMPLETED_WINDOW_DAYS = 14
+
+
+def query_recent_completed_tasks(token, days=COMPLETED_WINDOW_DAYS):
+    """완료 상태 + Due Date가 최근 N일 내인 Task만 조회 — Tasks 탭 ALL 뷰 노출용.
+
+    query_active_tasks와 달리 양방향 sync 대상이 아니다(읽기 전용 캐시).
+    완료본을 push/충돌 로직에 끌어들이면 의도치 않은 status 되돌림이 생길 수 있어
+    의도적으로 활성 Task 캐시와 분리한다.
+    """
+    cutoff = (datetime.now(KST) - timedelta(days=days)).date().isoformat()
+    body = {
+        "filter": {
+            "and": [
+                {"property": "상태", "status": {"equals": "완료"}},
+                {"property": "Due Date", "date": {"on_or_after": cutoff}},
+            ]
+        },
+        "sorts": [{"property": "Due Date", "direction": "descending"}],
+    }
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
+    return [parse_page(p) for p in resp.get("results", [])]
+
+
 def get_all_children(token, block_id):
     """블록(페이지)의 모든 자식 블록을 페이지네이션으로 수집한다."""
     children = []

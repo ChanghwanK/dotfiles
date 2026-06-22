@@ -46,6 +46,9 @@ except (AttributeError, ValueError):
 DATA_DIR = Path.home() / ".claude" / "tasktui"
 TODOS_FILE = DATA_DIR / "todos.json"
 TASKS_FILE = DATA_DIR / "tasks.json"
+# 최근 완료 Task 읽기 전용 캐시 — Tasks 탭 ALL 뷰에서만 노출. 활성 Task(TASKS_FILE)와
+# 분리해 양방향 sync(push/충돌) 대상에서 제외한다(sync가 채우기만 함).
+TASKS_COMPLETED_FILE = DATA_DIR / "tasks_completed.json"
 
 # Todo는 Task 하위뿐 아니라 독립(backlog/리마인드)으로도 존재한다.
 # 독립 Todo는 이 sentinel page_id를 갖는 가상 버킷에 모이며, 실제 Notion 페이지가
@@ -135,6 +138,15 @@ def load_tasks():
 
 def save_tasks(doc):
     _atomic_write(TASKS_FILE, doc)
+
+
+def load_completed_tasks():
+    """최근 완료 Task 읽기 전용 캐시 (sync가 채움, Tasks 탭 ALL 뷰에서만 노출)."""
+    return _load(TASKS_COMPLETED_FILE, {"version": 1, "synced_at": "", "tasks": []})
+
+
+def save_completed_tasks(doc):
+    _atomic_write(TASKS_COMPLETED_FILE, doc)
 
 
 # ── Todo 도메인 헬퍼 ──────────────────────────────────────────
@@ -289,6 +301,11 @@ def cmd_list_tasks(args):
                 continue
             done, total = _counts_for(tdoc, task["page_id"])
             enriched.append({**task, "todo_done": done, "todo_count": total})
+        # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 뒤에 덧붙인다.
+        if not prio:
+            for task in load_completed_tasks()["tasks"]:
+                done, total = _counts_for(tdoc, task["page_id"])
+                enriched.append({**task, "todo_done": done, "todo_count": total})
         print(json.dumps({"tasks": enriched}, ensure_ascii=False, indent=2))
         return
     # fzf: "<page_id>\t<표시줄>". Backlog 버킷을 항상 최상단에 노출한다.
@@ -300,6 +317,12 @@ def cmd_list_tasks(args):
             continue
         done, total = _counts_for(tdoc, task["page_id"])
         print(f"{task['page_id']}\t{_task_display(task, done, total)}")
+    # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 활성 목록 아래에 노출한다.
+    # 완료본은 하위 to_do를 pull하지 않으므로 todo 카운트는 (0/0)으로 표시된다.
+    if not prio:
+        for task in load_completed_tasks()["tasks"]:
+            done, total = _counts_for(tdoc, task["page_id"])
+            print(f"{task['page_id']}\t{_task_display(task, done, total)}")
 
 
 def cmd_list_todos(args):

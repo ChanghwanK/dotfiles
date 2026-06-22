@@ -140,7 +140,7 @@ def _conflict_entry(local, remote, winner):
 
 def pull(token, doc, conflicts, dry_run):
     """Notion → 로컬. tasks.json 재구성 + 각 페이지 to_do 블록 reconcile."""
-    stats = {"tasks": 0, "created": 0, "adopted": 0, "remote_deleted": 0}
+    stats = {"tasks": 0, "completed": 0, "created": 0, "adopted": 0, "remote_deleted": 0}
 
     # 1) Task 메타 재구성 (meta_dirty 보존 + 충돌 판정)
     old_tasks = {t["page_id"]: t for t in store.load_tasks()["tasks"]}
@@ -169,6 +169,14 @@ def pull(token, doc, conflicts, dry_run):
     stats["tasks"] = len(new_tasks)
     if not dry_run:
         store.save_tasks({"version": 1, "synced_at": nc.now_kst(), "tasks": new_tasks})
+
+    # 1.5) 최근 완료 Task 캐시 갱신 — Tasks 탭 ALL 뷰 노출용 읽기 전용 캐시.
+    #      활성 Task와 분리되어 to_do reconcile/push/충돌 대상이 아니다(매번 통째로 교체).
+    if not dry_run:
+        completed = nc.query_recent_completed_tasks(token)
+        store.save_completed_tasks({"version": 1, "synced_at": nc.now_kst(),
+                                    "tasks": completed})
+        stats["completed"] = len(completed)
 
     # 2) 각 활성 Task 페이지의 to_do 블록 reconcile
     remove_ids = []

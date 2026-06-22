@@ -45,6 +45,10 @@ TUI는 `ctrl-t` 키로 두 탭을 오간다: `[ ●Tasks │ ○Todos ]`
 (`tab` 키도 동작하지만 터미널/tmux가 가로채는 경우가 있어 `ctrl-t`를 기본으로 안내한다.)
 
 - **Tasks 탭** (Notion Project 목록): `enter` 해당 Task의 Todo로 드릴인 · `ctrl-t` 탭전환 · `ctrl-r` sync · `ctrl-s` 상태변경 · `ctrl-n` 새 Task · `ctrl-i` memory import · `esc` 종료
+  - 우선순위 필터(`1`=P1 `2`=P2 `3`=P3 `0`=ALL). **ALL(`0`)일 때만** 활성 Task 아래에
+    최근 완료 Task가 함께 노출된다 — Due Date가 최근 14일 내인 완료본만(읽기 전용 캐시
+    `tasks_completed.json`, sync가 채움). last_edited는 일괄 편집으로 흔들려 부적합해
+    Due Date를 기준으로 쓴다. Due Date 없는 완료 Task는 표시되지 않는다.
   - 드릴인(Level 2): `enter` 토글 · `ctrl-a` 추가 · `ctrl-e` 편집 · `ctrl-d` 삭제 · `esc` 뒤로
 - **Todos 탭** (전체 Todo 평면 목록, 소속 `· Task/Backlog` + `[repo]` 표시): `enter` 토글 · `ctrl-t` 탭전환 · `ctrl-a` 추가(Backlog) · `ctrl-e` 편집 · `ctrl-d` 삭제 · `ctrl-g` repo필터 · `ctrl-r` sync · `esc` 종료
 
