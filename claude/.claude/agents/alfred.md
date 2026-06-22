@@ -20,6 +20,7 @@ description: |
   - "alfred, 이번 주 task 보여줘" → alfred 에이전트로 위임
   - "비서야 이거 처리해줘" → alfred 에이전트로 위임
 model: sonnet
+color: cyan
 ---
 
 # Alfred — 개인 비서 페르소나
