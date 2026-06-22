@@ -4,12 +4,14 @@ Plan approval server.
 Usage: plan-approval-server.py <plan.md>
 
 Serves the plan as HTML with Approve/Reject buttons.
-Buttons send keystrokes back to the originating Claude Code terminal.
-Auto-exits after 10 minutes.
+Blocks until the user clicks a button (or 5-min timeout), then prints one of:
+  approve | reject | timeout
+to stdout and exits.
+
+Parent process (plan-preview.sh) reads this output to decide the hook response.
 """
 import sys
 import os
-import shutil
 import subprocess
 import threading
 import socket
@@ -17,100 +19,20 @@ import time
 import importlib.util
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Capture terminal env at startup (inherited from Claude Code process)
-ITERM_SESSION_ID = os.environ.get('ITERM_SESSION_ID', '')
-TMUX = os.environ.get('TMUX', '')
-TMUX_PANE = os.environ.get('TMUX_PANE', '')
-TERM_PROGRAM = os.environ.get('TERM_PROGRAM', '')
-CMUX_SURFACE_ID = os.environ.get('CMUX_SURFACE_ID', '')
-CMUX_WORKSPACE_ID = os.environ.get('CMUX_WORKSPACE_ID', '')
-
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 server_instance = None
 plan_html_content = ""
+_decision = None        # "approve" | "reject"
+_decision_event = threading.Event()
 
 
 def load_plan_to_html():
-    """Load plan-to-html module from scripts dir (hyphen in filename)."""
     path = os.path.join(SCRIPTS_DIR, "plan-to-html.py")
     spec = importlib.util.spec_from_file_location("plan_to_html", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
-
-
-def send_to_terminal(key):
-    """Send 'y' or 'n' + Enter to the Claude Code terminal."""
-    if CMUX_SURFACE_ID:
-        # cmux: Unix socket 기반 send — 가장 정확한 방법
-        cmux_bin = shutil.which('cmux') or '/Applications/cmux.app/Contents/Resources/bin/cmux'
-        subprocess.run([cmux_bin, 'send', '--surface', CMUX_SURFACE_ID, key],
-                       capture_output=True)
-        subprocess.run([cmux_bin, 'send-key', '--surface', CMUX_SURFACE_ID, 'Enter'],
-                       capture_output=True)
-        return
-
-    if TMUX and TMUX_PANE:
-        subprocess.run(['tmux', 'send-keys', '-t', TMUX_PANE, key, 'Enter'],
-                       check=False, capture_output=True)
-        return
-
-    if ITERM_SESSION_ID or TERM_PROGRAM == 'iTerm.app':
-        # target the specific iTerm2 session by inherited session ID
-        if ITERM_SESSION_ID:
-            # ITERM_SESSION_ID format: "wXtXpX:UUID"
-            session_uuid = ITERM_SESSION_ID.split(':')[-1] if ':' in ITERM_SESSION_ID else ''
-            if session_uuid:
-                script = f'''
-tell application "iTerm2"
-    repeat with aWindow in windows
-        repeat with aTab in tabs of aWindow
-            repeat with aSession in sessions of aTab
-                if unique id of aSession is "{session_uuid}" then
-                    tell aSession to write text "{key}"
-                    return
-                end if
-            end repeat
-        end repeat
-    end repeat
-end tell
-'''
-                result = subprocess.run(['osascript', '-e', script],
-                                        capture_output=True)
-                if result.returncode == 0:
-                    return
-        # fallback: write to current window current session
-        script = (
-            'tell application "iTerm2" to tell current window '
-            f'to tell current session to write text "{key}"'
-        )
-        subprocess.run(['osascript', '-e', script], capture_output=True)
-        return
-
-    if TERM_PROGRAM == 'ghostty':
-        # ghostty 기반 터미널(cmux 등) — 앱 활성화 후 System Events로 키 전달
-        # 앱 이름은 cmux.app 또는 Ghostty.app 중 하나
-        activate_script = '''
-set ghosttyApps to {"cmux", "Ghostty"}
-repeat with appName in ghosttyApps
-    try
-        tell application appName to activate
-        exit repeat
-    end try
-end repeat
-delay 0.2
-tell application "System Events"
-    keystroke "''' + key + '''"
-    key code 36
-end tell
-'''
-        subprocess.run(['osascript', '-e', activate_script], capture_output=True)
-        return
-
-    # Terminal.app fallback (최후 수단)
-    script = f'tell application "Terminal" to do script "{key}" in front window'
-    subprocess.run(['osascript', '-e', script], capture_output=True)
 
 
 def find_free_port(start=17823):
@@ -160,7 +82,7 @@ class PlanHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        global server_instance
+        global _decision
 
         if self.path == '/':
             body = plan_html_content.encode('utf-8')
@@ -171,13 +93,13 @@ class PlanHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
         elif self.path == '/approve':
-            send_to_terminal('y')
+            _decision = 'approve'
             self.send_response(302)
             self.send_header('Location', '/done?action=approve')
             self.end_headers()
 
         elif self.path == '/reject':
-            send_to_terminal('n')
+            _decision = 'reject'
             self.send_response(302)
             self.send_header('Location', '/done?action=reject')
             self.end_headers()
@@ -193,7 +115,7 @@ class PlanHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             self.wfile.flush()
-            # shutdown AFTER the done page is fully served
+            # Signal main thread to shut down after the done page is delivered
             threading.Thread(target=_delayed_shutdown, daemon=True).start()
 
         else:
@@ -207,8 +129,8 @@ def _delayed_shutdown():
         server_instance.shutdown()
 
 
-def _auto_shutdown():
-    time.sleep(600)  # 10 minutes
+def _timeout_shutdown(seconds):
+    time.sleep(seconds)
     if server_instance:
         server_instance.shutdown()
 
@@ -230,28 +152,30 @@ def main():
         print("No free port found", file=sys.stderr)
         sys.exit(1)
 
-    # Generate base HTML via plan-to-html.py
     try:
         mod = load_plan_to_html()
-        static_out = mod.convert(md_path)  # also saves .html for offline reference
+        static_out = mod.convert(md_path)
         with open(static_out, encoding='utf-8') as f:
             base_html = f.read()
     except Exception as e:
         print(f"HTML generation failed: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Inject toolbar with Approve/Reject buttons
     plan_html_content = base_html.replace('<body>', '<body>' + TOOLBAR_HTML, 1)
 
     server_instance = HTTPServer(('127.0.0.1', port), PlanHandler)
 
-    threading.Thread(target=_auto_shutdown, daemon=True).start()
+    # Auto-shutdown after 5 minutes (timeout)
+    threading.Thread(target=_timeout_shutdown, args=(300,), daemon=True).start()
 
-    # Open browser
     subprocess.Popen(['open', f'http://127.0.0.1:{port}/'],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    # Block until approve/reject/timeout
     server_instance.serve_forever()
+
+    # Output the decision for the parent shell script to read
+    print(_decision or 'timeout', flush=True)
 
 
 if __name__ == '__main__':
