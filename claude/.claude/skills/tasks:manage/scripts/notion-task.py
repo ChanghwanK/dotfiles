@@ -11,7 +11,10 @@ Usage:
   python3 notion-task.py tasks [--week current|previous|next] [--month YYYY-MM] [--status in-progress|upcoming|all]
 
   # 생성
-  python3 notion-task.py create-task --name "이름" --priority "P3 - Could Have" --category "WORK" [--due "YYYY-MM-DD"] [--description "설명"]
+  python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"]
+
+  # ROI 설정 (Alfred groom — 사용자 승인 후)
+  python3 notion-task.py set-roi --page-id <id> --roi High|Medium|Low
 
   # 상태 변경
   python3 notion-task.py update-status --page-id <id> --status "진행 중"
@@ -37,12 +40,13 @@ TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
 VALID_STATUSES = {"시작 전", "진행 중", "완료", "대기"}
 PRIORITY_OPTIONS = {
-    "P1 - Must Have",
-    "P2 - Should Have",
-    "P3 - Could Have",
-    "P4 - Won't Have",
+    "P1",
+    "P2",
+    "P3",
 }
 CATEGORY_OPTIONS = {"WORK", "MY"}
+# ROI = 가치/노력 판단 버킷. Alfred groom 모드가 기록, 브리핑이 정렬 키로 사용.
+ROI_OPTIONS = {"High", "Medium", "Low"}
 
 
 # ─────────────────────────────────────────────
@@ -138,6 +142,8 @@ def _parse_page(page):
     due = props.get("Due Date", {}).get("date") or {}
     category_sel = props.get("Group", {}).get("select")
     category = category_sel.get("name", "") if category_sel else ""
+    roi_sel = props.get("ROI", {}).get("select")
+    roi = roi_sel.get("name", "") if roi_sel else ""
     tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
     return {
         "page_id": page["id"],
@@ -146,6 +152,7 @@ def _parse_page(page):
         "status": status,
         "due_date": due.get("start", ""),
         "category": category,
+        "roi": roi,
         "tags": tags,
     }
 
@@ -263,6 +270,10 @@ def cmd_create_task(args):
     if category not in CATEGORY_OPTIONS:
         _exit_error(f"Invalid category '{category}'. Valid: {sorted(CATEGORY_OPTIONS)}")
 
+    roi = getattr(args, "roi", None)
+    if roi and roi not in ROI_OPTIONS:
+        _exit_error(f"Invalid ROI '{roi}'. Valid: {sorted(ROI_OPTIONS)}")
+
     properties = {
         "이름": {
             "title": [{"text": {"content": name}}]
@@ -280,6 +291,9 @@ def cmd_create_task(args):
 
     if args.due:
         properties["Due Date"] = {"date": {"start": args.due}}
+
+    if roi:
+        properties["ROI"] = {"select": {"name": roi}}
 
     if args.description:
         properties["Description"] = {
@@ -366,6 +380,32 @@ def cmd_create_task(args):
         "priority": priority,
         "category": category,
         "due_date": args.due or "",
+        "roi": roi or "",
+    }, ensure_ascii=False, indent=2))
+
+
+# ─────────────────────────────────────────────
+# ROI 설정 (Alfred groom 모드 — 게이트된 자율성: 사용자 승인 후 호출)
+# ─────────────────────────────────────────────
+
+def cmd_set_roi(args):
+    """Task의 ROI 버킷을 설정한다. Alfred groom이 사용자 승인을 받은 뒤 호출."""
+    token = get_token()
+
+    if args.roi not in ROI_OPTIONS:
+        _exit_error(f"Invalid ROI '{args.roi}'. Valid: {sorted(ROI_OPTIONS)}")
+
+    body = {"properties": {"ROI": {"select": {"name": args.roi}}}}
+    result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
+
+    props = result.get("properties", {})
+    name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+
+    print(json.dumps({
+        "success": True,
+        "page_id": args.page_id,
+        "name": name,
+        "roi": args.roi,
     }, ensure_ascii=False, indent=2))
 
 
@@ -380,9 +420,14 @@ def cmd_update_status(args):
     if args.status not in VALID_STATUSES:
         _exit_error(f"Invalid status '{args.status}'. Valid: {sorted(VALID_STATUSES)}")
 
+    # Task DB는 완료 여부를 상태(status)와 Done(checkbox) 두 속성으로 이중 관리한다.
+    # DONE 뷰·롤업은 Done 체크박스를 필터 기준으로 쓰므로, 상태만 바꾸면
+    # status=완료인데 DONE 뷰에 안 보이는 불일치가 생긴다. 둘을 항상 동기화한다.
+    is_done = args.status == "완료"
     body = {
         "properties": {
-            "상태": {"status": {"name": args.status}}
+            "상태": {"status": {"name": args.status}},
+            "Done": {"checkbox": is_done},
         }
     }
     result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
@@ -396,6 +441,7 @@ def cmd_update_status(args):
         "page_id": args.page_id,
         "name": name,
         "status": args.status,
+        "done": is_done,
     }, ensure_ascii=False, indent=2))
 
 
@@ -489,6 +535,154 @@ def cmd_carry_over(args):
 
 
 # ─────────────────────────────────────────────
+# 본문 추가 (append-content) — Markdown → Notion blocks
+# task:review 결과를 Task 페이지 본문에 누적할 때 사용.
+# ─────────────────────────────────────────────
+
+import re
+
+# Notion 제약: rich_text 1개 text content 최대 2000자, append 1회 최대 100 블록
+_NOTION_TEXT_LIMIT = 2000
+_NOTION_BLOCK_LIMIT = 100
+# Notion code block이 허용하는 language enum (일부). 매칭 안 되면 plain text.
+_NOTION_CODE_LANGS = {
+    "bash", "shell", "python", "yaml", "json", "javascript", "typescript",
+    "go", "sql", "diff", "markdown", "plain text",
+}
+
+
+def _notion_lang(lang):
+    lang = (lang or "").strip().lower()
+    if lang in ("sh", "zsh", "console"):
+        return "bash"
+    if lang in ("yml",):
+        return "yaml"
+    if lang in ("py",):
+        return "python"
+    return lang if lang in _NOTION_CODE_LANGS else "plain text"
+
+
+def _split_text_content(content):
+    """content를 2000자 이하 청크로 분할."""
+    if len(content) <= _NOTION_TEXT_LIMIT:
+        return [content]
+    return [content[i:i + _NOTION_TEXT_LIMIT]
+            for i in range(0, len(content), _NOTION_TEXT_LIMIT)]
+
+
+def parse_rich_text(text):
+    """인라인 **bold** / `code` 를 Notion rich_text 배열로 변환."""
+    tokens = re.split(r"(\*\*[^*]+\*\*|`[^`]+`)", text)
+    rich = []
+    for tok in tokens:
+        if not tok:
+            continue
+        annotations = None
+        content = tok
+        if len(tok) >= 4 and tok.startswith("**") and tok.endswith("**"):
+            content, annotations = tok[2:-2], {"bold": True}
+        elif len(tok) >= 2 and tok.startswith("`") and tok.endswith("`"):
+            content, annotations = tok[1:-1], {"code": True}
+        for chunk in _split_text_content(content):
+            item = {"type": "text", "text": {"content": chunk}}
+            if annotations:
+                item["annotations"] = dict(annotations)
+            rich.append(item)
+    return rich or [{"type": "text", "text": {"content": ""}}]
+
+
+def _heading_block(level, text):
+    htype = f"heading_{min(level, 3)}"
+    return {"object": "block", "type": htype, htype: {"rich_text": parse_rich_text(text)}}
+
+
+def markdown_to_blocks(md):
+    """task:review 류 Markdown을 Notion 블록 리스트로 변환.
+
+    지원: heading(#/##/###), ═══ 구분 헤딩, bullet(-/*), numbered(1.),
+    quote(>), divider(---), fenced code(```), 인라인 bold/code, paragraph.
+    """
+    lines = md.split("\n")
+    blocks, code_lines, code_lang, in_code = [], [], "plain text", False
+
+    for raw in lines:
+        stripped = raw.rstrip()
+        if stripped.lstrip().startswith("```"):
+            if not in_code:
+                in_code, code_lang, code_lines = True, stripped.lstrip()[3:].strip(), []
+            else:
+                in_code = False
+                content = "\n".join(code_lines)
+                rich = [{"type": "text", "text": {"content": c}}
+                        for c in _split_text_content(content)] or \
+                       [{"type": "text", "text": {"content": ""}}]
+                blocks.append({"object": "block", "type": "code",
+                               "code": {"rich_text": rich, "language": _notion_lang(code_lang)}})
+            continue
+        if in_code:
+            code_lines.append(raw)
+            continue
+
+        s = stripped.strip()
+        if not s:
+            continue
+        if s.startswith("═"):
+            blocks.append(_heading_block(2, s.strip("═ ").strip()))
+        elif s.startswith("#### "):
+            blocks.append(_heading_block(3, s[5:]))
+        elif s.startswith("### "):
+            blocks.append(_heading_block(3, s[4:]))
+        elif s.startswith("## "):
+            blocks.append(_heading_block(2, s[3:]))
+        elif s.startswith("# "):
+            blocks.append(_heading_block(1, s[2:]))
+        elif s in ("---", "***", "___"):
+            blocks.append({"object": "block", "type": "divider", "divider": {}})
+        elif s.startswith("> "):
+            blocks.append({"object": "block", "type": "quote",
+                           "quote": {"rich_text": parse_rich_text(s[2:])}})
+        elif re.match(r"^[-*] ", s):
+            blocks.append({"object": "block", "type": "bulleted_list_item",
+                           "bulleted_list_item": {"rich_text": parse_rich_text(s[2:])}})
+        elif re.match(r"^\d+\. ", s):
+            blocks.append({"object": "block", "type": "numbered_list_item",
+                           "numbered_list_item": {"rich_text": parse_rich_text(re.sub(r"^\d+\. ", "", s))}})
+        else:
+            blocks.append({"object": "block", "type": "paragraph",
+                           "paragraph": {"rich_text": parse_rich_text(s)}})
+    return blocks
+
+
+def cmd_append_content(args):
+    """Markdown 콘텐츠를 Task 페이지 본문에 append (task:review 결과 누적용)."""
+    token = get_token()
+
+    if args.content_file:
+        with open(args.content_file, encoding="utf-8") as f:
+            md = f.read()
+    elif args.content:
+        md = args.content
+    else:
+        _exit_error("--content-file 또는 --content 중 하나가 필요합니다")
+
+    blocks = markdown_to_blocks(md)
+    if not blocks:
+        _exit_error("변환된 블록이 없습니다 (빈 콘텐츠)")
+
+    appended = 0
+    for i in range(0, len(blocks), _NOTION_BLOCK_LIMIT):
+        batch = blocks[i:i + _NOTION_BLOCK_LIMIT]
+        notion_request(token, "PATCH", f"/blocks/{args.page_id}/children", {"children": batch})
+        appended += len(batch)
+
+    print(json.dumps({
+        "success": True,
+        "page_id": args.page_id,
+        "blocks_appended": appended,
+    }, ensure_ascii=False, indent=2))
+
+
+# ─────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────
 
@@ -517,9 +711,17 @@ def main():
                     help="우선순위")
     ct.add_argument("--category", required=True, choices=["WORK", "MY"], help="카테고리")
     ct.add_argument("--due", default=None, help="마감일 (YYYY-MM-DD)")
+    ct.add_argument("--roi", default=None, choices=sorted(ROI_OPTIONS),
+                    help="ROI 버킷 (선택). 미지정 시 groom 대상으로 남음")
     ct.add_argument("--description", default=None, help="부연 설명")
     ct.add_argument("--image", dest="images", action="append", default=None,
                     help="이미지 URL 또는 로컬 파일 경로 (여러 번 사용 가능)")
+
+    # set-roi
+    sr = subparsers.add_parser("set-roi", help="Task ROI 버킷 설정 (groom)")
+    sr.add_argument("--page-id", required=True, help="Notion page ID")
+    sr.add_argument("--roi", required=True, choices=sorted(ROI_OPTIONS),
+                    help="ROI 버킷")
 
     # update-status
     us = subparsers.add_parser("update-status", help="Task 상태 변경")
@@ -531,6 +733,13 @@ def main():
     # delete-task
     dt = subparsers.add_parser("delete-task", help="Task 아카이브 (복구 가능)")
     dt.add_argument("--page-id", required=True, help="Notion page ID")
+
+    # append-content
+    ac = subparsers.add_parser("append-content", help="Task 페이지 본문에 Markdown 콘텐츠 추가")
+    ac.add_argument("--page-id", required=True, help="Notion page ID")
+    ac_group = ac.add_mutually_exclusive_group(required=True)
+    ac_group.add_argument("--content-file", default=None, help="Markdown 파일 경로")
+    ac_group.add_argument("--content", default=None, help="Markdown 문자열 (직접 전달)")
 
     # carry-over
     co = subparsers.add_parser("carry-over", help="지난 주 미완료 Task 이월")
@@ -549,8 +758,10 @@ def main():
         "search-tasks": cmd_search_tasks,
         "tasks": cmd_tasks,
         "create-task": cmd_create_task,
+        "set-roi": cmd_set_roi,
         "update-status": cmd_update_status,
         "delete-task": cmd_delete_task,
+        "append-content": cmd_append_content,
         "carry-over": cmd_carry_over,
     }
     dispatch[args.command](args)

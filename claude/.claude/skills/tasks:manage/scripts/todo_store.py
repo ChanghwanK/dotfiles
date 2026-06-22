@@ -181,7 +181,7 @@ def _counts_for(doc, page_id):
 # ── 출력 포맷 ─────────────────────────────────────────────────
 
 def _priority_short(priority):
-    # "P2 - Should Have" → "P2", 없으면 공백 정렬용 "  "
+    # "P2" → "P2" (구 형식 "P2 - Should Have"도 첫 토큰만 취해 호환), 없으면 "--"
     return priority.split(" ")[0] if priority else "--"
 
 

@@ -24,10 +24,9 @@ TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
 VALID_STATUSES = {"시작 전", "진행 중", "완료", "대기"}
 PRIORITY_OPTIONS = {
-    "P1 - Must Have",
-    "P2 - Should Have",
-    "P3 - Could Have",
-    "P4 - Won't Have",
+    "P1",
+    "P2",
+    "P3",
 }
 CATEGORY_OPTIONS = {"WORK", "MY"}
 
