@@ -19,6 +19,10 @@ SYNC="$SKILLS_DIR/todo_sync.py"
 NOTION_TASK="$SKILLS_DIR/notion-task.py"
 PLAN_TODO="$HOME/.claude/scripts/plan-todo.py"
 
+# Claude Code 세션 런처(공유) — _build_and_launch_session / _launch_claude_session 제공.
+# Raycast Script Command도 같은 파일을 source하여 cmux 호출을 단일 SoT로 유지한다.
+source "$HOME/.claude/scripts/claude-session-launch.sh"
+
 # NOTION_TOKEN 확보 (sync에 필요). secrets.zsh의 단순 export 라인을 bash로 로드.
 [ -z "${NOTION_TOKEN:-}" ] && [ -f "$HOME/.secrets.zsh" ] && source "$HOME/.secrets.zsh" 2>/dev/null
 
@@ -509,33 +513,6 @@ open_todo_session() {
   _build_and_launch_session "$repo_dir" "$msg" "$title"
 }
 
-# 초기 메시지를 임시 파일에 담아 repo_dir에서 Claude Code 세션을 띄운다.
-# Todo/Task 세션이 공유하는 공통 경로 — mktemp 수정(끝-고정 템플릿)이 한 곳에 모인다.
-#   macOS BSD mktemp는 X가 템플릿 "끝"에 있을 때만 치환한다. `.txt`/`.sh` 접미사를
-#   붙이면 X를 그대로 둔 리터럴 파일을 만들고, 재실행 때 "File exists"로 실패한다
-#   → msg_file이 비면 launcher가 `claude "$(cat )"`로 빈 컨텍스트 세션을 연다.
-#   끝-고정 템플릿 + fallback으로 막는다.
-_build_and_launch_session() {
-  local repo_dir="$1" msg="$2" title="${3:-todo}"
-
-  local msg_file launcher
-  msg_file=$(mktemp "${TMPDIR:-/tmp}/claude-todo-msg.XXXXXX" 2>/dev/null) || \
-    msg_file="/tmp/claude-todo-msg.$$.$(date +%s)"
-  printf '%s' "$msg" > "$msg_file"
-
-  launcher=$(mktemp "${TMPDIR:-/tmp}/claude-todo-launch.XXXXXX" 2>/dev/null) || \
-    launcher="/tmp/claude-todo-launch.$$.$(date +%s)"
-  {
-    echo "#!/bin/bash"
-    printf 'cd %q\n' "$repo_dir"
-    printf 'claude "$(cat %q)"\n' "$msg_file"
-    printf 'rm -f %q %q\n' "$launcher" "$msg_file"
-  } > "$launcher"
-  chmod +x "$launcher"
-
-  _launch_claude_session "$repo_dir" "$launcher" "$title"
-}
-
 # Task(Project) Enter → repo를 골라 Task 컨텍스트로 Claude Code 세션 오픈.
 # Task에는 repo 필드가 없어 항상 repo 선택(pick_riiid_repo)을 거친다.
 # __backlog__는 Notion Task가 아니므로 하위 Todo 드릴인으로 분기한다.
@@ -573,6 +550,27 @@ print('\n'.join(('[x] ' if t.get('done') else '[ ] ')+t.get('title','') for t in
     [ -n "$picked" ] && repo_dir="$riiid_root/$picked"
   fi
 
+  # Notion 상태를 "진행 중"으로 변경 (현재 "시작 전"일 때만)
+  if [ "$status" = "시작 전" ] || [ "$status" = "대기" ]; then
+    python3 "$NOTION_TASK" update-status --page-id "$page_id" --status "진행 중" >/dev/null 2>&1 || true
+    status="진행 중"
+  fi
+
+  # alfred-state.json에 현재 진행 Task 기록 (alfred check/briefing에서 활용)
+  ALFRED_PAGE_ID="$page_id" ALFRED_NAME="$name" ALFRED_PRIORITY="$priority" \
+  python3 - <<'PYEOF' 2>/dev/null || true
+import json, datetime, os
+state = {'current_task': {
+  'page_id':    os.environ['ALFRED_PAGE_ID'],
+  'name':       os.environ['ALFRED_NAME'],
+  'priority':   os.environ['ALFRED_PRIORITY'],
+  'source':     'tui',
+  'started_at': datetime.datetime.now().astimezone().isoformat(),
+}}
+json.dump(state, open(os.path.expanduser('~/.claude/alfred-state.json'), 'w'),
+          ensure_ascii=False, indent=2)
+PYEOF
+
   local nl=$'\n'
   local msg="이 세션에서 다음 Task(프로젝트)를 수행합니다.${nl}Task: $name"
   [ -n "$status" ]      && msg+="${nl}상태: $status"
@@ -581,51 +579,6 @@ print('\n'.join(('[x] ' if t.get('done') else '[ ] ')+t.get('title','') for t in
   [ -n "$todos_block" ] && msg+="${nl}${nl}하위 Todo:${nl}$todos_block"
 
   _build_and_launch_session "$repo_dir" "$msg" "$name"
-}
-
-_launch_claude_session() {
-  local dir="$1" launcher="$2" title="${3:-todo}"
-
-  if [ -n "${CMUX_WORKSPACE_ID:-}" ] || [ -n "${CMUX_SURFACE_ID:-}" ]; then
-    # cmux: 워크스페이스 생성 → shell 준비 대기 → send로 명령 주입
-    # (--command는 shell 초기화 전 실행돼 PATH 미설정 문제 발생)
-    local ws_ref ts
-    ts=$(date +%H%M)
-    ws_ref=$(CMUX_QUIET=1 cmux new-workspace \
-      --name "${title:0:26} ${ts}" \
-      --cwd "$dir" \
-      --focus true 2>/dev/null | grep "^OK " | awk '{print $2}')
-    if [ -n "$ws_ref" ]; then
-      sleep 0.8  # shell prompt 준비 대기
-      CMUX_QUIET=1 cmux send --workspace "$ws_ref" "bash $(printf '%q' "$launcher")"
-      CMUX_QUIET=1 cmux send-key --workspace "$ws_ref" "Enter"
-    fi
-    return
-  fi
-
-  if [ -n "${TMUX:-}" ]; then
-    tmux new-window -c "$dir" -n "todo" bash "$launcher"
-  elif [ "${TERM_PROGRAM:-}" = "ghostty" ]; then
-    # ghostty -e로 새 창에서 launcher 실행
-    local ghostty_bin
-    ghostty_bin=$(command -v ghostty 2>/dev/null || echo "")
-    if [ -n "$ghostty_bin" ]; then
-      "$ghostty_bin" -e bash "$launcher" &
-    else
-      bash "$launcher" &
-    fi
-  elif osascript -e 'tell application "iTerm2" to get version' >/dev/null 2>&1; then
-    osascript << APPLESCRIPT
-tell application "iTerm2"
-  set newWin to (create window with default profile)
-  tell current session of newWin
-    write text "bash $(printf '%q' "$launcher")"
-  end tell
-end tell
-APPLESCRIPT
-  else
-    osascript -e "tell application \"Terminal\" to do script \"bash $(printf '%q' "$launcher")\""
-  fi
 }
 
 # Todos 탭: 모든 Todo를 평면으로 — 소속 Task/Backlog + [repo] 표시, ctrl-g로 repo 필터
