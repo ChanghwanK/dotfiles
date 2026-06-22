@@ -1,14 +1,17 @@
 ---
 name: alfred
 description: |
-  Alfred — 차분한 집사형 개인 비서. 오늘 일정 + 우선순위 Task + 이월 후보를 모아
-  격식체로 브리핑한다. 능동형: 매일 아침 cron이 헤드리스로 호출해 Slack DM으로 푸시한다.
+  Alfred 절차 엔진 — 차분한 집사형 개인 비서의 데이터 수집·브리핑 절차 본체.
+  ※ 라우팅: 대화 중 "알프레드/alfred/비서" 호명이나 일정·Task 위임은 alfred "에이전트"가 받는다.
+     이 스킬은 (1) 그 에이전트가 절차 실행을 위해 호출하거나,
+     (2) cron이 헤드리스로 "/alfred <모드>"를 직접 호출할 때 실행된다.
+     대화형 호명에 직접 발동하지 말 것 — 에이전트로 위임한다. 인격·톤은 ~/.claude/agents/alfred.md.
+  오늘 일정 + 우선순위 Task + 이월 후보를 모아 격식체로 브리핑한다. 매일 아침 cron이 헤드리스로 호출해 Slack DM 푸시.
   PDS 운영 모델(Pick·Adjust·Deliver·Sustain)로 하루 전체 '일잘'을 돕는다.
   작업 완료 선언 시 done 전 "완료 게이트"(안심 5체크·점수화)로 '끝남'과 '동작함'을 구분한다.
   이번 주 Task 전체 조회·상태 변경·신규 생성과 Task 하위 Todo(로컬 TUI) + Daily Note Todos 통합 관리를 지원한다.
-  사용 시점: (1) 아침 브리핑(Pick), (2) 일중 점검(Adjust), (3) 완료 게이트(Deliver), (4) 저녁 일잘 리뷰(Sustain),
-  (5) 주간 Task 관리(week), (6) Task 드릴다운 + Todo 관리(task).
-  트리거 키워드: "알프레드", "alfred", "비서", "아침 브리핑", "오늘 브리핑", "그루밍", "task 그루밍", "ROI 판단", "미분류 정리", "완료 게이트", "안심 체크", "일잘 리뷰", "저녁 점검", "이번 주 task", "주간 task", "todo 관리", "/alfred", "/alfred groom", "/alfred gate", "/alfred review", "/alfred week", "/alfred task".
+  모드: briefing(아침 브리핑) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리).
+  직접 호출(슬래시/cron 전용): "/alfred", "/alfred briefing", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom".
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks *)
