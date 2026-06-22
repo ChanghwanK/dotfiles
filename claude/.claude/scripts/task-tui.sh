@@ -556,20 +556,11 @@ print('\n'.join(('[x] ' if t.get('done') else '[ ] ')+t.get('title','') for t in
     status="진행 중"
   fi
 
-  # alfred-state.json에 현재 진행 Task 기록 (alfred check/briefing에서 활용)
-  ALFRED_PAGE_ID="$page_id" ALFRED_NAME="$name" ALFRED_PRIORITY="$priority" \
-  python3 - <<'PYEOF' 2>/dev/null || true
-import json, datetime, os
-state = {'current_task': {
-  'page_id':    os.environ['ALFRED_PAGE_ID'],
-  'name':       os.environ['ALFRED_NAME'],
-  'priority':   os.environ['ALFRED_PRIORITY'],
-  'source':     'tui',
-  'started_at': datetime.datetime.now().astimezone().isoformat(),
-}}
-json.dump(state, open(os.path.expanduser('~/.claude/alfred-state.json'), 'w'),
-          ensure_ascii=False, indent=2)
-PYEOF
+  # alfred-state.json에 현재 진행 Task 기록 (alfred check 모드 교차 검증에 활용).
+  # recent_tasks 배열로 누적(dedup·cap) — 헬퍼가 current_task 하위호환 미러도 함께 갱신.
+  python3 "$HOME/.claude/scripts/alfred-state.py" record \
+    --page-id "$page_id" --name "$name" --priority "$priority" --source tui \
+    >/dev/null 2>&1 || true
 
   local nl=$'\n'
   local msg="이 세션에서 다음 Task(프로젝트)를 수행합니다.${nl}Task: $name"

@@ -455,6 +455,152 @@ def cmd_daily_progress(args):
     print(json.dumps(progress, ensure_ascii=False, indent=2))
 
 
+# ─────────────────────────────────────────────
+# reconcile-progress — Daily Note ↔ Notion 진행률 보정 (진실 소스)
+# ─────────────────────────────────────────────
+#
+# 배경: Daily Note 체크박스(`today`)는 Notion status보다 갱신이 지연될 수 있다.
+# 그대로 집계하면 진행률이 실제보다 비관적으로 나온다.
+# 이 명령은 fuzzy 매칭과 보정을 **코드로 결정론적으로** 수행해, LLM 프롬프트
+# 판단(비결정·테스트 불가)을 대체한다. Notion status를 진실 소스로 삼는다.
+#
+# 보정 규칙 (alfred SKILL check (C) / review (A)와 동일):
+#   - Daily Note 미완료 + Notion '완료'   → 완료로 카운트 (Daily Note 지연)
+#   - Daily Note 미완료 + Notion '진행 중' → 진행 중 (완료 카운트 아님)
+#   - 그 외                                → Daily Note done 값 그대로
+
+def _normalize_title(s):
+    """매칭용 정규화: 선행 대괄호 prefix([검토][Top 3][P1] 등) 제거 → 소문자 →
+    공백·문장부호 제거. 한글·영숫자만 남긴다."""
+    import re
+    s = re.sub(r"^\s*(\[[^\]]*\]\s*)+", "", s or "")
+    s = s.lower()
+    s = re.sub(r"[\s\W_]+", "", s, flags=re.UNICODE)
+    return s
+
+
+def _tokenize_title(s):
+    """토큰 집합 — prefix 제거 후 한글/영숫자 토큰."""
+    import re
+    s = re.sub(r"^\s*(\[[^\]]*\]\s*)+", "", s or "").lower()
+    return set(re.findall(r"[0-9a-z가-힣]+", s))
+
+
+def match_daily_to_task(daily_text, task_name, token_threshold=0.6):
+    """결정론적 매칭: 정규화 완전일치 / 부분문자열 / 토큰 중첩비율 임계 이상.
+    회귀 테스트가 가능하도록 순수 함수로 유지한다."""
+    a, b = _normalize_title(daily_text), _normalize_title(task_name)
+    if not a or not b:
+        return False
+    if a == b or a in b or b in a:
+        return True
+    ta, tb = _tokenize_title(daily_text), _tokenize_title(task_name)
+    if not ta or not tb:
+        return False
+    overlap = len(ta & tb) / min(len(ta), len(tb))
+    return overlap >= token_threshold
+
+
+def query_tasks_by_status(token, status_equals=None, status_not=None):
+    """상태 필터 기반 Task 조회 (name/status만 추출). 단일 페이지(최대 100건) —
+    기존 조회 함수들과 동일하게 페이지네이션은 하지 않는다."""
+    if status_equals is not None:
+        flt = {"property": "상태", "status": {"equals": status_equals}}
+    elif status_not is not None:
+        flt = {"property": "상태", "status": {"does_not_equal": status_not}}
+    else:
+        flt = None
+    body = {"sorts": [{"property": "Due Date", "direction": "descending"}]}
+    if flt:
+        body["filter"] = flt
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
+    out = []
+    for page in resp.get("results", []):
+        props = page.get("properties", {})
+        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+        status_obj = props.get("상태", {}).get("status")
+        status = status_obj.get("name", "") if status_obj else ""
+        if name:
+            out.append({"name": name, "status": status})
+    return out
+
+
+def reconcile_items(daily_items, notion_tasks):
+    """daily_items(각 {text, done}) 를 Notion status로 보정한다. 순수 함수.
+    반환: (보정된 item 리스트, done 카운트, total)"""
+    reconciled = []
+    done_count = 0
+    for it in daily_items:
+        text = it.get("text", "")
+        daily_done = bool(it.get("done", False))
+        matched = next((t for t in notion_tasks if match_daily_to_task(text, t["name"])), None)
+        notion_status = matched["status"] if matched else ""
+
+        if matched and notion_status == "완료":
+            effective_done, correction = True, ("daily-note-lag" if not daily_done else "")
+        elif matched and notion_status == "진행 중":
+            effective_done, correction = False, ("in-progress" if daily_done else "")
+        else:
+            effective_done, correction = daily_done, ""
+
+        if effective_done:
+            done_count += 1
+        reconciled.append({
+            "text": text,
+            "daily_done": daily_done,
+            "matched_task": matched["name"] if matched else None,
+            "notion_status": notion_status,
+            "effective_done": effective_done,
+            "correction": correction,
+        })
+    return reconciled, done_count, len(daily_items)
+
+
+def cmd_reconcile_progress(args):
+    """오늘 Daily Note 항목을 Notion status로 보정한 진행률을 출력한다.
+    실패 시 비-0 종료 → 호출 측(alfred)은 today 값으로 폴백한다."""
+    today_str = date.today().isoformat()
+    daily_file = os.path.join(OBSIDIAN_DAILY_DIR, f"{today_str}.md")
+    if not os.path.exists(daily_file):
+        print(json.dumps({"error": f"Daily note not found: {daily_file}"}, ensure_ascii=False))
+        sys.exit(1)
+
+    parsed = parse_obsidian_daily(daily_file)
+
+    # top3 + todos 합집합 (정규화 텍스트 기준 dedup) — SKILL check (C) "top3·todos 각 항목"
+    seen = set()
+    daily_items = []
+    for it in parsed["top3"] + parsed["todos"]:
+        key = _normalize_title(it.get("text", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        daily_items.append(it)
+
+    token = get_token()
+    # 활성(비-완료) + 최근 완료 100건 — 오늘 항목 매칭에 충분하도록 양쪽 모두 수집
+    active = query_tasks_by_status(token, status_not="완료")
+    completed = query_tasks_by_status(token, status_equals="완료")
+    notion_tasks = active + completed
+
+    reconciled, done, total = reconcile_items(daily_items, notion_tasks)
+    corrections = [r for r in reconciled if r["correction"]]
+
+    print(json.dumps({
+        "date": today_str,
+        "source": "reconciled(obsidian+notion)",
+        "corrected_progress": {
+            "done": done,
+            "total": total,
+            "rate": round(done / total, 2) if total > 0 else 0,
+        },
+        "daily_progress": parsed["progress"],   # 보정 전(참고용)
+        "items": reconciled,
+        "corrections": corrections,             # 보정이 일어난 항목만
+        "notion_counts": {"active": len(active), "completed_recent": len(completed)},
+    }, ensure_ascii=False, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Notion Task CLI (Read-only)")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -475,6 +621,12 @@ def main():
     # daily-progress
     subparsers.add_parser("daily-progress", help="Daily DB this week progress")
 
+    # reconcile-progress
+    subparsers.add_parser(
+        "reconcile-progress",
+        help="오늘 Daily Note 항목을 Notion status로 보정한 진행률(진실 소스) 출력",
+    )
+
     args = parser.parse_args()
 
     if args.command == "dashboard":
@@ -485,6 +637,8 @@ def main():
         cmd_today(args)
     elif args.command == "daily-progress":
         cmd_daily_progress(args)
+    elif args.command == "reconcile-progress":
+        cmd_reconcile_progress(args)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,8 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today*)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress*)
+  - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
   - Bash(python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Bash(bash /Users/changhwan/.claude/scripts/notify-slack.sh *)
@@ -147,13 +149,15 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$BRIEFING_TEXT"
 
 진행률 + **우선순위 드리프트**를 점검한다. Daily Note를 기본 소스로 쓰되, **claude-mem timeline으로 세션 작업을 교차 검증**해 Notion 상태와 실제 작업 간 괴리를 잡아낸다.
 
-### 0단계: alfred-state.json 현재 Task 확인
+### 0단계: alfred-state.json 최근 Task 확인
 
-`~/.claude/alfred-state.json` 파일을 Read로 읽는다.
-- 파일 있고 `started_at`이 8시간 이내: **활성 Task** = `current_task.name` / `page_id`
-- 파일 없거나 오래됨: 활성 Task 없음 (감지 불가 경로)
+```bash
+python3 /Users/changhwan/.claude/scripts/alfred-state.py get --max-age-hours 8
+```
+- 출력 `recent_tasks[]` = TTL(8h) 이내 **최근 작업 Task들**(최신순, 최대 5건). 하루에 여러 Task를 오갔다면 모두 잡힌다(단일 추적이던 블랙홀 제거).
+- 비어 있으면(파일 없음·모두 만료) 활성 Task 없음 (감지 불가 경로).
 
-이 값을 이후 단계의 교차 검증 기준으로 사용한다.
+이 목록을 이후 단계의 교차 검증 기준으로 사용한다.
 
 ### 1단계: Daily Note 기준 진행률
 
@@ -169,9 +173,10 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 **우선순위: state 파일 → timeline 순으로 감지한다.**
 
-**(A) alfred-state.json 기반 감지 (0단계에서 읽은 값 재사용)**
-- 활성 Task가 있고 Notion 상태가 "시작 전"이면 → 즉시 **상태 불일치**로 분류 (정확도 높음, TUI 경로).
-- 활성 Task가 있고 Notion 상태가 "진행 중"이면 → 정상 (이미 동기화됨).
+**(A) alfred-state.json 기반 감지 (0단계 `recent_tasks` 재사용)**
+- `recent_tasks` **각 Task**에 대해 Notion 상태를 대조한다:
+  - Notion 상태가 "시작 전"이면 → **상태 불일치**로 분류 (정확도 높음, TUI 경로).
+  - Notion 상태가 "진행 중"이면 → 정상 (이미 동기화됨).
 
 **(B) claude-mem timeline 보조 감지 (state 파일 없을 때)**
 
