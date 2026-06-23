@@ -26,6 +26,22 @@ allowed-tools:
 - **main 브랜치 직접 PR 생성 불가** — 별도 feature 브랜치 필요
 - **prod/global 변경 시 Draft 권고** — 사용자 최종 확인 후 결정
 - **리뷰어 자동 지정**: `src/ai-santa/` → `@riiid/mlops`, 나머지 → `@riiid/infra`
+- **PR title = squash 후 main의 유일한 history 줄** — `git:commit`의 subject 규칙과 동일 기준을 적용한다 (아래 Title 컨벤션 참조)
+
+## Title 컨벤션 (= git:commit subject 규칙과 정렬)
+
+이 레포는 PR squash merge다. main `git log`에 남는 건 **PR title 한 줄**이며, 사람과 LLM이 history·맥락을 파악하는 1차 소스다.
+따라서 title은 `git:commit`의 subject 규칙을 그대로 따른다:
+
+- 형식 `type(sphere/circle): subject` — `동작 + 대상 + (가능하면) 의도/효과`를 한 줄로 압축
+- 단순 `update N circles` / `update kubernetes manifests` / `Update X` 금지 — "왜/효과"를 한 조각 넣는다
+- 길이 ~72자 가이드
+- 원인 분석·해결 과정·롤백·blast radius는 title이 아닌 **PR 본문(Summary/테스트 플랜)**에 적는다 (커밋과 동일한 역할 분담)
+
+| generic (지양) | history-친화 (지향) |
+|----------------|---------------------|
+| `chore(santa): update 3 circles` | `chore(santa): bump auth/worker/gateway images to dev-4164f0a` |
+| `chore: update 5 circles across 2 spheres` | `fix: raise memory limits for tempo, loki to stop prod OOMKill` |
 
 ---
 
@@ -74,6 +90,11 @@ JSON 출력 필드:
 | 양쪽 모두 포함 | `riiid/infra,riiid/mlops` |
 
 ### Step 4 — PR 미리보기 및 사용자 확인
+
+먼저 `suggested_title`을 **Title 컨벤션** 기준으로 평가한다.
+스크립트는 다중 circle/sphere일 때 `update N circles` 같은 deterministic fallback을 낸다 —
+이런 generic title이면 diff와 커밋 내용을 근거로 `동작 + 대상 + 의도/효과`로 다듬은 뒤 미리보기에 반영한다.
+(단일 커밋 케이스는 커밋 subject가 그대로 흐르므로 추가 가공 불필요.)
 
 아래 형식으로 예정 PR을 출력한다:
 
