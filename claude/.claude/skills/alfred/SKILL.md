@@ -10,8 +10,8 @@ description: |
   PDS 운영 모델(Pick·Adjust·Deliver·Sustain)로 하루 전체 '일잘'을 돕는다.
   작업 완료 선언 시 done 전 "완료 게이트"(안심 4체크·점수화)로 '끝남'과 '동작함'을 구분한다.
   이번 주 Task 전체 조회·상태 변경·신규 생성과 Task 하위 Todo(로컬 TUI) + Daily Note Todos 통합 관리를 지원한다.
-  모드: briefing(아침 브리핑) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리).
-  직접 호출(슬래시/cron 전용): "/alfred", "/alfred briefing", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom".
+  모드: briefing(아침 브리핑) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리).
+  직접 호출(슬래시/cron 전용): "/alfred", "/alfred briefing", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom".
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks *)
@@ -25,8 +25,11 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
+  - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py record*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py *)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-nudge-state.py *)
+  - Bash(python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py *)
+  - Bash(bash /Users/changhwan/.claude/scripts/alfred-resume-launch.sh *)
   - Bash(python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Bash(bash /Users/changhwan/.claude/scripts/notify-slack.sh *)
@@ -64,6 +67,8 @@ allowed-tools:
 |------|------|------|
 | (없음) / `briefing` | 아침 브리핑 | 일정 + 우선순위 Task + 이월 후보 종합 |
 | `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (cron 경로) |
+| `resume` | 작업 픽업 → 새 세션 | 브리핑된 Task를 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용) |
+| `resume --task <page_id>` | 이어가기 로더 | 새 세션이 자동 실행 — Task+Todo+claude-mem 기억 요약 후 첫 액션 제안 |
 | `check` | 중간 점검 | 오늘 진행률만 가볍게 |
 | `groom` | 그루밍 (Triage) | 미분류 Task의 ROI를 판단·부여 (게이트된 자율성 — 승인 후 쓰기) |
 | `gate` / `done` | 완료 게이트 (Deliver) | "끝났다" 선언 시 done 전 안심 4체크·점수화 |
@@ -135,6 +140,17 @@ python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py update \
 - `first_run == true`이면 직전 기준이 없으므로 완료 보고를 생략한다("기준 스냅샷 생성됨"으로만 표기).
 - **실패 격리**: 비-0 종료면 완료 보고 섹션을 "조회 불가"로 표기하고 진행한다.
 
+이어서 **resume 픽업용 매니페스트**를 생성한다(브리핑 본문 번호 ↔ `/alfred resume` 번호가 항상 일치하도록 번호·repo를 결정론적으로 고정):
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json > /tmp/alfred-todos.json
+python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
+  --active-json /tmp/alfred-active.json \
+  --todos-json  /tmp/alfred-todos.json
+```
+- `/tmp/alfred-active.json`(B/E)·`/tmp/alfred-todos.json`(D)을 재사용한다 — 추가 Notion 호출 없음. **읽기 기반 join이라 Notion 상태를 변경하지 않는다**(브리핑 읽기 전용 원칙 유지).
+- 출력 `items[].n`이 "우선순위 Task" 섹션의 줄 번호가 된다(2단계에서 이 번호를 그대로 매긴다). 각 항목은 `~/workspace/riiid/<repo>` 단서(repo)와 하위 Todo를 담아, 나중에 `/alfred resume`가 동일 번호로 작업을 고르고 세션을 띄울 수 있게 한다.
+- **실패 격리**: 비-0 종료여도 브리핑은 계속한다(매니페스트가 없으면 resume picker가 자체 재생성한다).
+
 **(F) 후속 액션 (follow-up) — TUI todo_store (스크립트)**
 
 소스 (D)에서 이미 받은 `list-all-todos` 결과를 재사용한다(추가 호출 없음). `repo == "follow-up"` & `done == false` 항목을 후속 액션으로 추린다.
@@ -170,10 +186,10 @@ python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py update \
 - ⊘ {종료/이동 추정 Task명}        ← 차분 closed_unknown (아카이브·이동 가능성, 확인 권고)
   (completed+closed_unknown 0건이면 "지난 브리핑 이후 종료된 항목 없습니다." / first_run이면 "기준 스냅샷을 생성했습니다(다음 브리핑부터 완료 보고).")
 
-우선순위 Task (ROI 순, 상위 {N}건 / 활성 {전체}건)
-- [개인][ROI High][P1] {이름} — due {MM/DD}  · 안 하면: {한 줄 — 무엇이 막히나}
-- [회사][ROI High][P2] {이름} — due {없음}
-- [회사][ROI Med][P2] {이름} — due {MM/DD}
+우선순위 Task (ROI 순, 상위 {N}건 / 활성 {전체}건 · `/alfred resume`로 번호 선택)
+1. [개인][ROI High][P1] {이름} — due {MM/DD}  · 안 하면: {한 줄 — 무엇이 막히나}
+2. [회사][ROI High][P2] {이름} — due {없음}
+3. [회사][ROI Med][P2] {이름} — due {MM/DD}
   (… 외 {M}건)
 
 로컬 Todo (TUI todo_store)
@@ -199,6 +215,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py update \
 - **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다. **due ≤ 오늘 항목은 Notion·TUI 두 소스를 합쳐(union) 점검**한다 — 한 소스에만 있어도 누락하지 않는다.
 - **소스 중복 제거**: 같은 항목이 Notion(B)·TUI(D)에 모두 있으면 한 번만 노출하되, 둘 중 due가 있는 쪽을 채택한다(이름 유사 매칭). 로컬 Todo 섹션은 TUI 고유 항목 위주로 보여 중복 노이즈를 줄인다.
 - **Pick(옳은 일)**: Task는 due가 아니라 **ROI(가치/노력) 순**으로 줄 세운다. ROI 필드가 1차 정렬 키, Priority가 2차다. 최상단 1건에만 "안 하면 무엇이 막히나"를 한 줄 단다(푸시 DM 과부하 방지). 권고 시 '본질 해결 vs 증상 대응'을 구분해 말한다.
+- **번호 = 매니페스트 `n`**: "우선순위 Task" 줄 번호는 (E)에서 만든 `alfred-briefing-latest.json`의 `items[].n`과 동일 순서·동일 번호여야 한다. 매니페스트 빌더가 같은 정렬 키를 쓰므로 그대로 1, 2, 3…으로 매긴다. 사용자는 이 번호를 `/alfred resume`에서 그대로 골라 작업 세션을 연다.
 - **회사/개인 구분**: 각 Task 줄 앞에 `[개인]`(Group=MY) / `[회사]`(Group=WORK) 라벨을 붙여 성격을 드러낸다(정렬 키는 ROI 그대로 — 라벨은 표시만). 개인 Task는 `/alfred calendar`로 캘린더에 동기화할 수 있음을 권고 줄에서 가볍게 환기할 수 있다.
 - **미분류 가시화**: ROI 미부여 Task가 묻히지 않도록 건수를 항상 노출하고 groom으로 유도한다. 단, 브리핑에서 ROI를 임의로 부여하지 않는다(쓰기는 groom에서 승인 후에만).
 - **이번 주 일정(B)**: 오늘은 상세(시간·제목), 내일~일요일은 날짜별 헤드라인으로 압축한다(하루 2건+초과는 "외 N건"). 이번 주 안의 **준비가 필요한 회의·외부 일정**이나 **오늘 일정과의 충돌**이 보이면 본문이 아니라 [주의]로 끌어올린다.
@@ -215,6 +232,76 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$BRIEFING_TEXT"
 ```
 - `notify-slack.sh`는 본인(U098T8A1XL0)에게 발송하며 실패해도 `exit 0`(에러 로그만 남김).
 - `--push` 가 없으면 발송하지 않고 화면 출력만 한다.
+
+---
+
+## 워크플로우 — resume (작업 픽업 → 새 세션, Pick → Deliver)
+
+브리핑(Pick)과 실제 착수(Deliver) 사이의 단절을 잇는다. 브리핑이 남긴 매니페스트에서 작업을
+**번호로 고르면**, 그 작업의 올바른 repo에 **새 Claude 세션을 띄우고** Task·Todo·과거 기록을
+요약해 "여기서부터 이어갑니다"를 제시한다. 인자 유무로 두 단계를 가른다.
+
+### picker 단계 — `/alfred resume` (인자 없음)
+
+1. **매니페스트 로드**: `python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py get` 으로 `alfred-briefing-latest.json`을 읽는다.
+   - 비었거나(`items` 없음) `generated_at`이 **16시간 초과**(오늘 아침 브리핑이 없었음)면 fresh 질의로 재생성한다:
+     ```bash
+     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active > /tmp/alfred-active.json
+     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json > /tmp/alfred-todos.json
+     python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build --active-json /tmp/alfred-active.json --todos-json /tmp/alfred-todos.json
+     ```
+2. **헤드리스 가드**: `--push`/cron 등 비대화형 호출이면 picker를 띄우지 않는다. "인터랙티브 세션에서 `/alfred resume`를 실행하세요" 한 줄만 출력하고 종료(무인 상태에서 세션 launch를 시도하지 않는다).
+3. **번호 목록 출력**(🎩 톤, 결론 먼저):
+   ```
+   🎩 오늘 브리핑된 작업 — 어느 것을 이어가시겠습니까?
+    1  [회사][P1] GPU Operator 이관      · due 06/24  · repo: kubernetes
+    2  [개인][P2] 온콜 SOP 정리           · due 06/30  · repo: (미지정)
+    3  [회사][P2] VictoriaMetrics 릴리스   · due 06/30  · repo: kubernetes
+   번호를 말씀해 주시면 해당 repo에 새 세션을 띄웁니다.
+   ```
+4. **선택 → launch**: 사용자가 번호를 고르면 그 항목의 `page_id`로 런처를 호출한다:
+   ```bash
+   bash /Users/changhwan/.claude/scripts/alfred-resume-launch.sh <page_id>
+   ```
+   - 런처가 repo→`~/workspace/riiid/<repo>`를 해석해 새 cmux 세션을 띄우고 초기 프롬프트 `/alfred resume --task <page_id>`를 주입한다.
+   - **exit 2(`AMBIGUOUS_DIR`)**: repo 단서가 없다(흔한 경우 — Notion Task엔 repo 필드가 없고, repo는 Task-scoped Todo에 달린 경우에만 자동 해석된다). 이때 **1회** `AskUserQuestion`으로 작업 디렉터리를 묻되, **무료 입력이 아니라 알려진 repo를 원클릭 선택**으로 제시한다:
+     - 옵션: `kubernetes`(추천 — 가장 흔한 작업 repo) / `k8s-on-premise` / `terraform` / `.claude`. (그 외는 "Other"로 경로 직접 입력)
+     - 선택 repo를 경로로 환산해(`kubernetes`→`~/workspace/riiid/kubernetes`, `.claude`→`~/.claude`) 재호출한다:
+       ```bash
+       bash /Users/changhwan/.claude/scripts/alfred-resume-launch.sh <page_id> --dir <선택 경로>
+       ```
+   - exit 3/4(매니페스트·항목 없음)면 매니페스트 재생성을 안내한다.
+5. launch 성공 후엔 "새 세션을 띄웠습니다 — 그쪽 창에서 이어가십시오." 한 줄로 마친다(이 세션에서 작업을 계속하지 않는다).
+
+### loader 단계 — `/alfred resume --task <page_id>` (새 세션이 자동 실행)
+
+런처가 띄운 새 세션의 첫 입력으로 들어온다. **읽기 전용** — 컨텍스트를 모아 보여줄 뿐 상태를 바꾸지 않는다.
+
+1. **Task 메타 회수**: 매니페스트(`alfred-briefing-manifest.py get`)에서 `page_id` 항목의 name/priority/roi/due_date를 꺼낸다(추가 Notion 호출 없음).
+2. **최신 Todo 재로드**: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos --task <page_id>` 로 그 사이 바뀌었을 수 있는 Todo를 최신화한다.
+3. **과거 기록 — claude-mem**: `mcp__plugin_claude-mem_mcp-search__timeline` 또는 검색으로 Task명 키워드 관련 과거 작업 **3~5건**을 추린다(지난번 어디까지 했는지). 결과가 없으면 "이전 작업 기록 없음"으로 생략.
+4. **출력**(🎩 톤):
+   ```
+   🎩 이어갑니다: {Task명} ({priority}, ROI {roi}) — due {MM/DD}
+
+   할 일 (TUI Todo)
+   □ {미완료 todo}
+   □ {미완료 todo}
+   ✓ {완료 todo}
+
+   지난 기록 (claude-mem)
+   · {YYYY-MM-DD} {요약}
+   · {YYYY-MM-DD} {요약}
+
+   → 첫 손댈 곳: {한 줄 권고 — 생산성 우선, 트레이드오프 명시}
+   ```
+5. 끝에 "막히는 부분이 있으면 말씀해 주십시오." 한 줄. 이후부터는 일반 작업 세션으로 전환된다(메인 Claude가 실제 작업 수행).
+
+### resume 경계
+
+- picker의 **launch는 인터랙티브에서만** 한다(헤드리스 가드). 새 세션을 띄우는 것은 사용자 명시 선택(번호 입력) 뒤에만 발생하는 부수효과다.
+- loader는 **읽기 전용**: Todo 완료 처리·Notion 상태 변경을 자동으로 하지 않는다(그건 `/alfred task`·`gate`의 몫). 이어가기 맥락만 제시한다.
+- 디렉터리가 모호하면 **임의로 추측하지 않고** 1회 확인한다(엉뚱한 repo에서 세션이 열리는 것 방지).
 
 ---
 

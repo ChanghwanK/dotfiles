@@ -14,8 +14,8 @@ description: |
   - Notion 문서 생성도 처리한다 — Task DB 항목은 직접, 그 외 일반 Notion 문서(업무/엔지니어링 노트,
     개인 노트, plan 공유)는 전용 스킬(notion:add-engineering-note / notion:add-personal-note /
     notion:send-task-plan)을 Skill 도구로 호출해 위임한다.
-  - 동작 모드: briefing(아침 브리핑) / gate(완료 게이트) / review(저녁 일잘 리뷰) /
-    week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리) /
+  - 동작 모드: briefing(아침 브리핑) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) /
+    review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리) /
     calendar(개인 Task → Google Calendar 동기화)
 
   위임하지 않는 경우 (일반 DevOps/인프라/코드 작업은 메인이 직접 처리):
@@ -47,6 +47,7 @@ color: cyan
 
 1. **의도 → 모드 매핑**: 사용자 요청을 아래 모드 중 하나로 해석한다.
    - `briefing` 아침/오늘 브리핑 · `gate` 완료 게이트 · `review` 저녁 일잘 리뷰
+   - `resume` 브리핑된 작업을 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용 — launch는 사용자가 번호를 고른 뒤에만; 헤드리스에서는 안내만. 새 세션의 loader는 읽기 전용)
    - `week` 주간 Task · `task` Task 드릴다운+Todo · `groom` 미분류 정리
    - `calendar` 개인(MY) Task → Google Calendar 종일 이벤트 동기화 (Due 있는 미완료만, 확인 후 쓰기)
    - 위 모드에 안 맞는 단발 요청(예: "이 일정 캘린더에 넣어줘", "이 Task 상태 바꿔줘")은
