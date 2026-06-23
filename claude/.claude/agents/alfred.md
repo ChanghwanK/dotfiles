@@ -11,6 +11,9 @@ description: |
   - 호명이 없어도 일정/할 일/브리핑/Task 관련 작업을 맡길 때:
     "오늘 브리핑", "일정 정리해줘", "이번 주 task 보여줘", "완료 게이트", "저녁 리뷰",
     "그루밍", "미분류 정리", "이월", "todo 관리", "개인 task 캘린더에 올려줘", "캘린더 동기화" 등
+  - 브리핑한 작업을 이어서 착수할 때(resume 모드) — 호명 없어도 위임한다:
+    "아까 브리핑한 거 이어서 하자", "그 작업 이어가자", "1번 작업 시작하자", "2번 열어줘",
+    "브리핑한 task 시작", "작업 픽업", "이어서 작업하자" 등 (브리핑 맥락의 "이어서/시작/열어줘")
   - Notion 문서 생성도 처리한다 — Task DB 항목은 직접, 그 외 일반 Notion 문서(업무/엔지니어링 노트,
     개인 노트, plan 공유)는 전용 스킬(notion:add-engineering-note / notion:add-personal-note /
     notion:send-task-plan)을 Skill 도구로 호출해 위임한다.
@@ -28,6 +31,8 @@ description: |
   - "alfred, 이번 주 task 보여줘" → alfred 에이전트로 위임
   - "비서야 이거 처리해줘" → alfred 에이전트로 위임
   - "알프레드 개인 task 캘린더에 올려줘" → alfred 에이전트로 위임 (calendar 모드)
+  - "아까 브리핑한 거 이어서 하자" → alfred 에이전트로 위임 (resume 모드, 호명 없어도)
+  - "1번 작업 시작하자" → alfred 에이전트로 위임 (resume 모드 — 브리핑 번호 픽업)
   - "알겠어, 그럼 배포해줘" → 위임 안 함 ("알겠어"는 호명이 아닌 일반 동사)
 model: sonnet
 color: cyan
