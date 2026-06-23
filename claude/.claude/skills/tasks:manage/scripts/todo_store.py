@@ -406,8 +406,19 @@ def cmd_list_all_todos(args):
     repo_filter = getattr(args, "repo", None)
     if repo_filter:
         todos = [t for t in todos if repo_of(t) == repo_filter]
-    todos.sort(key=lambda t: t.get("created_at", ""), reverse=True)
-    todos.sort(key=lambda t: (TODO_STATUS_SORT.get(_get_status(t), 1), repo_of(t), ctx_of(t)))  # stable
+    # 상태 필터 — active(남은 것만)·done(완료만)·all(전체). Todos 탭은 active,
+    # Done 탭은 done으로 호출한다. 기본 all은 json 조회 등 다른 호출자 호환용.
+    status_filter = getattr(args, "status_filter", None) or "all"
+    if status_filter == "active":
+        todos = [t for t in todos if _get_status(t) != "완료"]
+    elif status_filter == "done":
+        todos = [t for t in todos if _get_status(t) == "완료"]
+    if status_filter == "done":
+        # 완료 전용 뷰는 최근 완료순(updated_at) — "오늘 뭘 끝냈나" 회고에 맞춘 정렬.
+        todos.sort(key=lambda t: t.get("updated_at", ""), reverse=True)
+    else:
+        todos.sort(key=lambda t: t.get("created_at", ""), reverse=True)
+        todos.sort(key=lambda t: (TODO_STATUS_SORT.get(_get_status(t), 1), repo_of(t), ctx_of(t)))  # stable
     if args.format == "json":
         print(json.dumps({"todos": [{**t, "context": ctx_of(t), "repo": repo_of(t)} for t in todos]},
                          ensure_ascii=False, indent=2))
@@ -1019,6 +1030,9 @@ def main():
     la = sub.add_parser("list-all-todos")
     la.add_argument("--format", choices=["fzf", "json"], default="fzf")
     la.add_argument("--repo", default=None, help="해당 repo의 Todo만 필터")
+    la.add_argument("--status-filter", dest="status_filter",
+                    choices=["active", "done", "all"], default="all",
+                    help="active=미완료만, done=완료만, all=전체(기본)")
 
     gt = sub.add_parser("get")
     gt.add_argument("--id", required=True)

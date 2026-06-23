@@ -312,23 +312,26 @@ todo_menu() {
 TAB="todos"
 NAV=""           # 탭 함수가 "quit"을 세우면 최상위 루프 종료
 REPO_FILTER=""   # Todos 탭의 repo 필터 (빈값 = 전체)
+TODOS_FILTER="active" # Todos 탭 상태 필터 — active=남은 것만(기본) / all=완료 포함. ctrl-f 토글
 PRIO_FILTER="P1" # Tasks 탭의 우선순위 필터 (P1|P2|P3|P4|"" 전체)
 TODAY_OVERDUE="0" # Today 탭의 지남(overdue) 표시 여부 (0=숨김 기본, 1=표시 / ctrl-o 토글)
 
 tab_bar() {
-  local a="○Todos" b="○Tasks" c="○Today"
+  local a="○Todos" b="○Done" c="○Tasks" d="○Today"
   case "$TAB" in
     todos) a="●Todos" ;;
-    tasks) b="●Tasks" ;;
-    today) c="●Today" ;;
+    done)  b="●Done" ;;
+    tasks) c="●Tasks" ;;
+    today) d="●Today" ;;
   esac
-  echo "[ $a │ $b │ $c ]"
+  echo "[ $a │ $b │ $c │ $d ]"
 }
 
-# ctrl-t/tab: todos → tasks → today → todos 순환
+# ctrl-t/tab: todos → done → tasks → today → todos 순환
 next_tab() {
   case "$TAB" in
-    todos) TAB="tasks" ;;
+    todos) TAB="done" ;;
+    done)  TAB="tasks" ;;
     tasks) TAB="today" ;;
     today) TAB="todos" ;;
   esac
@@ -440,12 +443,13 @@ tasks_tab() {
   esac
 }
 
-# 현재 repo 필터를 적용해 평면 Todo 목록을 만든다(빈값이면 전체).
+# 상태 필터($1: active|done|all, 기본 all)와 repo 필터를 적용해 평면 Todo 목록을 만든다.
 list_todos_filtered() {
+  local status="${1:-all}"
   if [ -n "$REPO_FILTER" ]; then
-    python3 "$STORE" list-all-todos --format fzf --repo "$REPO_FILTER"
+    python3 "$STORE" list-all-todos --format fzf --status-filter "$status" --repo "$REPO_FILTER"
   else
-    python3 "$STORE" list-all-todos --format fzf
+    python3 "$STORE" list-all-todos --format fzf --status-filter "$status"
   fi
 }
 
@@ -574,18 +578,20 @@ print('\n'.join(('[x] ' if t.get('done') else '[ ] ')+t.get('title','') for t in
 
 # Todos 탭: 모든 Todo를 평면으로 — 소속 Task/Backlog + [repo] 표시, ctrl-g로 repo 필터
 todos_tab() {
-  local out key line todo_id cur t fhdr
+  local out key line todo_id cur t fhdr flabel
   fhdr=${REPO_FILTER:+ [repo:$REPO_FILTER]}
-  out=$(list_todos_filtered \
+  [ "$TODOS_FILTER" = "all" ] && flabel=" [필터:전체]" || flabel=" [필터:남은것]"
+  out=$(list_todos_filtered "$TODOS_FILTER" \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-          --header="$(tab_bar)$fhdr  enter:Claude열기  space:상태전환(□▷✓)  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
+          --header="$(tab_bar)$fhdr$flabel  enter:Claude열기  space:상태전환(□▷✓)  ctrl-f:완료포함토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-f,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
     enter)  [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
     tab|ctrl-t) next_tab ;;
+    ctrl-f)  case "$TODOS_FILTER" in active) TODOS_FILTER="all" ;; *) TODOS_FILTER="active" ;; esac ;;
     space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
     ctrl-a)  t=$(prompt_input "새 Backlog todo"); [ -n "$t" ] && python3 "$STORE" add --task __backlog__ --title "$t" ${REPO_FILTER:+--repo "$REPO_FILTER"} >/dev/null ;;
     ctrl-e)  [ -z "$todo_id" ] && return
@@ -652,10 +658,33 @@ today_tab() {
   esac
 }
 
+# Done 탭: 완료된 Todo 전용 — 최근 완료순. "오늘/이번주 뭘 끝냈나" 회고 + 재오픈용.
+# active 기본인 Todos 탭에서 숨겨진 완료 항목을 여기서 한 화면에 모아 본다.
+done_tab() {
+  local out key line todo_id
+  out=$(list_todos_filtered done \
+    | fzf --delimiter='\t' --with-nth='2..' --ansi \
+          --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
+          --header="$(tab_bar)  완료 Todo(최근순)  enter:Claude열기  space:재오픈(✓→□)  ctrl-t:탭전환  ctrl-d:삭제  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-d,ctrl-l,ctrl-r)
+  if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
+  key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
+  case "$key" in
+    enter)  [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
+    tab|ctrl-t) next_tab ;;
+    space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;  # 완료→시작전(재오픈)
+    ctrl-d)  [ -z "$todo_id" ] && return
+             prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
+    ctrl-l)  : ;;  # no-op → while loop 재진입으로 재렌더
+    ctrl-r)  run_sync ;;
+  esac
+}
+
 main_menu() {
   NAV=""
   while true; do
     case "$TAB" in
+      done)  done_tab ;;
       tasks) tasks_tab ;;
       today) today_tab ;;
       *)     todos_tab ;;
