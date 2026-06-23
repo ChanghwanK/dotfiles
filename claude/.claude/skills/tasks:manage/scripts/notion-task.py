@@ -12,7 +12,7 @@ Usage:
   python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료 — 캘린더 동기화 대상
 
   # 생성
-  python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"]
+  python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"] [--body "Markdown" | --body-file PATH]
 
   # ROI 설정 (Alfred groom — 사용자 승인 후)
   python3 notion-task.py set-roi --page-id <id> --roi High|Medium|Low
@@ -306,6 +306,24 @@ def cmd_create_task(args):
     if roi and roi not in ROI_OPTIONS:
         _exit_error(f"Invalid ROI '{roi}'. Valid: {sorted(ROI_OPTIONS)}")
 
+    # 본문 템플릿(Summary/Why/기대효과/Non-Goals)을 미리 파싱해 fail-fast.
+    # 페이지 POST 전에 검증해야 본문 누락된 반쪽 Task가 생기지 않는다.
+    # --body(인라인)와 --body-file 중 파일 우선. 둘 다 없으면 본문 템플릿 생략.
+    body_blocks = []
+    body_file = getattr(args, "body_file", None)
+    body_inline = getattr(args, "body", None)
+    body_md = None
+    if body_file:
+        try:
+            with open(body_file, "r", encoding="utf-8") as f:
+                body_md = f.read()
+        except OSError as e:
+            _exit_error(f"본문 템플릿 파일을 읽을 수 없습니다: {body_file} ({e})")
+    elif body_inline:
+        body_md = body_inline
+    if body_md:
+        body_blocks = markdown_to_blocks(body_md)
+
     properties = {
         "이름": {
             "title": [{"text": {"content": name}}]
@@ -340,8 +358,9 @@ def cmd_create_task(args):
     result = notion_request(token, "POST", "/pages", body)
     page_id = result.get("id", "")
 
-    # 업무 노트 리마인더 + 이미지 블록 추가
-    children_blocks = [
+    # 본문 템플릿(있으면) → 업무 노트 리마인더 → 이미지 블록 순서로 본문 구성.
+    # 템플릿이 페이지 최상단에 오도록 callout 앞에 prepend 한다.
+    children_blocks = body_blocks + [
         {
             "object": "block",
             "type": "callout",
@@ -751,7 +770,12 @@ def main():
     ct.add_argument("--due", default=None, help="마감일 (YYYY-MM-DD)")
     ct.add_argument("--roi", default=None, choices=sorted(ROI_OPTIONS),
                     help="ROI 버킷 (선택). 미지정 시 groom 대상으로 남음")
-    ct.add_argument("--description", default=None, help="부연 설명")
+    ct.add_argument("--description", default=None, help="부연 설명 (Description 속성)")
+    ct.add_argument("--body", dest="body", default=None,
+                    help="본문 템플릿 Markdown 문자열 (Summary/Why/기대효과/Non-Goals). "
+                         "본격 Task에만 사용 — 페이지 본문 최상단에 렌더링")
+    ct.add_argument("--body-file", dest="body_file", default=None,
+                    help="본문 템플릿 Markdown 파일 경로 (--body 대신 파일로 전달). 파일 우선")
     ct.add_argument("--image", dest="images", action="append", default=None,
                     help="이미지 URL 또는 로컬 파일 경로 (여러 번 사용 가능)")
 
