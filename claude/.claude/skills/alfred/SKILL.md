@@ -25,6 +25,8 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
+  - Bash(python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py *)
+  - Bash(python3 /Users/changhwan/.claude/scripts/alfred-nudge-state.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Bash(bash /Users/changhwan/.claude/scripts/notify-slack.sh *)
@@ -68,18 +70,20 @@ allowed-tools:
 | `review` | 저녁 일잘 리뷰 (Sustain) | 가시성·레버리지·소진 3점검 후 `daily:review`로 인계 |
 | `week` | 주간 Task 관리 | 이번 주 Task 전체 뷰 + 상태 변경·신규 생성 자율 실행 |
 | `task <Task명>` | Task 드릴다운 + Todo 관리 | 특정 Task의 TUI Todo + Daily Note Todos 통합 조회·추가·완료 처리 자율 실행 |
+| `calendar` | 개인 Task 캘린더 동기화 | 개인(MY)+Due+미완료 Task를 Google Calendar 종일 이벤트로 reconcile (확인 후 쓰기) |
 
 ---
 
 ## 워크플로우 — briefing (기본)
 
-### 1단계: 데이터 수집 (3개 소스, 실패는 개별 격리)
+### 1단계: 데이터 수집 (6개 소스, 실패는 개별 격리)
 
-**(A) 오늘 일정 — 캘린더 (best-effort)**
+**(A) 일정 — 캘린더: 오늘 + 이번 주 (best-effort)**
 
-`mcp__claude_ai_Google_Calendar__list_events` 로 오늘(`Asia/Seoul`) 일정을 조회한다.
-- `calendarId = changhwan.kim@socra.ai`, 오늘 00:00~24:00 범위.
-- **MCP 도구가 없거나 실패하면** → 캘린더 섹션을 "조회 불가(인터랙티브 세션에서 확인 권장)"로 표기하고 다음 단계로 넘어간다. 중단하지 않는다.
+`mcp__claude_ai_Google_Calendar__list_events` 로 **오늘부터 이번 주 일요일까지**(`Asia/Seoul`) 일정을 한 번에 조회한다.
+- `calendarId = changhwan.kim@socra.ai`, 범위 = 오늘 00:00 ~ 이번 주 일요일 24:00.
+- 수집 후 **오늘**과 **내일~일요일**로 클라이언트에서 분리한다. 오늘은 상세, 나머지는 날짜별 헤드라인으로 렌더(2단계 템플릿 참조).
+- **MCP 도구가 없거나 실패하면** → 일정 섹션(오늘·이번 주 모두)을 "조회 불가(인터랙티브 세션에서 확인 권장)"로 표기하고 다음 단계로 넘어간다. 중단하지 않는다.
 
 **(B) 우선순위 Task — Notion (스크립트)**
 
@@ -98,6 +102,50 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carr
 ```
 - 지난 주 미완료 = 오늘 챙겨야 할 잔여 작업. **dry-run만** 한다(적용 금지).
 
+**(D) 로컬 Todo — TUI todo_store (스크립트)**
+
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-tasks --format json
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json
+```
+- **Notion(B)와 별개 소스다.** TUI store에만 있거나 Notion에서 누락된 due 항목을 여기서 보강한다. (B)만 보면 오늘 마감 항목이 통째로 빠질 수 있다 — 반드시 둘 다 수집한다.
+- `list-tasks` → `tasks[]`: 각 항목 `name`/`priority`/`status`/`due_date`/`todo_done`/`todo_count`. `page_id == "__backlog__"`(name `📥 Todos`)는 Backlog 버킷 집계.
+- `list-all-todos` → `todos[]`: Backlog + Task-scoped 개별 Todo. 각 항목 `title`/`done`/`due`/`status`/`task_page_id`/`repo`.
+- **추출 규칙**: `done == false`인 항목 중 **`due`(또는 `due_date`)가 오늘(`Asia/Seoul`) 이하**인 것은 **전부** 수집한다(만료 포함). due 없는 항목은 진행중(`status`) 우선으로 요약.
+- **실패 격리**: 비-0 종료면 로컬 Todo 섹션을 "조회 불가"로 표기하고 다음 단계로 넘어간다. 중단하지 않는다.
+
+**(E) 이번 주 Task 버킷 + 완료 보고 차분 — Notion (스크립트)**
+
+먼저 이번 주 Task 전체를 조회한다(완료 버킷 = 차분의 "완료 확정" 소스 + 주간 맥락용):
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks --week current --status all > /tmp/alfred-week.json
+```
+- 출력 `tasks.{in_progress,upcoming,waiting,completed}`. 각 항목 `page_id`/`name`/`priority`/`status`/`due_date`/`roi`/`tags`.
+
+이어서 직전 브리핑 스냅샷과 차분해 **"지난 브리핑 이후 끝난 것"** 을 가려낸다(완료 보고):
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active > /tmp/alfred-active.json
+python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py update \
+  --active-json /tmp/alfred-active.json \
+  --completed-json /tmp/alfred-week.json
+```
+- `/tmp/alfred-active.json`은 소스 (B)와 동일 데이터다 — (B)를 이미 파일로 저장했다면 재호출 없이 재사용한다(Notion 호출 절약).
+- 차분 출력: `first_run`(첫 실행 여부) · `completed`(완료 확정) · `closed_unknown`(아카이브·이동 추정) · `newly_added`(신규 등장).
+- **`update`는 호출 즉시 스냅샷을 현재 active로 갱신한다.** 따라서 브리핑당 **정확히 1회만** 호출한다(중복 호출 시 두 번째는 차분이 비어 보인다).
+- `first_run == true`이면 직전 기준이 없으므로 완료 보고를 생략한다("기준 스냅샷 생성됨"으로만 표기).
+- **실패 격리**: 비-0 종료면 완료 보고 섹션을 "조회 불가"로 표기하고 진행한다.
+
+**(F) 후속 액션 (follow-up) — TUI todo_store (스크립트)**
+
+소스 (D)에서 이미 받은 `list-all-todos` 결과를 재사용한다(추가 호출 없음). `repo == "follow-up"` & `done == false` 항목을 후속 액션으로 추린다.
+- 각 후속 항목에 대해 경과일수·노출횟수를 부여한다(알림 피로 방지):
+  ```bash
+  python3 /Users/changhwan/.claude/scripts/alfred-nudge-state.py bump --id "<todo id>"
+  ```
+  반환 `days_since_first`/`shown_count`로 "(N일째 미처리)"·정리 권장 플래그를 만든다(2단계 참조).
+- 후속 항목이 0건이면 nudge bump도 호출하지 않고 해당 섹션을 생략한다.
+- **실패 격리**: bump 실패는 무시하고 항목만 경과일수 없이 노출한다.
+
 ### 2단계: 합성 — Alfred 톤 브리핑
 
 수집 데이터를 아래 구조로 합성한다. 데이터 나열이 아니라 **판단을 담는다**.
@@ -107,16 +155,36 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carr
 
 [주의]
 - (일정 충돌 / 오늘 마감(D-day) / 준비 임박 회의가 있으면 여기 한두 줄. 없으면 "특이사항 없습니다.")
+- **due ≤ 오늘인 P1·P2 항목(Notion·TUI 어느 소스든)은 ROI 정렬과 무관하게 여기 최상단에 무조건 올린다** — 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
 
-일정 ({N}건)
+오늘 일정 ({N}건)
 - HH:MM–HH:MM  {제목}
   (조회 불가 시: "캘린더 조회 불가 — 인터랙티브 세션에서 확인 권장")
 
+이번 주 일정 (내일~일요일)
+- MM/DD (요일): HH:MM {제목} / HH:MM {제목}  (하루 최대 2건, 초과분은 "외 N건")
+  (해당 기간 일정 없으면 "이번 주 남은 일정 없습니다.". 조회 불가 시 이 섹션도 함께 "조회 불가")
+
+완료 보고 (지난 브리핑 이후)
+- ✓ {완료 Task명}                 ← 차분 completed
+- ⊘ {종료/이동 추정 Task명}        ← 차분 closed_unknown (아카이브·이동 가능성, 확인 권고)
+  (completed+closed_unknown 0건이면 "지난 브리핑 이후 종료된 항목 없습니다." / first_run이면 "기준 스냅샷을 생성했습니다(다음 브리핑부터 완료 보고).")
+
 우선순위 Task (ROI 순, 상위 {N}건 / 활성 {전체}건)
-- [ROI High][P1] {이름} — due {MM/DD}  · 안 하면: {한 줄 — 무엇이 막히나}
-- [ROI High][P2] {이름} — due {없음}
-- [ROI Med][P2] {이름} — due {MM/DD}
+- [개인][ROI High][P1] {이름} — due {MM/DD}  · 안 하면: {한 줄 — 무엇이 막히나}
+- [회사][ROI High][P2] {이름} — due {없음}
+- [회사][ROI Med][P2] {이름} — due {MM/DD}
   (… 외 {M}건)
+
+로컬 Todo (TUI todo_store)
+- [D-day] {title} — due {MM/DD}  · {Backlog / Task: 상위Task명}
+- [진행중] {title} — {repo}
+  (오늘 이하 due 미완료는 전부 노출. 그 외는 진행중 우선 요약. 조회 불가 시: "로컬 Todo 조회 불가")
+
+후속 액션 리마인드 ({M}건)
+- {title}  ({N}일째 미처리)
+- {title}  ({N}일째 — 아직 유효합니까? 정리 권합니다)   ← days_since_first ≥ 5 일 때
+  (0건이면 이 섹션 전체를 생략한다)
 
 이월 후보 ({M}건)
 - [P{n}] {이름} — 기존 due {MM/DD}
@@ -128,9 +196,14 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carr
 — 무엇부터 손대실지 한 줄 권고 (생산성 우선, 트레이드오프 명시). 끝에 "Daily Note를 만들까요?" 유도.
 ```
 
-- **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다.
+- **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다. **due ≤ 오늘 항목은 Notion·TUI 두 소스를 합쳐(union) 점검**한다 — 한 소스에만 있어도 누락하지 않는다.
+- **소스 중복 제거**: 같은 항목이 Notion(B)·TUI(D)에 모두 있으면 한 번만 노출하되, 둘 중 due가 있는 쪽을 채택한다(이름 유사 매칭). 로컬 Todo 섹션은 TUI 고유 항목 위주로 보여 중복 노이즈를 줄인다.
 - **Pick(옳은 일)**: Task는 due가 아니라 **ROI(가치/노력) 순**으로 줄 세운다. ROI 필드가 1차 정렬 키, Priority가 2차다. 최상단 1건에만 "안 하면 무엇이 막히나"를 한 줄 단다(푸시 DM 과부하 방지). 권고 시 '본질 해결 vs 증상 대응'을 구분해 말한다.
+- **회사/개인 구분**: 각 Task 줄 앞에 `[개인]`(Group=MY) / `[회사]`(Group=WORK) 라벨을 붙여 성격을 드러낸다(정렬 키는 ROI 그대로 — 라벨은 표시만). 개인 Task는 `/alfred calendar`로 캘린더에 동기화할 수 있음을 권고 줄에서 가볍게 환기할 수 있다.
 - **미분류 가시화**: ROI 미부여 Task가 묻히지 않도록 건수를 항상 노출하고 groom으로 유도한다. 단, 브리핑에서 ROI를 임의로 부여하지 않는다(쓰기는 groom에서 승인 후에만).
+- **이번 주 일정(B)**: 오늘은 상세(시간·제목), 내일~일요일은 날짜별 헤드라인으로 압축한다(하루 2건+초과는 "외 N건"). 이번 주 안의 **준비가 필요한 회의·외부 일정**이나 **오늘 일정과의 충돌**이 보이면 본문이 아니라 [주의]로 끌어올린다.
+- **완료 보고(E)**: 차분 `completed`는 "✓ 끝남"으로 단정하되, `closed_unknown`은 "⊘ 종료/이동 추정"으로 **확정하지 않고** 확인을 권한다(아카이브·주간 이동일 수 있음). `first_run`이면 완료 보고 대신 "기준 스냅샷 생성" 한 줄만 남긴다.
+- **후속 액션(F)**: `repo==follow-up` 미처리 항목을 경과일수와 함께 리마인드한다. `days_since_first ≥ 5`면 "아직 유효합니까? 정리 권합니다"로 격상해 **방치된 후속을 정리하도록** 민다(쌓이기만 하는 백로그 방지). 항목이 0건이면 섹션을 생략해 잔소리를 줄인다.
 - **권고는 1줄**: 단정하지 않고 "권합니다 / ~하시는 편이 좋겠습니다"로. 결정은 주인에게.
 
 ### 3단계: 발송 (`--push` 인 경우에만)
@@ -438,6 +511,26 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 
 **N 선택 시:** "확인됐습니다. 필요하시면 언제든 `/task:review`로 이어가실 수 있습니다." 후 종료.
 
+### 6단계: 후속 액션 등록 (자율 실행)
+
+완료 처리 과정에서 **이번에 끝내지 못하고 남는 후속 작업**(파생 액션 중 *지연* 항목, 보완 권고, "나중에 확인" 류)이 있으면 휘발시키지 않고 Backlog에 후속 액션으로 등록한다. gate는 이미 자율 쓰기 모드이므로 확인 없이 등록하되, 등록 사실은 보고한다.
+
+- *즉시* 처리할 액션(5단계에서 이미 한 것)은 등록하지 않는다 — **남는 것만** 등록한다.
+- 각 후속 항목:
+  ```bash
+  python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
+    --task __backlog__ --title "<후속 한 줄>" --repo follow-up \
+    [--due YYYY-MM-DD] [--description "출처: <완료 Task명>"]
+  ```
+  - `--repo follow-up` 라벨이 **아침 브리핑의 "후속 액션 리마인드" 섹션으로 떠오르게 하는 키**다. 반드시 붙인다.
+  - 구체 시점이 있으면 `--due`로, 없으면 생략(브리핑이 경과일수로 추적한다).
+- 등록 결과 1줄 보고:
+  ```
+  → 후속 액션 {N}건을 Backlog에 등록했습니다 (브리핑에서 리마인드됩니다).
+  복구: todo_store.py toggle --id <id> 또는 delete.
+  ```
+- 후속이 없으면 이 단계를 생략한다(잔소리 방지).
+
 ### 게이트 경계
 
 - **보류** 판정 시 클로징 시퀀스(4단계)를 실행하지 않는다. 진행 여부는 사용자가 결정한다.
@@ -458,8 +551,15 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 | 축 | 질문 | Alfred 액션 |
 |----|------|------------|
 | **가시성** | 오늘 "막은 일 / 흡수한 복잡도"가 보이지 않게 묻혔나 | 1줄 기록 유도(평가 시즌 자산). "남겨둘까요?" |
-| **레버리지** | 같은 문제를 N번째 또 손댔나 | 반복 감지 시 "일회성 수정 말고 표준화/문서화"를 제안 |
+| **레버리지** | 같은 문제를 N번째 또 손댔나 | 반복 감지 시 "일회성 수정 말고 표준화/문서화"를 제안하고, 동의 시 **후속 액션으로 등록** |
 | **소진** | 연속 야간작업·과부하 신호가 있나 | 감지 시 "내일은 의도적으로 가볍게"를 권한다 |
+
+> **레버리지 → 후속 액션 등록**: 표준화/문서화 제안에 주인이 동의하면(또는 "후속으로 남겨줘") 휘발시키지 말고 Backlog에 등록한다(`gate` 6단계와 동일 명령). 이렇게 등록한 항목은 아침 브리핑의 "후속 액션 리마인드"로 떠오른다.
+> ```bash
+> python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
+>   --task __backlog__ --title "<표준화/후속 한 줄>" --repo follow-up --description "출처: <오늘 반복 작업>"
+> ```
+> review는 읽기 전용이 기본이나, 후속 등록은 **사용자 동의 후에만** 하는 가벼운 쓰기다(제안→동의→등록).
 
 ### 데이터 수집
 
@@ -495,9 +595,20 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconc
 → 깊은 회고는 `daily:review`로 이어가시겠습니까?
 ```
 
+### 발송 (`--push` 인 경우에만)
+
+저녁 review를 헤드리스 cron이 호출할 때(`/alfred review --push`) 위 3축 출력을 한 메시지로 정리해 Slack DM으로 보낸다:
+```bash
+bash /Users/changhwan/.claude/scripts/notify-slack.sh "$REVIEW_TEXT"
+```
+- `notify-slack.sh`는 본인(U098T8A1XL0)에게 발송하며 실패해도 `exit 0`.
+- `--push`가 없으면 발송하지 않고 화면 출력만 한다.
+- 헤드리스 발송 시에는 후속 등록 같은 **동의 필요 쓰기를 하지 않는다**(무인 상태에서 동의를 받을 수 없음). 레버리지 후속 제안은 본문에 "후속으로 남기시겠습니까?" 문구로만 남기고, 실제 등록은 인터랙티브 세션에서 한다.
+
 ### 리뷰 경계
 
 - 상태를 바꾸지 않는다. 기록(wiki/note)·회고(daily:review)는 전용 스킬로 위임한다.
+- **예외**: 레버리지 축에서 표준화/후속을 **사용자 동의 후** Backlog 후속 액션으로 등록하는 것은 허용한다(가벼운 쓰기, 제안→동의 게이트 필수). 동의 없이 등록하지 않는다. **헤드리스(--push)에서는 등록하지 않는다.**
 - 3축 외로 캐묻지 않는다. 하루의 끝을 무겁게 만들지 않는 것이 목적이다.
 
 ---
@@ -506,8 +617,76 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconc
 
 - Daily Note를 직접 만들지 않는다 → `daily:start`로 유도.
 - 이월을 적용하지 않는다(dry-run만) → `tasks:carry-over`로 위임.
-- 일정을 생성/수정/삭제하지 않는다 → `calendar` 스킬로 위임.
-- briefing·check·review는 읽기 전용이다. week·task 모드는 자율 실행을 허용하되, 실수 복구 경로를 응답에 명시한다.
+- 일반 일정을 생성/수정/삭제하지 않는다 → `calendar` 스킬로 위임.
+  - **예외**: `calendar` 모드는 개인(MY) Task에서 파생된 **마커 이벤트(`notion-task:`)만** reconcile한다. 사용자가 캘린더에 직접 만든 일반 일정은 절대 건드리지 않으며, 쓰기 전 항상 dry-run + 승인 게이트를 거친다.
+- briefing·check·review는 읽기 전용이다. week·task 모드는 자율 실행을 허용하되, 실수 복구 경로를 응답에 명시한다. calendar 모드의 쓰기는 **확인 후**에만 한다.
+
+---
+
+## 워크플로우 — calendar (개인 Task 캘린더 동기화, Deliver)
+
+개인(MY) Task 중 **Due Date 있고 미완료**인 것을 Google Calendar 종일 이벤트로 reconcile한다.
+**Notion → Calendar 단방향**이며, 캘린더의 이벤트 자체를 상태의 출처로 삼아(description 마커) 멱등하게 동작한다 — 같은 동기화를 반복해도 중복 이벤트가 생기지 않는다.
+
+### 동기화 규약 (상수)
+
+- **대상 캘린더**: `CALENDAR_ID = devchanghwan@gmail.com` (summary "개인" — 전용 개인 캘린더. work 캘린더 `changhwan.kim@socra.ai`와 분리). 다른 캘린더를 원하면 `list_calendars`로 확인 후 이 상수만 바꾼다.
+- **이벤트 제목**: `[MY] {Task 이름}`
+- **이벤트 날짜**: **종일(all-day)**. Google all-day 규약상 `start.date = due`, `end.date = due+1일`(end exclusive).
+- **마커**: 이벤트 description 첫 줄 `notion-task: {page_id}` — Alfred 관리 이벤트 식별 + Task 역참조.
+- **스캔 윈도우**: 오늘-7일 ~ 오늘+180일 (`Asia/Seoul`).
+
+### 1단계: desired set 수집 (캘린더에 "있어야 할" 집합)
+
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py calendar-pending
+```
+- `results[]`: 각 항목 `page_id`/`name`/`due_date`/`status`. Group=MY + Due 존재 + 미완료만 온다.
+
+### 2단계: 현황 수집 (캘린더의 Alfred 관리 이벤트)
+
+- `mcp__claude_ai_Google_Calendar__list_events` 로 윈도우 내 이벤트를 조회한다(`calendarId = CALENDAR_ID`).
+- 제목이 `[MY] `로 시작하고 description에 `notion-task:` 마커가 있는 것만 **Alfred 관리 이벤트**로 추린다. 마커에서 `page_id`를 파싱한다.
+- list 결과에 description이 비면 `mcp__claude_ai_Google_Calendar__get_event`로 보강해 마커를 읽는다.
+- **MCP 미가용/실패** → "캘린더 조회 불가(인터랙티브 세션에서 확인 권장)"로 표기하고 중단한다. **쓰기는 하지 않는다**(그레이스풀 디그레이드).
+
+### 3단계: reconcile diff 계산 (dry-run, 쓰기 없음)
+
+`page_id` 기준으로 desired ↔ 관리 이벤트를 매칭한다.
+- desired에 있고 이벤트 없음 → **create**
+- 이벤트 있고 desired에 없음(완료/Due 제거/Task 삭제) → **delete**
+- 둘 다 있으나 due 또는 이름 다름 → **update** (날짜/제목 갱신)
+- 둘 다 있고 동일 → **skip** (멱등 — 중복 생성 금지)
+
+dry-run을 표로 먼저 제시한다:
+```
+🎩 개인 Task 캘린더 동기화 (dry-run) — CALENDAR_ID
+
+생성 (N건)
+- [MY] {이름} — {due}
+삭제 (N건)   ← 완료/제거된 Task의 이벤트
+- [MY] {이름} — {기존 due}
+변경 (N건)
+- [MY] {이름} — {old due} → {new due}
+변동 없음 N건
+```
+
+### 4단계: 확인 게이트 + 실행
+
+- 외부 캘린더에 반영되는 쓰기이므로 **반드시 `AskUserQuestion`으로 승인**받는다(생성/삭제/변경 묶음 단위).
+  - 비대화(헤드리스) 경로에서는 **쓰기를 하지 않고** dry-run 결과만 보고한다.
+- 승인 후 항목별 실행:
+  - **create**: `mcp__claude_ai_Google_Calendar__create_event` — `calendarId=CALENDAR_ID`, `summary="[MY] {이름}"`, `start.date={due}`/`end.date={due+1}`(종일), `description="notion-task: {page_id}"`
+  - **delete**: `mcp__claude_ai_Google_Calendar__delete_event` — 해당 `eventId`
+  - **update**: `mcp__claude_ai_Google_Calendar__update_event`로 start/end·summary 갱신(또는 delete 후 create)
+- 실행 후 1줄 보고: "생성 N · 삭제 N · 변경 N건 반영했습니다."
+
+### calendar 모드 경계
+
+- **단방향**: 마커(`notion-task:`)가 없는 이벤트(사용자가 직접 만든 일정)는 절대 건드리지 않는다. 관리 대상은 마커 이벤트뿐.
+- **Due 없는 MY Task 제외**: 종일 이벤트로 표현 불가 → 1단계 쿼리에서 이미 빠짐.
+- **완료 시 삭제**: 완료된 MY Task의 이벤트는 삭제해 캘린더엔 미완료만 남긴다(사용자 선택).
+- 쓰기 전 항상 dry-run diff를 보여주고 승인받는다. 멱등하므로 재실행해도 안전하다.
 
 ---
 
@@ -532,23 +711,24 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py task
 - (D-day 미착수 또는 진행 중 D-1 있으면 한두 줄. 없으면 "특이사항 없습니다.")
 
 진행 중 (N건)
-- [ROI High][P1] {Task명} — due MM/DD
+- [개인][ROI High][P1] {Task명} — due MM/DD
 
 마감 임박 — 이번 주 due, 시작 전 (N건)
-- [ROI High][P1] {Task명} — due MM/DD (D-day)
-- [ROI Med][P2] {Task명} — due MM/DD (D-1)
+- [회사][ROI High][P1] {Task명} — due MM/DD (D-day)
+- [개인][ROI Med][P2] {Task명} — due MM/DD (D-1)
 
 시작 전 — 이번 주 due 없음 (N건)
-- [ROI High][P2] {Task명}
+- [회사][ROI High][P2] {Task명}
   (3건 이상이면 상위 3건만 노출, "외 N건")
 
 완료 (N건)
-- {Task명} ✓
+- [회사] {Task명} ✓
 
 — 한 줄 권고: 지금 어디에 집중하면 이번 주가 안심되는지.
 ```
 
 - Task 정렬: ROI desc → Priority asc → due 임박 순 (각 버킷 내).
+- **회사/개인 라벨**: 각 줄 앞에 `[개인]`(MY)/`[회사]`(WORK)를 붙여 구분한다(표시만, 정렬 불변).
 - 완료 버킷은 이름만 나열 (세부 정보 불필요).
 
 ### 3단계: 상태 변경 / 신규 생성 (자율 실행)

@@ -247,24 +247,38 @@ def _parse_plan_light(plan_id: str):
     return None
 
 
+def _category_tag(task):
+    """회사/개인 구분 태그 — Tasks 탭 가독성용. Group=MY→개인, WORK→회사.
+
+    미분류(빈 값)는 2칸 공백으로 두어 열 정렬을 유지한다.
+    """
+    cat = task.get("category", "")
+    if cat == "MY":
+        return "개인"
+    if cat == "WORK":
+        return "회사"
+    return "  "
+
+
 def _task_display(task, done, total):
     # 상태는 텍스트 badge로 표시한다(아이콘과 중복이라 아이콘은 제거).
+    cat_tag = _category_tag(task)  # 회사/개인 — 맨 앞 2칸(한글 ≈ 4 cols)
     pri = _priority_short(task.get("priority", ""))
     badge = _task_status_badge(task.get("status", ""))
     name = task.get("name", "(이름 없음)")
     plan_badge = " 📋" if task.get("plan_id") else ""
     # 이름+배지를 터미널 너비 기반 동적 컬럼에 맞춤
     # Tasks 탭은 preview 창(right:48%)이 있으므로 리스트 영역 ≈ 52%
-    # 오버헤드: [Pn](4)+space(1)+badge(8)+sep(2)+todo(7)+sep(2)+due(5)+sep(2) = 31
+    # 오버헤드: cat(4)+space(1)+[Pn](4)+space(1)+badge(8)+sep(2)+todo(7)+sep(2)+due(5)+sep(2) = 36
     _cols = shutil.get_terminal_size((120, 24)).columns
-    name_width = max(36, int(_cols * 0.50) - 31)
+    name_width = max(36, int(_cols * 0.50) - 36)
     name_col = _fit(name + plan_badge, name_width)
     due = task.get("due_date", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD (5칸) 또는 공백
     tags = task.get("tags", [])
     tag_str = " ".join(f"#{t}" for t in tags)
     todo_str = f"({done}/{total})".rjust(7)
-    return f"[{pri}] {badge}  {name_col}  {todo_str}  {due_str}  {tag_str}".rstrip()
+    return f"{cat_tag} [{pri}] {badge}  {name_col}  {todo_str}  {due_str}  {tag_str}".rstrip()
 
 
 def _todo_display(todo):

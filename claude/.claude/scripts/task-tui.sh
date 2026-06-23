@@ -44,7 +44,7 @@ source "$HOME/.claude/scripts/claude-session-launch.sh"
 #
 # Task 추가 — 논인터랙티브 모드:
 #   todo add-task "이름"                              → P3/WORK 기본값으로 생성
-#   todo add-task "이름" --priority "P1 - Must Have" --category MY --due 2026-06-30
+#   todo add-task "이름" --priority P1 --category MY --due 2026-06-30
 
 # --add 플래그: 제목을 gum input으로 입력받아 Backlog에 추가
 if [ "${1:-}" = "--add" ]; then
@@ -101,12 +101,12 @@ if [ "${1:-}" = "--add-task" ]; then
   [ -z "$_TASK_NAME" ] && exit 0
 
   if command -v gum >/dev/null; then
-    _TASK_PRIO=$(gum choose --header "우선순위" --selected "P3 - Could Have" \
-      "P1 - Must Have" "P2 - Should Have" "P3 - Could Have" "P4 - Won't Have")
+    _TASK_PRIO=$(gum choose --header "우선순위" --selected "P3" \
+      "P1" "P2" "P3")
     _TASK_CAT=$(gum choose --header "카테고리" --selected "WORK" "WORK" "MY")
     _TASK_DUE=$(gum input --placeholder "마감일 YYYY-MM-DD (선택 — 비우면 없음)")
   else
-    read -rp "우선순위 [P3 - Could Have]: " _TASK_PRIO; _TASK_PRIO="${_TASK_PRIO:-P3 - Could Have}"
+    read -rp "우선순위 [P3]: " _TASK_PRIO; _TASK_PRIO="${_TASK_PRIO:-P3}"
     read -rp "카테고리 WORK/MY [WORK]: " _TASK_CAT; _TASK_CAT="${_TASK_CAT:-WORK}"
     read -rp "마감일 YYYY-MM-DD (선택): " _TASK_DUE
   fi
@@ -125,11 +125,11 @@ fi
 if [ "${1:-}" = "add-task" ]; then
   shift
   if [ $# -eq 0 ]; then
-    echo "usage: todo add-task <이름> [--priority \"P3 - Could Have\"] [--category WORK|MY] [--due YYYY-MM-DD] [--description <text>]" >&2
+    echo "usage: todo add-task <이름> [--priority P1|P2|P3] [--category WORK|MY] [--due YYYY-MM-DD] [--description <text>]" >&2
     exit 1
   fi
   _TASK_NAME="$1"; shift
-  _TASK_PRIO="P3 - Could Have"
+  _TASK_PRIO="P3"
   _TASK_CAT="WORK"
   _TASK_EXTRA=()
   while [ $# -gt 0 ]; do
@@ -667,7 +667,7 @@ main_menu() {
 create_task() {
   local name pri cat
   name=$(prompt_input "새 Task 이름"); [ -z "$name" ] && return
-  pri=$(prompt_choose "P1 - Must Have" "P2 - Should Have" "P3 - Could Have" "P4 - Won't Have")
+  pri=$(prompt_choose "P1" "P2" "P3")
   cat=$(prompt_choose "WORK" "MY")
   [ -z "$pri" ] || [ -z "$cat" ] && return
   python3 "$NOTION_TASK" create-task --name "$name" --priority "$pri" --category "$cat" >/dev/null \

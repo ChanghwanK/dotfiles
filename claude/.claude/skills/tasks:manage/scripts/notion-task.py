@@ -9,6 +9,7 @@ Usage:
   # 조회
   python3 notion-task.py search-tasks [--status all|active]
   python3 notion-task.py tasks [--week current|previous|next] [--month YYYY-MM] [--status in-progress|upcoming|all]
+  python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료 — 캘린더 동기화 대상
 
   # 생성
   python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"]
@@ -201,6 +202,37 @@ def query_active_tasks(token):
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
     return [_parse_page(page) for page in resp.get("results", [])]
+
+
+def query_calendar_pending(token):
+    """Google Calendar 동기화 대상 Task 조회.
+
+    대상 규약: 개인(Group=MY) AND Due Date 존재 AND 미완료(상태 != 완료).
+    Due Date 없는 Task는 종일 이벤트로 표현할 수 없어 제외하고, 완료 Task는
+    캘린더에서 삭제 대상이므로 desired set에서 빠진다(Alfred reconcile이 처리).
+    """
+    body = {
+        "filter": {
+            "and": [
+                {"property": "Group", "select": {"equals": "MY"}},
+                {"property": "Due Date", "date": {"is_not_empty": True}},
+                {"property": "상태", "status": {"does_not_equal": "완료"}},
+            ]
+        },
+        "sorts": [{"property": "Due Date", "direction": "ascending"}],
+    }
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
+    return [_parse_page(page) for page in resp.get("results", [])]
+
+
+def cmd_calendar_pending(args):
+    """캘린더 동기화 desired set 출력 — Alfred calendar 모드가 reconcile 입력으로 사용."""
+    token = get_token()
+    results = query_calendar_pending(token)
+    print(json.dumps({
+        "results": results,
+        "total": len(results),
+    }, ensure_ascii=False, indent=2))
 
 
 def cmd_search_tasks(args):
@@ -703,6 +735,12 @@ def main():
     tasks_p.add_argument("--month", default=None, help="YYYY-MM (--week 대신 사용)")
     tasks_p.add_argument("--status", choices=["in-progress", "upcoming", "all"], default="all")
 
+    # calendar-pending
+    subparsers.add_parser(
+        "calendar-pending",
+        help="캘린더 동기화 대상(개인 MY + Due 존재 + 미완료) Task 조회",
+    )
+
     # create-task
     ct = subparsers.add_parser("create-task", help="새 Task 생성")
     ct.add_argument("--name", required=True, help="Task 이름")
@@ -757,6 +795,7 @@ def main():
     dispatch = {
         "search-tasks": cmd_search_tasks,
         "tasks": cmd_tasks,
+        "calendar-pending": cmd_calendar_pending,
         "create-task": cmd_create_task,
         "set-roi": cmd_set_roi,
         "update-status": cmd_update_status,
