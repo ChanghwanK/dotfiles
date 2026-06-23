@@ -63,6 +63,15 @@
             "command": "$HOME/.claude/scripts/notify-plan-done.sh"
           }
         ]
+      },
+      {
+        "matcher": "mcp__claude_ai_Notion__notion-create-pages",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/scripts/notion-review-reminder.py"
+          }
+        ]
       }
     ],
     "Stop": [
