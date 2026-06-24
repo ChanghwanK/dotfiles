@@ -19,6 +19,7 @@ allowed-tools:
 
 ## 핵심 원칙
 
+- 본문 문장 스타일은 `~/.claude/docs/notion-writing-style.md`를 따른다 (짧고 단순하게, 핵심만). em dash/본문 이모지는 쓰기 스크립트가 자동 정리한다.
 - **대화 내용을 마크다운으로 정리**한 뒤 Notion 페이지로 변환한다.
 - 스크립트만 호출한다. Notion MCP 도구 사용 금지 (토큰 효율).
 - 토큰은 환경변수 `$NOTION_TOKEN` 사용 (`~/.secrets.zsh`에서 로드됨).

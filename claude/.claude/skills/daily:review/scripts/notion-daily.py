@@ -15,6 +15,14 @@ import urllib.parse
 import urllib.error
 from datetime import date, timedelta
 import argparse
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../_lib"))
+try:
+    from notion_text import sanitize_body
+except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
+    def sanitize_body(text):
+        return text
 
 def get_token():
     import os
@@ -184,6 +192,7 @@ def cmd_update_property(args, prop_name):
     token = get_token()
     page_id = args.page_id
     content = args.content.replace("\\n", "\n")
+    content = sanitize_body(content)  # 하드룰 backstop (em dash/이모지)
 
     new_segments = []
     lines = content.split("\n")

@@ -47,9 +47,16 @@ and stop.
      Notion `<callout icon="...">` attribute (that is an icon, not body text).
 
    ### Subjective (report only, do NOT change)
-   - Heading/section structure problems (missing or inconsistent hierarchy).
+   Judge against the global Notion writing-style convention at
+   `~/.claude/docs/notion-writing-style.md` (prose tone/grammar + visual
+   formatting/structure). Report deviations such as:
+   - Heading/section structure problems (missing or inconsistent hierarchy,
+     skipped levels).
    - Mixed language where the team policy expects one (Korean prose for
      human-facing docs; English for code/CLI/identifiers).
+   - Tone breaks (non-격식체), vague claims ("잘 된다", "문제없다") that should be
+     measurable, overused bold/callouts, or comparison content that belongs in a
+     table but is scattered across bullets.
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
 

@@ -24,6 +24,7 @@ allowed-tools:
 
 ## 핵심 원칙
 
+- Notion 본문 문장 스타일은 `~/.claude/docs/notion-writing-style.md`를 따른다 (짧고 단순하게, 핵심만). em dash/본문 이모지는 쓰기 스크립트가 자동 정리한다.
 - 스크립트만 호출한다. Notion MCP 도구는 사용하지 않는다 (토큰 효율).
 - JSON 응답을 파싱해 구조화된 회고 포맷으로 출력한다.
 - 각 단계마다 사용자 확인 후에만 Notion을 업데이트한다.

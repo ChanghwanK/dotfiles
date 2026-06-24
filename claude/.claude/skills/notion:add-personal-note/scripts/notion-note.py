@@ -20,6 +20,13 @@ import urllib.error
 import argparse
 from datetime import date
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../_lib"))
+try:
+    from notion_text import sanitize_body
+except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
+    def sanitize_body(text):
+        return text
+
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 DB_ID = "24364745-3170-80b5-8e34-da0245b42d6c"
 
@@ -73,6 +80,7 @@ def resolve_ds_id(db_id):
 
 def md_to_rich_text(text):
     """마크다운 인라인 서식을 Notion rich_text 배열로 변환."""
+    text = sanitize_body(text)  # 하드룰 backstop: fenced 코드블록은 별도 빌더라 제외됨
     segments = []
     # bold+italic, bold, italic, code, plain 순서로 파싱
     pattern = re.compile(
@@ -272,7 +280,7 @@ def md_to_blocks(text):
 
 
 def cmd_create(args):
-    title = args.title
+    title = sanitize_body(args.title)  # 제목 하드룰 backstop (em dash/이모지)
     group = args.group or "#Note"
     tags = [t.strip() for t in args.tags.split(",")] if args.tags else []
     today = date.today().isoformat()

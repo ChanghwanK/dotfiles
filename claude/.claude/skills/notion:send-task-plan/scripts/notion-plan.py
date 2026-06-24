@@ -14,6 +14,13 @@ import urllib.error
 import argparse
 from pathlib import Path
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../_lib"))
+try:
+    from notion_text import sanitize_body
+except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
+    def sanitize_body(text):
+        return text
+
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 
 NOTION_LANGUAGES = {
@@ -144,6 +151,7 @@ def parse_inline_formatting(text):
     Handles: **bold**, *italic*, `code`
     Returns a list of rich_text objects.
     """
+    text = sanitize_body(text)  # 하드룰 backstop: fenced 코드블록은 별도 빌더라 제외됨
     segments = []
     # Order: **bold** before *italic* to avoid partial match
     pattern = re.compile(r'\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`', re.DOTALL)

@@ -18,6 +18,7 @@ Plan 모드에서 작성한 설계 문서(`.claude/plans/*.md`)를 Notion 페이
 
 ## 핵심 원칙
 
+- 본문 문장 스타일은 `~/.claude/docs/notion-writing-style.md`를 따른다 (짧고 단순하게, 핵심만). em dash/본문 이모지는 쓰기 스크립트가 자동 정리한다.
 - 스크립트만 호출한다. Notion MCP 도구는 사용하지 않는다 (토큰 효율).
 - Read tool로 plan 파일 내용을 직접 읽지 않는다 — 스크립트가 파일을 읽는다.
 - 전송 전 반드시 사용자에게 대상 파일과 URL을 확인한다.

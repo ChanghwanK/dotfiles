@@ -36,6 +36,13 @@ import urllib.error
 import argparse
 from datetime import date, timedelta
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../_lib"))
+try:
+    from notion_text import sanitize_body
+except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
+    def sanitize_body(text):
+        return text
+
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
@@ -290,7 +297,7 @@ def cmd_create_task(args):
     """Notion Task DB에 새 Task 생성."""
     token = get_token()
 
-    name = args.name.strip()
+    name = sanitize_body(args.name.strip())  # 제목 하드룰 backstop (em dash/이모지)
     if not name:
         _exit_error("--name is required and cannot be empty")
 
@@ -636,6 +643,7 @@ def _split_text_content(content):
 
 def parse_rich_text(text):
     """인라인 **bold** / `code` 를 Notion rich_text 배열로 변환."""
+    text = sanitize_body(text)  # 하드룰 backstop: fenced 코드블록은 별도 빌더라 제외됨
     tokens = re.split(r"(\*\*[^*]+\*\*|`[^`]+`)", text)
     rich = []
     for tok in tokens:

@@ -117,6 +117,14 @@ DevOps 팀의 ROI 계산에서는 **"되게 하는 것"보다 "내재화"가 더
 - 학습 목적 질문에는 배경, 원리, 예시를 포함하여 상세하게 설명한다
 - 정보 전달 시 목록(bullet list) 형식 선호
 
+## Notion 문서 작성 스타일
+
+Notion 문서(업무 노트, 개인 노트, plan 공유, 의사결정 기록 등) 작성 시 문장 톤·문법과
+시각적 포맷·구조의 전역 기본값을 따른다. 세부 기준은 아래 문서를 참조하며,
+작성 직후 `notion-review` 에이전트가 이 기준에 따라 점검·수정한다.
+
+@~/.claude/docs/notion-writing-style.md
+
 ## Plan 모드 출력 형식
 
 @~/.claude/docs/plan-format.md
