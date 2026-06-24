@@ -717,6 +717,39 @@ def markdown_to_blocks(md):
     return blocks
 
 
+# ─────────────────────────────────────────────
+# 하드룰 가드 (CLAUDE.md): em dash 금지 + 이모지 금지.
+#
+# 왜 여기서 막나: notion-review 서브에이전트는 `notion-create-pages` MCP 훅으로만
+# 소환되는데, 이 스크립트의 append 경로는 그 훅에 매칭되지 않아 리뷰가 못 닿는다.
+# 따라서 append 경로의 하드룰은 이 스크립트가 직접 강제한다.
+# 자동 치환 대신 거부(exit)하는 이유: 규칙이 "사후 치환이 아니라 처음 작성부터 적용"이므로,
+# 작성자가 작성 시점에 콜론/쉼표/괄호로 고치도록 강제한다.
+# ─────────────────────────────────────────────
+
+_EMDASH_CHARS = {
+    "—": "em dash (—)",
+    "―": "horizontal bar (―)",
+}
+# 이모지: astral plane(U+1F000~) 전반 + 흔한 BMP 픽토그램.
+# ✓(U+2713) ✗(U+2717) →(U+2192) ·(U+00B7) ═(U+2550) 등 서식 글리프는 의도적으로 제외한다.
+_EMOJI_BMP = {"✅", "❌", "⚠", "✨", "\U0001F4A1"}
+
+
+def _find_hard_rule_violations(md):
+    """본문에서 em dash / 이모지 위반을 (line_no, kind, snippet)로 수집."""
+    violations = []
+    for n, line in enumerate(md.split("\n"), 1):
+        snippet = line.strip()[:60]
+        for ch, name in _EMDASH_CHARS.items():
+            if ch in line:
+                violations.append((n, name, snippet))
+        for ch in line:
+            if 0x1F000 <= ord(ch) <= 0x1FFFF or ch in _EMOJI_BMP:
+                violations.append((n, f"emoji ({ch})", snippet))
+    return violations
+
+
 def cmd_append_content(args):
     """Markdown 콘텐츠를 Task 페이지 본문에 append (task:review 결과 누적용)."""
     token = get_token()
@@ -728,6 +761,17 @@ def cmd_append_content(args):
         md = args.content
     else:
         _exit_error("--content-file 또는 --content 중 하나가 필요합니다")
+
+    violations = _find_hard_rule_violations(md)
+    if violations:
+        detail = "\n".join(
+            f"  line {n}: {kind}: {snip}" for n, kind, snip in violations
+        )
+        _exit_error(
+            "하드룰 위반(em dash/이모지)으로 append를 거부했습니다. "
+            "em dash는 콜론/쉼표/괄호로, 이모지는 제거 후 다시 시도하세요:\n"
+            + detail
+        )
 
     blocks = markdown_to_blocks(md)
     if not blocks:
