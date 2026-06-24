@@ -519,6 +519,23 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks --week current --status all
   ```
 
+- **대상이 Notion에 없으면 (미등록 작업)**: 등록 없이 바로 작업한 경우라 매칭되는 Task가 없으면, 임의로 진행하지 않고 1회 제안한다:
+  ```
+  🎩 이 작업이 Notion Task에 없습니다. 먼저 등록한 뒤 완료 게이트를 진행할까요?
+     (지금은 생성만 하고, 4체크 통과 시 완료로 처리합니다.)
+
+  1. 등록 후 게이트 진행 [추천]
+  0. 취소
+  ```
+  - **1 선택** → 맥락에서 priority/category/ROI를 추정해 생성한다(곧 완료할 작업이므로 due는 생략, 상태는 기본 "시작 전"):
+    ```bash
+    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
+      --name "..." --priority "P2" --category WORK [--roi Medium]
+    ```
+    응답의 `page_id`를 확보한 뒤 그 값으로 **2단계(4체크)로 이어간다**. 완료 처리는 게이트의 4단계가 담당하므로 여기서 미리 완료로 바꾸지 않는다(4체크를 건너뛰지 않기 위함).
+  - **0 선택** → 게이트를 보류한다(아무것도 생성·변경하지 않음).
+  - 구분: 4체크 게이트 없이 *이미 끝낸 작업을 곧장 완료로만 남기려면* 이 경로가 아니라 `task` 모드의 "완료된 작업 등록"(생성→완료→노트)을 쓴다.
+
 ### 2단계: 체크 (전체 선택, 한꺼번에 제시)
 
 아래 4개를 **한꺼번에 권고 형태로** 보여준다. 답변을 강요하지 않고, 사용자가 자발적으로 언급한 항목만 충족으로 처리한다.
@@ -712,6 +729,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py appe
 
 - **보류** 판정 시 클로징 시퀀스(4단계)를 실행하지 않는다. 진행 여부는 사용자가 결정한다.
 - Task 삭제는 이 모드에서 하지 않는다 — 완료 처리는 상태를 "완료"로 변경하는 것이다.
+- 미등록 작업은 1단계에서 1회 동의를 받아 생성만 하고 진행한다. 동의 없이는 생성하지 않으며, 생성 시점에 완료로 찍지 않는다(완료는 4체크 통과 후 4단계가 처리).
 - 4체크 외 항목은 묻지 않는다. 잔소리꾼이 되지 않는 것이 목적이다.
 
 ---
