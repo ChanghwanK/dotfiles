@@ -576,6 +576,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
   --page-id <page_id> --status "완료"
 ```
 - 실패 시: "Notion 상태 변경 실패 — 수동 처리 필요" 1줄 출력 후 계속.
+- **due 자동 채움**: 완료 전환 시 Due Date가 비어 있으면 스크립트가 완료일(오늘, KST)을 자동으로 박는다(이미 due가 있으면 보존). 응답 JSON의 `due_backfilled`에 채워진 날짜가 온다 — 비어있지 않으면 보고에 한 줄 병기한다.
 
 **(B) Daily Note 완료 Todo 기록**
 ```bash
@@ -594,7 +595,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 ```
 🎩 완료 처리 — {Task명}
 
-✓ Notion: 완료
+✓ Notion: 완료 (due 비어있었으면: · due {MM/DD} 자동 기록)
 ✓ Daily Note: [x] {Task명} 기록
 ✓ TUI Store: 완료
 (실패 항목은 ✗와 원인 1줄)
@@ -963,9 +964,10 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py crea
 **완료된 작업 등록** (이미 끝낸 작업을 완료 상태로 기록):
 
 "이거 했는데 task로 남겨줘", "완료된 걸로 등록", "방금 끝낸 작업 기록해줘" 등 **이미 끝낸 작업**을
-Task로 남길 때는 생성 → 완료 → 작업 내용 기록을 한 번에 처리한다. due는 불필요(완료 작업).
+Task로 남길 때는 생성 → 완료 → 작업 내용 기록을 한 번에 처리한다. 생성 시 due는 생략하되,
+2번 완료 처리(`update-status --status "완료"`)에서 스크립트가 비어있는 due를 완료일(오늘)로 자동 기록한다.
 
-1. 생성(ROI는 맥락 추정, due 생략):
+1. 생성(ROI는 맥락 추정, due 생략 — 완료 시 자동 기록됨):
    ```bash
    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
      --name "..." --priority "P2" --category WORK [--roi Medium]

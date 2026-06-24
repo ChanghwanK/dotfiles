@@ -475,12 +475,24 @@ def cmd_update_status(args):
     # DONE 뷰·롤업은 Done 체크박스를 필터 기준으로 쓰므로, 상태만 바꾸면
     # status=완료인데 DONE 뷰에 안 보이는 불일치가 생긴다. 둘을 항상 동기화한다.
     is_done = args.status == "완료"
-    body = {
-        "properties": {
-            "상태": {"status": {"name": args.status}},
-            "Done": {"checkbox": is_done},
-        }
+    properties = {
+        "상태": {"status": {"name": args.status}},
+        "Done": {"checkbox": is_done},
     }
+
+    # 완료로 전환할 때 Due Date가 비어 있으면 완료일(오늘, KST)로 채운다.
+    # due 없이 완료된 Task는 캘린더 동기화·기간 조회·브리핑에서 날짜 없이 묻혀
+    # "언제 끝났는지"가 사라진다. 완료 시점을 마감일로 박아 항상 날짜가 남게 한다.
+    # 이미 due가 있으면 사용자가 잡은 계획 마감을 덮어쓰지 않는다(완료 시점 != 계획 마감).
+    backfilled_due = None
+    if is_done:
+        existing = notion_request(token, "GET", f"/pages/{args.page_id}")
+        existing_due = existing.get("properties", {}).get("Due Date", {}).get("date") or {}
+        if not existing_due.get("start"):
+            backfilled_due = date.today().isoformat()
+            properties["Due Date"] = {"date": {"start": backfilled_due}}
+
+    body = {"properties": properties}
     result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
 
     props = result.get("properties", {})
@@ -493,6 +505,7 @@ def cmd_update_status(args):
         "name": name,
         "status": args.status,
         "done": is_done,
+        "due_backfilled": backfilled_due,
     }, ensure_ascii=False, indent=2))
 
 
