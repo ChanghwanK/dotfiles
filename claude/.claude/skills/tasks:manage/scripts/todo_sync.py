@@ -193,7 +193,19 @@ def pull(token, doc, conflicts, dry_run):
         local_by_block = {t["notion_block_id"]: t
                           for t in local_todos if t.get("notion_block_id")}
 
+        # 삭제 대기(tombstone)된 todo가 가리키는 블록 — pull이 새 todo로 부활시키면
+        # 안 된다. run()이 pull→push 순서라 push가 블록을 삭제하기 전에 이 블록이
+        # 아직 Notion에 살아 있어, 매칭되는 로컬이 없다고 판정되면(tombstone은
+        # local_todos에서 제외됨) 재생성되어 삭제가 무효화된다. push가 이 블록들을
+        # 삭제하고 tombstone을 purge할 때까지 재생성 대상에서 제외한다.
+        tombstoned_blocks = {t.get("notion_block_id")
+                             for t in doc["todos"]
+                             if t.get("task_page_id") == page_id
+                             and t.get("deleted") and t.get("notion_block_id")}
+
         for rb in remote_blocks:
+            if rb["block_id"] in tombstoned_blocks:
+                continue  # 삭제 예정 블록 — 부활 금지 (push가 처리)
             local = local_by_block.get(rb["block_id"])
             if local is None:
                 stats["created"] += 1
