@@ -73,6 +73,7 @@ Read 도구로 `~/.claude/skills/daily:start/agents/agent-notion-calendar.md`를
 
 - subagent_type: `general-purpose`, model: `sonnet`
 - 허용 도구는 agent 파일 frontmatter에 정의됨
+- **캘린더 재사용**: Alfred briefing이 같은 세션에서 인라인 호출한 경우 `/tmp/alfred-calendar.json`이 신선하면 Agent B가 캘린더 MCP를 재조회하지 않고 재사용한다(중복 제거). 단독 `/daily:start` 실행 시에는 직접 조회로 폴백한다.
 
 #### Agent C: Gmail Inbox 분석
 

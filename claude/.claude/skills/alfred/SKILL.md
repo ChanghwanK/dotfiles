@@ -71,6 +71,7 @@ allowed-tools:
 |------|------|------|
 | (없음) / `briefing` | 아침 브리핑 | 일정 + 우선순위 Task + 이월 후보 종합 |
 | `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (cron 경로) |
+| `briefing --refresh` | 캘린더 강제 갱신 | 당일 캐시를 무시하고 캘린더를 다시 조회 (회의 추가/취소 반영) |
 | `resume` | 작업 픽업 → 새 세션 | 브리핑된 Task를 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용) |
 | `resume --task <page_id>` | 이어가기 로더 | 새 세션이 자동 실행 — Task+Todo+claude-mem 기억 요약 후 첫 액션 제안 |
 | `check` | 중간 점검 | 오늘 진행률만 가볍게 |
@@ -88,12 +89,16 @@ allowed-tools:
 
 ### 1단계: 데이터 수집 (6개 소스, 실패는 개별 격리)
 
-**(A) 일정 — 캘린더: 오늘 + 이번 주 (best-effort)**
+**(A) 일정: 캘린더 오늘 + 이번 주 (당일 캐시 우선, best-effort)**
 
-`mcp__claude_ai_Google_Calendar__list_events` 로 **오늘부터 이번 주 일요일까지**(`Asia/Seoul`) 일정을 한 번에 조회한다.
-- `calendarId = changhwan.kim@socra.ai`, 범위 = 오늘 00:00 ~ 이번 주 일요일 24:00.
-- 수집 후 **오늘**과 **내일~일요일**로 클라이언트에서 분리한다. 오늘은 상세, 나머지는 날짜별 헤드라인으로 렌더(2단계 템플릿 참조).
-- **MCP 도구가 없거나 실패하면** → 일정 섹션(오늘·이번 주 모두)을 "조회 불가(인터랙티브 세션에서 확인 권장)"로 표기하고 다음 단계로 넘어간다. 중단하지 않는다.
+캘린더 MCP 조회는 느리므로 **하루 한 번만** 실제 조회하고, 같은 날 재브리핑은 캐시를 재사용한다. 보통 아침 첫 브리핑(인터랙티브 또는 cron `--push`)이 캐시를 만들고, 이후 당일 브리핑은 이를 그대로 쓴다.
+
+1. **캐시 확인 먼저**: `/tmp/alfred-calendar.json`을 읽어 `date`가 오늘(`Asia/Seoul`)과 같으면 → MCP를 호출하지 말고 이 파일을 캘린더 소스로 쓴다. 단 `--refresh` 인자가 있으면 캐시를 무시하고 2번으로 간다.
+2. **조회 (캐시 미스 또는 `--refresh`)**: `mcp__claude_ai_Google_Calendar__list_events` 로 **오늘부터 이번 주 일요일까지**(`Asia/Seoul`) 한 번에 조회한다. `calendarId = changhwan.kim@socra.ai`, 범위 = 오늘 00:00 ~ 이번 주 일요일 24:00.
+3. 수집 후 **오늘**과 **내일~일요일**로 클라이언트에서 분리한다. 오늘은 상세, 나머지는 날짜별 헤드라인으로 렌더(2단계 템플릿 참조).
+4. **캐시 저장**: 조회 성공 시 `/tmp/alfred-calendar.json`에 저장한다. daily:start가 같은 날 인라인 실행될 때도 이 파일을 재사용한다. 포맷: `{"date":"YYYY-MM-DD","generated_at":"<ISO8601>","today":[{"title","start":"HH:MM","end":"HH:MM","location"}],"raw_week":[<오늘~일요일 원본 이벤트>]}`. `today`는 daily:start Agent B의 `calendar_events` 스키마(`title/start/end/location`)에 맞춘다. 임시파일 쓰기이므로 읽기 전용 원칙에 위배되지 않는다(기존 `/tmp/alfred-*.json`과 동일).
+- **신선도 표기**: 캐시를 재사용한 경우 일정 섹션에 "(캘린더: 오늘 HH:MM 조회 기준)"을 덧붙여, 그 사이 추가/취소된 일정은 `/alfred briefing --refresh`로 갱신할 수 있음을 알린다.
+- **MCP 도구가 없거나 실패하면** → 일정 섹션(오늘·이번 주 모두)을 "조회 불가(인터랙티브 세션에서 확인 권장)"로 표기하고 다음 단계로 넘어간다. 캐시 파일은 만들지 않는다(소비자가 자연히 폴백). 중단하지 않는다.
 
 **(B) 우선순위 Task — Notion (스크립트)**
 
@@ -178,7 +183,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - (일정 충돌 / 오늘 마감(D-day) / 준비 임박 회의가 있으면 여기 한두 줄. 없으면 "특이사항 없습니다.")
 - **due ≤ 오늘인 P1·P2 항목(Notion·TUI 어느 소스든)은 ROI 정렬과 무관하게 여기 최상단에 무조건 올린다** — 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
 
-오늘 일정 ({N}건)
+오늘 일정 ({N}건){캐시 재사용 시 끝에: ` · 캘린더 오늘 HH:MM 조회 기준 (--refresh로 갱신)`}
 - HH:MM–HH:MM  {제목}
   (조회 불가 시: "캘린더 조회 불가 — 인터랙티브 세션에서 확인 권장")
 
@@ -228,6 +233,20 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - **후속 액션(F)**: `repo==follow-up` 미처리 항목을 경과일수와 함께 리마인드한다. `days_since_first ≥ 5`면 "아직 유효합니까? 정리 권합니다"로 격상해 **방치된 후속을 정리하도록** 민다(쌓이기만 하는 백로그 방지). 항목이 0건이면 섹션을 생략해 잔소리를 줄인다.
 - **권고는 1줄**: 단정하지 않고 "권합니다 / ~하시는 편이 좋겠습니다"로. 결정은 주인에게.
 
+### 하루 시작 인계 (인터랙티브 전용, 동의 게이트)
+
+브리핑(Pick)은 읽기 전용이라 Obsidian Daily Note를 직접 만들지 않는다. 대신 브리핑 출력 직후,
+**인터랙티브 세션에서만** `AskUserQuestion`으로 Daily Note 생성 여부를 여쭙고, 동의 시 daily:start로 인계한다.
+review의 "깊은 회고 인계"와 동일한 패턴이다.
+
+- 질문: "오늘 Daily Note를 만들까요?" / 선택지: (예: 지금 생성) / (아니요: 나중에).
+- **예** 선택 시: `Skill` 도구로 `daily:start`를 **인라인 호출**한다.
+  - 직전 1단계 (A)에서 저장한 `/tmp/alfred-calendar.json`이 있으면 daily:start가 캘린더를 재조회하지 않고 재사용한다(중복 제거).
+  - daily:start는 기존 Daily Note가 있으면 빈 섹션만 채우고 사용자 작성 내용은 보존한다 → 덮어쓰기 위험 없음.
+  - 호출이 끝나면 생성 경로와 Top3 요약을 Alfred 톤으로 짧게 보고한다.
+- **아니요** 선택 시: "확인됐습니다. 필요하시면 언제든 `/daily:start`로 만드실 수 있습니다." 후 종료.
+- **이 게이트는 인터랙티브 전용**이다. 헤드리스(`--push`)에서는 묻지도 호출하지도 않는다(아래 발송 참조).
+
 ### 3단계: 발송 (`--push` 인 경우에만)
 
 브리핑 본문을 한 메시지로 정리해 Slack DM으로 보낸다:
@@ -237,6 +256,7 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$BRIEFING_TEXT"
 ```
 - `notify-slack.sh`는 본인(U098T8A1XL0)에게 발송하며 실패해도 `exit 0`(에러 로그만 남김).
 - `--push` 가 없으면 발송하지 않고 화면 출력만 한다.
+- 헤드리스(`--push`/cron)에서는 **하루 시작 인계 게이트를 띄우지 않는다**(무인 동의 불가). Daily Note 생성은 인터랙티브 세션 몫이다.
 
 ---
 
@@ -785,7 +805,7 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$REVIEW_TEXT"
 
 ## 하지 않는 것 (경계)
 
-- Daily Note를 직접 만들지 않는다 → `daily:start`로 유도.
+- Daily Note를 직접 만들지 않는다 → `daily:start`로 유도하거나, briefing 종료 시 동의 게이트로 `Skill(daily:start)` 인라인 인계(직접 작성 아님, 인터랙티브 전용).
 - 이월을 적용하지 않는다(dry-run만) → `tasks:carry-over`로 위임.
 - 일반 일정을 생성/수정/삭제하지 않는다 → `calendar` 스킬로 위임.
   - **예외**: `calendar` 모드는 개인(MY) Task에서 파생된 **마커 이벤트(`notion-task:`)만** reconcile한다. 사용자가 캘린더에 직접 만든 일반 일정은 절대 건드리지 않으며, 쓰기 전 항상 dry-run + 승인 게이트를 거친다.

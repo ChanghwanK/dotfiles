@@ -2,6 +2,7 @@
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:start/scripts/notion-daily.py *)
   - mcp__claude_ai_Google_Calendar__gcal_list_events
+  - Read
 ---
 
 # Agent B: Notion + Google Calendar 수집
@@ -28,9 +29,10 @@ allowed-tools:
    생성 후 반환된 `page_id`를 기록한다.
 
 3. Google Calendar 오늘 일정 조회:
-   - `gcal_list_events` 도구로 `time_min={today_date}T00:00:00+09:00`, `time_max={today_date}T23:59:59+09:00` 조회
+   - **공유 캘린더 재사용 먼저 확인**: Read 도구로 `/tmp/alfred-calendar.json`을 시도한다. 파일이 있고 `date`가 오늘(`Asia/Seoul`)이면, `gcal_list_events`를 **호출하지 말고** 그 파일의 `today` 배열을 읽어 아래 제외 필터만 적용해 `calendar_events`로 쓴다 (alfred briefing이 오늘 이미 조회한 결과 재사용, 중복 제거). 파일이 없거나(Read 실패) `date`가 오늘이 아니면 아래 직접 조회로 폴백한다.
+   - (직접 조회) `gcal_list_events` 도구로 `time_min={today_date}T00:00:00+09:00`, `time_max={today_date}T23:59:59+09:00` 조회
    - primary 캘린더 대상. 시작 시간순 정렬
-   - 다음 제목의 이벤트는 결과에서 제외 (반복 일정, 노이즈):
+   - 다음 제목의 이벤트는 결과에서 제외 (반복 일정, 노이즈. 재사용/직접 조회 모두 적용):
      - "Busy"
      - "Todo List Up"
      - "daily sync up(오후)"
