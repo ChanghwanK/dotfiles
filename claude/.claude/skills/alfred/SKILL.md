@@ -239,7 +239,8 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 **인터랙티브 세션에서만** `AskUserQuestion`으로 Daily Note 생성 여부를 여쭙고, 동의 시 daily:start로 인계한다.
 review의 "깊은 회고 인계"와 동일한 패턴이다.
 
-- 질문: "오늘 Daily Note를 만들까요?" / 선택지: (예: 지금 생성) / (아니요: 나중에).
+- **사전 확인 (오늘 Daily Note 있으면 게이트 생략)**: 게이트를 띄우기 전에 오늘자 파일이 이미 있는지 확인한다 (`test -f "$HOME/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/01. Daily/$(date +%F).md"`). **이미 있으면** Daily Note는 하루 한 번이면 충분하므로 게이트를 **띄우지 않고**, 권고 줄에 "오늘 Daily Note는 이미 준비돼 있습니다" 한 줄만 남긴다. 파일이 없을 때만 아래 게이트를 띄운다.
+- 질문(파일이 없을 때만): "오늘 Daily Note를 만들까요?" / 선택지: (예: 지금 생성) / (아니요: 나중에).
 - **예** 선택 시: `Skill` 도구로 `daily:start`를 **인라인 호출**한다.
   - 직전 1단계 (A)에서 저장한 `/tmp/alfred-calendar.json`이 있으면 daily:start가 캘린더를 재조회하지 않고 재사용한다(중복 제거).
   - daily:start는 기존 Daily Note가 있으면 빈 섹션만 채우고 사용자 작성 내용은 보존한다 → 덮어쓰기 위험 없음.
