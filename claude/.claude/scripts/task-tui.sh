@@ -369,35 +369,68 @@ open_notion_page() {
     || open "https://www.notion.so/$slug"
 }
 
-# Tasks 탭에서 선택 Task를 삭제한다.
+# Notion에서 단일 Task를 아카이브하고, 성공 시에만 로컬 캐시를 정리한다.
 # Notion API에는 페이지 영구 삭제 엔드포인트가 없다 — 삭제는 archived:true로
-# 휴지통에 보내는 것이며, 이것이 Notion UI의 "삭제"와 동일한 동작이다.
-# Notion 삭제 성공 시에만 로컬 캐시(tasks + 하위 todo)를 제거해 화면을 즉시
-# 갱신한다. Notion 호출이 실패하면 로컬은 건드리지 않는다(정합성 보호).
-# Backlog은 Task가 아니므로 제외.
-delete_task() {
+# 휴지통에 보내는 것이며, 이것이 Notion UI의 "삭제"와 동일한 동작이다(30일 보존).
+# Notion 호출이 실패하면 로컬은 건드리지 않는다(정합성 보호 → orphan Todo 방지).
+# 반환값: 0=성공, 1=Notion 삭제 실패.
+_archive_task() {
   local page_id="$1"
-  [ -z "$page_id" ] && return
-  [ "$page_id" = "__backlog__" ] && { echo "Backlog은 삭제할 수 없습니다"; sleep 1; return; }
-  local name
-  name=$(python3 "$STORE" list-tasks --format json \
-    | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t['name'] for t in d['tasks'] if t['page_id']=='$page_id'),''))")
-  prompt_confirm "이 Task를 삭제할까요?  $name" || return
-  local ok
   if have_gum; then
-    gum spin --title "Notion에서 Task 삭제 중..." -- \
+    gum spin --title "Notion에서 Task 삭제 중... ($page_id)" -- \
       python3 "$NOTION_TASK" delete-task --page-id "$page_id" >/dev/null
-    ok=$?
   else
-    echo "Notion에서 Task 삭제 중..."
+    echo "Notion에서 Task 삭제 중... ($page_id)"
     python3 "$NOTION_TASK" delete-task --page-id "$page_id" >/dev/null
-    ok=$?
   fi
+  local ok=$?
   if [ "$ok" -eq 0 ]; then
     python3 "$STORE" delete-task-local --task "$page_id" >/dev/null
-  else
-    echo "Notion 삭제 실패 — 로컬 변경 없음"; sleep 1
+    return 0
   fi
+  return 1
+}
+
+# Tasks 탭 ctrl-d: 선택된 1개 이상의 Task를 일괄 삭제한다.
+# fzf --multi + --expect 출력 규약: 1번째 줄=키, 2번째 줄~=선택 라인들.
+# tab으로 다중 선택하지 않았으면 현재 포커스 1줄만 오므로 단일 삭제와 같은 경로다.
+# Backlog(__backlog__)은 Notion 페이지가 없어 대상에서 제외한다.
+delete_tasks() {
+  local out="$1"
+  local -a page_ids=()
+  local line pid
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    pid=$(cut -f1 <<<"$line")
+    [ -z "$pid" ] && continue
+    [ "$pid" = "__backlog__" ] && continue
+    page_ids+=("$pid")
+  done < <(sed -n '2,$p' <<<"$out")
+
+  local n=${#page_ids[@]}
+  [ "$n" -eq 0 ] && { echo "삭제할 Task가 없습니다 (Backlog 제외)"; sleep 1; return; }
+
+  # 확인 프롬프트용 이름 목록 — 한 번의 list-tasks 조회로 모든 대상 이름을 뽑는다.
+  local names
+  names=$(python3 "$STORE" list-tasks --format json | python3 -c "
+import sys,json
+ids=set(sys.argv[1:])
+d=json.load(sys.stdin)
+for t in d['tasks']:
+    if t['page_id'] in ids:
+        print('  · '+t.get('name',''))
+" "${page_ids[@]}")
+
+  echo "삭제 대상 ($n개):"
+  echo "$names"
+  prompt_confirm "위 $n개 Task를 삭제할까요?" || return
+
+  # 항목별로 아카이브 — 일부 실패해도 나머지는 진행하고, 실패 건은 로컬 유지.
+  local fail=0
+  for pid in "${page_ids[@]}"; do
+    _archive_task "$pid" || fail=$((fail+1))
+  done
+  [ "$fail" -gt 0 ] && { echo "$fail개 Task 삭제 실패 — 해당 항목은 로컬에 유지됨"; sleep 1; }
 }
 
 # Tasks 탭: Notion Task(Project) 목록.
@@ -406,22 +439,25 @@ delete_task() {
 tasks_tab() {
   local out key line page_id prio_arg
   prio_arg=${PRIO_FILTER:+--priority "$PRIO_FILTER"}
+  # --multi: tab으로 여러 Task를 토글 선택해 ctrl-d 일괄 삭제. 단일 액션
+  # (enter/space/ctrl-o 등)은 선택 라인 중 첫 줄만 사용한다. --multi에서 tab은
+  # 선택 토글로 쓰이므로 Tasks 탭의 탭전환은 ctrl-t로만 수행한다(README 권장 키).
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
-    | fzf --delimiter='\t' --with-nth='2..' --ansi \
+    | fzf --multi --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48% \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  tab:다중선택  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
+          --expect=enter,space,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
-    tab|ctrl-t) next_tab ;;
+    ctrl-t) next_tab ;;
     1) PRIO_FILTER="P1" ;;
     2) PRIO_FILTER="P2" ;;
     3) PRIO_FILTER="P3" ;;
     0) PRIO_FILTER="" ;;
     enter)   [ -n "$page_id" ] && open_task_session "$page_id" ;;
     space)   [ -n "$page_id" ] && todo_menu "$page_id" ;;
-    ctrl-d)  [ -n "$page_id" ] && delete_task "$page_id" ;;
+    ctrl-d)  delete_tasks "$out" ;;
     ctrl-o)  [ -n "$page_id" ] && open_notion_page "$page_id" ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-tasks 재렌더
     ctrl-r)  run_sync ;;
