@@ -57,6 +57,15 @@ and stop.
    - Tone breaks (non-격식체), vague claims ("잘 된다", "문제없다") that should be
      measurable, overused bold/callouts, or comparison content that belongs in a
      table but is scattered across bullets.
+   - **Conciseness** deviations (report each with a concrete before -> after
+     suggestion, but do NOT rewrite the prose yourself):
+     - Cross-section restatement: the same fact written in more than one section
+       (e.g. a `작업 내용`/work-log section that repeats what 요약·원인·해결·교훈
+       already said). Suggest keeping only the section-unique info (PR, artifacts,
+       manual actions).
+     - Multi-message sentences: one sentence chaining several messages
+       (`~때문에 ~되어 ~됐고 ~였습니다`). Suggest splitting into short sentences.
+     - Filler words that add no information ("실제로는", "기본적으로" 등).
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
 
