@@ -337,7 +337,7 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 
 ### loader 단계 — `/alfred resume --task <page_id>` (새 세션이 자동 실행)
 
-런처가 띄운 새 세션의 첫 입력으로 들어온다. **읽기 전용** — 컨텍스트를 모아 보여줄 뿐 상태를 바꾸지 않는다.
+런처가 띄운 새 세션의 첫 입력으로 들어온다. 컨텍스트를 모아 보여주고, **착수 시점이므로 '시작 전' Task만 1회 확인 후 '진행 중'으로 전이**한다(그 외 상태·Todo는 건드리지 않는다).
 
 1. **Task 메타 회수**: 매니페스트(`alfred-briefing-manifest.py get`)에서 `page_id` 항목의 name/priority/roi/due_date를 꺼낸다(추가 Notion 호출 없음).
 2. **최신 Todo 재로드**: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos --task <page_id>` 로 그 사이 바뀌었을 수 있는 Todo를 최신화한다.
@@ -357,12 +357,20 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 
    → 첫 손댈 곳: {한 줄 권고 — 생산성 우선, 트레이드오프 명시}
    ```
-5. 끝에 "막히는 부분이 있으면 말씀해 주십시오." 한 줄. 이후부터는 일반 작업 세션으로 전환된다(메인 Claude가 실제 작업 수행).
+5. **착수 전이 가드: '시작 전' → '진행 중'** (단방향·멱등):
+   - 현재 상태 확인: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active` 결과에서 `page_id` 항목의 `status`를 읽는다(매니페스트엔 status가 없으므로 이 호출로 확인).
+   - `status == "시작 전"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
+     ```bash
+     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <page_id> --status "진행 중"
+     ```
+   - `status`가 "진행 중"/"완료"/"대기"면 묻지 않고 건너뛴다(이미 손댄 상태를 덮지 않는다).
+   - update-status가 실패해도 멈추지 않는다: 한 줄 경고만 남기고 이어간다.
+6. 끝에 "막히는 부분이 있으면 말씀해 주십시오." 한 줄. 이후부터는 일반 작업 세션으로 전환된다(메인 Claude가 실제 작업 수행).
 
 ### resume 경계
 
 - picker의 **launch는 인터랙티브에서만** 한다(헤드리스 가드). 새 세션을 띄우는 것은 사용자 명시 선택(번호 입력) 뒤에만 발생하는 부수효과다.
-- loader는 **읽기 전용**: Todo 완료 처리·Notion 상태 변경을 자동으로 하지 않는다(그건 `/alfred task`·`gate`의 몫). 이어가기 맥락만 제시한다.
+- loader의 자동 쓰기는 **'시작 전' → '진행 중' 단방향 전이 하나로 제한**한다(1회 확인 필수, 다른 상태는 건드리지 않음). Todo 완료 처리·완료/대기 전환 등 그 외 상태 변경은 하지 않는다(그건 `/alfred task`·`gate`의 몫).
 - 디렉터리가 모호하면 **임의로 추측하지 않고** 1회 확인한다(엉뚱한 repo에서 세션이 열리는 것 방지).
 
 ---
@@ -1100,6 +1108,15 @@ Daily Note Todos — 오늘 (2026-MM-DD)
 
 — 무엇을 추가하거나 완료 처리할까요?
 ```
+
+### 3.5단계: 착수 전이 가드 ('시작 전' → '진행 중', 단방향·멱등)
+
+1단계 `search-tasks` 결과의 `status`를 그대로 쓴다(추가 조회 없음).
+- `status == "시작 전"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
+  ```bash
+  python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <page_id> --status "진행 중"
+  ```
+- "진행 중"/"완료"/"대기"면 묻지 않고 건너뛴다. 전이 로직은 resume loader 5단계와 동일(단방향·멱등, 실패해도 멈추지 않음).
 
 ### 4단계: Todo 조작 (자율 실행)
 

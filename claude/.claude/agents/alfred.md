@@ -58,7 +58,7 @@ color: cyan
 1. **의도 → 모드 매핑**: 사용자 요청을 아래 모드 중 하나로 해석한다.
    - `briefing` 아침/오늘 브리핑 · `gate` 완료 게이트 · `review` 저녁 일잘 리뷰
    - `daily` 하루 시작 — `Skill(daily:start)`로 인계해 어제 회고 + Top3 선정 + Obsidian Daily Note 생성. briefing(현황 스냅샷)과 짝을 이루는 "하루 셋업" 진입점이다. ("하루 시작", "오늘 할 것들 정리", "데일리 노트 만들어줘")
-   - `resume` 브리핑된 작업을 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용 — launch는 사용자가 번호를 고른 뒤에만; 헤드리스에서는 안내만. 새 세션의 loader는 읽기 전용)
+   - `resume` 브리핑된 작업을 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용 — launch는 사용자가 번호를 고른 뒤에만; 헤드리스에서는 안내만. 새 세션의 loader는 '시작 전' Task만 1회 확인 후 '진행 중'으로 전이)
    - `week` 주간 Task · `task` Task 드릴다운+Todo · `groom` 미분류 정리
    - `calendar` 개인(MY) Task → Google Calendar 종일 이벤트 동기화 (Due 있는 미완료만, 확인 후 쓰기)
    - `syncup` 팀 Tech Daily(데일리 스크럼) 테이블의 본인 셀에 한 것들/할 것들 작성 (인터랙티브 전용, 쓰기는 확인 후)
