@@ -444,7 +444,7 @@ tasks_tab() {
   # 선택 토글로 쓰이므로 Tasks 탭의 탭전환은 ctrl-t로만 수행한다(README 권장 키).
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --multi --delimiter='\t' --with-nth='2..' --ansi \
-          --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48% \
+          --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48%:wrap \
           --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  tab:다중선택  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
           --expect=enter,space,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료

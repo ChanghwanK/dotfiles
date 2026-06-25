@@ -601,6 +601,18 @@ def cmd_preview_task(args):
                 print(f"     {row}")
             else:
                 print(f"\n  📋 Plan: {plan_id} (파일 없음)")
+        # Description property(왜/문제/계획)와 페이지 본문을 preview에 노출한다.
+        # 둘 다 sync(pull)가 tasks.json에 캐시한 값이라 네트워크 호출 없이 읽는다.
+        description = (task.get("description") or "").strip()
+        if description:
+            print("\n  ── 설명 ──")
+            for ln in description.splitlines():
+                print(f"  {ln}")
+        body = (task.get("body_md") or "").strip()
+        if body:
+            print("\n  ── 본문 ──")
+            for ln in body.splitlines():
+                print(f"  {ln}")
     elif page_id != BACKLOG_ID:
         print("  (동기화 전 — sync 후 메타 표시)")
     print()

@@ -148,6 +148,9 @@ def parse_page(page):
     category_sel = props.get("Group", {}).get("select")
     category = category_sel.get("name", "") if category_sel else ""
     tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
+    # Description은 Task의 핵심 내용(왜/문제/계획)이 담기는 rich_text property다.
+    # 페이지 객체에 함께 실려오므로 추가 API 호출 없이 캐시한다(preview 표시용).
+    description = rich_text_to_plain(props.get("Description", {}).get("rich_text", []))
     return {
         "page_id": page["id"],
         "name": name,
@@ -156,8 +159,69 @@ def parse_page(page):
         "due_date": due.get("start", ""),
         "category": category,
         "tags": tags,
+        "description": description,
         "notion_last_edited": page.get("last_edited_time", ""),
     }
+
+
+# Task 페이지 본문에서 매 Task에 자동 삽입되는 안내 callout(noise)을 제외하기 위한 시그니처.
+# notion-task.py:cmd_create_task가 모든 신규 Task에 prepend하는 boilerplate다.
+_BODY_NOISE_PREFIXES = ("업무 노트 작성하기",)
+
+# 본문 미리보기 캐시 상한 — 캐시 비대화 방지. fzf preview는 스크롤되므로
+# 핵심 도입부만 보여도 충분하고, 전체는 ctrl-o(Notion 열기)로 본다.
+_BODY_PREVIEW_CAP = 2000
+
+
+def blocks_to_preview_text(blocks):
+    """Notion 페이지 자식 블록 → preview용 평문(라이트 마크다운).
+
+    to_do 블록은 preview의 Todo 섹션에서 따로 보여주므로 제외하고,
+    신규 Task마다 자동 삽입되는 안내 callout도 noise라 제외한다.
+    렌더러는 터미널 표시용이라 인라인 서식 없이 블록 타입별 prefix만 붙인다.
+    """
+    lines = []
+
+    def _txt(block, key):
+        return rich_text_to_plain(block.get(key, {}).get("rich_text", []))
+
+    for b in blocks:
+        t = b.get("type", "")
+        if t == "to_do":
+            continue
+        if t == "paragraph":
+            lines.append(_txt(b, "paragraph"))
+        elif t in ("heading_1", "heading_2", "heading_3"):
+            level = int(t[-1])
+            text = _txt(b, t)
+            if text:
+                lines.append(f"{'#' * level} {text}")
+        elif t == "bulleted_list_item":
+            lines.append(f"• {_txt(b, 'bulleted_list_item')}")
+        elif t == "numbered_list_item":
+            lines.append(f"- {_txt(b, 'numbered_list_item')}")
+        elif t == "quote":
+            lines.append(f"> {_txt(b, 'quote')}")
+        elif t == "code":
+            code = _txt(b, "code")
+            if code:
+                lines.append(code)
+        elif t == "callout":
+            text = _txt(b, "callout")
+            if any(text.startswith(p) for p in _BODY_NOISE_PREFIXES):
+                continue
+            if text:
+                lines.append(text)
+        elif t == "divider":
+            lines.append("───")
+        elif t == "toggle":
+            lines.append(_txt(b, "toggle"))
+        # 그 외 블록 타입(image, table 등)은 평문 표현이 어려워 생략한다.
+
+    body = "\n".join(lines).strip()
+    if len(body) > _BODY_PREVIEW_CAP:
+        body = body[:_BODY_PREVIEW_CAP].rstrip() + "\n… (생략 — ctrl-o로 Notion에서 전체 보기)"
+    return body
 
 
 # ── 조회 ──────────────────────────────────────────────────────

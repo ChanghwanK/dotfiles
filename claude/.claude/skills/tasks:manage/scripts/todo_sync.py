@@ -178,15 +178,19 @@ def pull(token, doc, conflicts, dry_run):
                                     "tasks": completed})
         stats["completed"] = len(completed)
 
-    # 2) 각 활성 Task 페이지의 to_do 블록 reconcile
+    # 2) 각 활성 Task 페이지의 to_do 블록 reconcile + 본문 캐시
     remove_ids = []
     for task in new_tasks:
         page_id = task["page_id"]
+        children = nc.get_all_children(token, page_id)
         remote_blocks = [
             parse_todo_block(b)
-            for b in nc.get_all_children(token, page_id)
+            for b in children
             if b.get("type") == "to_do"  # callout 등 다른 블록 제외
         ]
+        # 페이지 본문(비-todo 블록)을 preview 표시용으로 캐시한다. children을
+        # 위에서 이미 fetch했으므로 추가 API 호출 없이 추출한다.
+        task["body_md"] = nc.blocks_to_preview_text(children)
         remote_by_id = {b["block_id"]: b for b in remote_blocks}
         local_todos = [t for t in doc["todos"]
                        if t.get("task_page_id") == page_id and not t.get("deleted")]
@@ -233,6 +237,11 @@ def pull(token, doc, conflicts, dry_run):
 
     if not dry_run and remove_ids:
         doc["todos"] = [t for t in doc["todos"] if t["id"] not in remove_ids]
+
+    # section 1의 tasks 저장에는 body_md가 없다(children은 section 2에서 fetch).
+    # 본문이 채워진 new_tasks로 재저장해 preview가 description+body를 읽게 한다.
+    if not dry_run:
+        store.save_tasks({"version": 1, "synced_at": nc.now_kst(), "tasks": new_tasks})
 
     return stats
 
