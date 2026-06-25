@@ -3,15 +3,15 @@ name: alfred
 description: |
   Alfred 절차 엔진 — 차분한 집사형 개인 비서의 데이터 수집·브리핑 절차 본체.
   ※ 라우팅: 대화 중 "알프레드/alfred/비서" 호명이나 일정·Task 위임은 alfred "에이전트"가 받는다.
-     이 스킬은 (1) 그 에이전트가 절차 실행을 위해 호출하거나,
-     (2) cron이 헤드리스로 "/alfred <모드>"를 직접 호출할 때 실행된다.
+     이 스킬은 그 에이전트가 절차 실행을 위해 호출할 때 실행된다.
      대화형 호명에 직접 발동하지 말 것 — 에이전트로 위임한다. 인격·톤은 ~/.claude/agents/alfred.md.
-  오늘 일정 + 우선순위 Task + 이월 후보를 모아 격식체로 브리핑한다. 매일 아침 cron이 헤드리스로 호출해 Slack DM 푸시.
+  오늘 일정 + 우선순위 Task + 이월 후보를 모아 격식체로 브리핑한다(사용자 호출형).
   PDS 운영 모델(Pick·Adjust·Deliver·Sustain)로 하루 전체 '일잘'을 돕는다.
+  하루 시작(daily)은 daily:start 스킬로 인계해 어제 회고 + Top3 + Obsidian Daily Note 생성까지 잇는다.
   작업 완료 선언 시 done 전 "완료 게이트"(안심 4체크·점수화)로 '끝남'과 '동작함'을 구분한다.
   이번 주 Task 전체 조회·상태 변경·신규 생성과 Task 하위 Todo(로컬 TUI) + Daily Note Todos 통합 관리를 지원한다.
-  모드: briefing(아침 브리핑) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리) / syncup(팀 Tech Daily 데일리 스크럼 작성).
-  직접 호출(슬래시/cron 전용): "/alfred", "/alfred briefing", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom", "/alfred syncup".
+  모드: briefing(아침 브리핑) / daily(하루 시작 — daily:start 인계) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리) / syncup(팀 Tech Daily 데일리 스크럼 작성).
+  직접 호출(슬래시): "/alfred", "/alfred briefing", "/alfred daily", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom", "/alfred syncup".
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks *)
@@ -63,6 +63,22 @@ allowed-tools:
 
 ---
 
+## briefing · daily · daily:start 역할 경계
+
+세 컴포넌트는 책임이 다르다. 겹치는 데이터 소스(캘린더·Notion Task)는 캐시(`/tmp/alfred-calendar.json`)로 공유하되, 역할은 분리한다.
+
+| 구분 | 무엇 | 쓰기 | 산출물 | 책임 |
+|------|------|------|--------|------|
+| `briefing` (모드) | 현황 스냅샷 — 일정·우선순위 Task·이월·완료 보고·후속 액션 | 읽기 전용 | 화면 출력(선택적 `--push` Slack) | alfred 스킬 |
+| `daily` (모드) | 하루 셋업 진입점 — daily:start로 인계 | 인계만 | (daily:start 산출물) | alfred 스킬(호출자) |
+| `daily:start` (스킬) | 절차 본체 — 어제 Obsidian+Transcript 회고 → Top3 선정 → Obsidian Daily Note 생성/병합 → Gmail 요약 | Obsidian/Notion 쓰기(자체 게이트) | Obsidian Daily Note | daily:start 스킬 |
+
+- **연계 노선(아침)**: `briefing`(현황 확인) → 동의 시 `daily`(하루 셋업). briefing 종료 게이트와 `daily` 모드는 같은 `Skill(daily:start)` 호출을 쓴다.
+- **연계 노선(저녁)**: `review`(3축 점검) → 동의 시 `daily:review`(깊은 회고).
+- **단일 출처 원칙**: 하루 셋업 절차는 daily:start 스킬에만 있다. Alfred는 절차를 복제하지 않고 호출만 한다.
+
+---
+
 ## 모드 분기
 
 인자에 따라 분기한다. 기본은 `briefing`.
@@ -70,7 +86,8 @@ allowed-tools:
 | 인자 | 모드 | 설명 |
 |------|------|------|
 | (없음) / `briefing` | 아침 브리핑 | 일정 + 우선순위 Task + 이월 후보 종합 |
-| `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (cron 경로) |
+| `daily` | 하루 시작 (Pick) | `Skill(daily:start)` 인계 — 어제 회고 + Top3 선정 + Obsidian Daily Note 생성. briefing(현황)과 짝을 이루는 하루 셋업 |
+| `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (선택적 수동 발송) |
 | `briefing --refresh` | 캘린더 강제 갱신 | 당일 캐시를 무시하고 캘린더를 다시 조회 (회의 추가/취소 반영) |
 | `resume` | 작업 픽업 → 새 세션 | 브리핑된 Task를 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용) |
 | `resume --task <page_id>` | 이어가기 로더 | 새 세션이 자동 실행 — Task+Todo+claude-mem 기억 요약 후 첫 액션 제안 |
@@ -91,7 +108,7 @@ allowed-tools:
 
 **(A) 일정: 캘린더 오늘 + 이번 주 (당일 캐시 우선, best-effort)**
 
-캘린더 MCP 조회는 느리므로 **하루 한 번만** 실제 조회하고, 같은 날 재브리핑은 캐시를 재사용한다. 보통 아침 첫 브리핑(인터랙티브 또는 cron `--push`)이 캐시를 만들고, 이후 당일 브리핑은 이를 그대로 쓴다.
+캘린더 MCP 조회는 느리므로 **하루 한 번만** 실제 조회하고, 같은 날 재브리핑은 캐시를 재사용한다. 보통 아침 첫 브리핑(또는 같은 날 daily:start)이 캐시를 만들고, 이후 당일 브리핑은 이를 그대로 쓴다.
 
 1. **캐시 확인 먼저**: `/tmp/alfred-calendar.json`을 읽어 `date`가 오늘(`Asia/Seoul`)과 같으면 → MCP를 호출하지 말고 이 파일을 캘린더 소스로 쓴다. 단 `--refresh` 인자가 있으면 캐시를 무시하고 2번으로 간다.
 2. **조회 (캐시 미스 또는 `--refresh`)**: `mcp__claude_ai_Google_Calendar__list_events` 로 **오늘부터 이번 주 일요일까지**(`Asia/Seoul`) 한 번에 조회한다. `calendarId = changhwan.kim@socra.ai`, 범위 = 오늘 00:00 ~ 이번 주 일요일 24:00.
@@ -233,31 +250,50 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - **후속 액션(F)**: `repo==follow-up` 미처리 항목을 경과일수와 함께 리마인드한다. `days_since_first ≥ 5`면 "아직 유효합니까? 정리 권합니다"로 격상해 **방치된 후속을 정리하도록** 민다(쌓이기만 하는 백로그 방지). 항목이 0건이면 섹션을 생략해 잔소리를 줄인다.
 - **권고는 1줄**: 단정하지 않고 "권합니다 / ~하시는 편이 좋겠습니다"로. 결정은 주인에게.
 
-### 하루 시작 인계 (인터랙티브 전용, 동의 게이트)
+### 하루 시작 인계 (동의 게이트 → daily 모드)
 
 브리핑(Pick)은 읽기 전용이라 Obsidian Daily Note를 직접 만들지 않는다. 대신 브리핑 출력 직후,
-**인터랙티브 세션에서만** `AskUserQuestion`으로 Daily Note 생성 여부를 여쭙고, 동의 시 daily:start로 인계한다.
-review의 "깊은 회고 인계"와 동일한 패턴이다.
+`AskUserQuestion`으로 Daily Note 생성 여부를 여쭙고, 동의 시 `daily` 모드(= `Skill(daily:start)`)로 인계한다.
+review의 "깊은 회고 인계"와 동일한 패턴이며, 별도 `## 워크플로우 — daily` 섹션의 본체와 같은 호출을 쓴다.
 
 - **사전 확인 (오늘 Daily Note 있으면 게이트 생략)**: 게이트를 띄우기 전에 오늘자 파일이 이미 있는지 확인한다 (`test -f "$HOME/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/01. Daily/$(date +%F).md"`). **이미 있으면** Daily Note는 하루 한 번이면 충분하므로 게이트를 **띄우지 않고**, 권고 줄에 "오늘 Daily Note는 이미 준비돼 있습니다" 한 줄만 남긴다. 파일이 없을 때만 아래 게이트를 띄운다.
 - 질문(파일이 없을 때만): "오늘 Daily Note를 만들까요?" / 선택지: (예: 지금 생성) / (아니요: 나중에).
-- **예** 선택 시: `Skill` 도구로 `daily:start`를 **인라인 호출**한다.
-  - 직전 1단계 (A)에서 저장한 `/tmp/alfred-calendar.json`이 있으면 daily:start가 캘린더를 재조회하지 않고 재사용한다(중복 제거).
-  - daily:start는 기존 Daily Note가 있으면 빈 섹션만 채우고 사용자 작성 내용은 보존한다 → 덮어쓰기 위험 없음.
-  - 호출이 끝나면 생성 경로와 Top3 요약을 Alfred 톤으로 짧게 보고한다.
-- **아니요** 선택 시: "확인됐습니다. 필요하시면 언제든 `/daily:start`로 만드실 수 있습니다." 후 종료.
-- **이 게이트는 인터랙티브 전용**이다. 헤드리스(`--push`)에서는 묻지도 호출하지도 않는다(아래 발송 참조).
+- **예** 선택 시: `daily` 모드 본체와 동일하게 `Skill` 도구로 `daily:start`를 **인라인 호출**한다(아래 daily 워크플로우 참조).
+- **아니요** 선택 시: "확인됐습니다. 필요하시면 언제든 `/alfred daily`(또는 `/daily:start`)로 만드실 수 있습니다." 후 종료.
+- **비대화형 호출 가드**: `--push` 등 무인 호출이면 동의를 받을 수 없으므로 게이트를 띄우지 않는다(아래 발송 참조). Daily Note 생성은 대화형 세션 몫이다.
 
-### 3단계: 발송 (`--push` 인 경우에만)
+### 3단계: 발송 (`--push` 인 경우에만 — 선택적 수동 발송)
 
-브리핑 본문을 한 메시지로 정리해 Slack DM으로 보낸다:
+브리핑 본문을 본인 Slack DM으로도 받고 싶을 때 `--push`를 붙여 호출한다. 기본은 화면 출력뿐이다.
 
 ```bash
 bash /Users/changhwan/.claude/scripts/notify-slack.sh "$BRIEFING_TEXT"
 ```
 - `notify-slack.sh`는 본인(U098T8A1XL0)에게 발송하며 실패해도 `exit 0`(에러 로그만 남김).
 - `--push` 가 없으면 발송하지 않고 화면 출력만 한다.
-- 헤드리스(`--push`/cron)에서는 **하루 시작 인계 게이트를 띄우지 않는다**(무인 동의 불가). Daily Note 생성은 인터랙티브 세션 몫이다.
+- `--push`(무인 발송)에서는 **하루 시작 인계 게이트를 띄우지 않는다**(무인 동의 불가). Daily Note 생성은 대화형 세션 몫이다.
+
+---
+
+## 워크플로우 — daily (하루 시작, Pick)
+
+"하루 시작 / 오늘 할 것들 정리 / 데일리 노트 만들어줘" 요청을 받으면 이 모드로 처리한다.
+Alfred는 절차를 직접 수행하지 않고 **`daily:start` 스킬로 인계**한다. 책임 경계는 명확하다:
+briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제 회고 + Top3 + Obsidian Daily Note 생성)이며,
+실제 절차(Top3 가중치·템플릿·Gmail 분석)는 daily:start 스킬이 단일 출처로 책임진다.
+
+### 절차
+
+1. **(선택) 직전 briefing 캐시 재사용**: 같은 날 briefing을 이미 돌렸다면 `/tmp/alfred-calendar.json`이 남아 있다. daily:start가 이 캐시를 재사용하므로 캘린더를 중복 조회하지 않는다. 캐시가 없어도 daily:start가 자체 조회하므로 문제없다.
+2. **인계**: `Skill` 도구로 `daily:start`를 **인라인 호출**한다.
+   - daily:start는 기존 Daily Note가 있으면 빈 섹션만 채우고 사용자 작성 내용은 보존한다 → 덮어쓰기 위험 없음(멱등).
+   - daily:start 내부에 Top3 확정·Notion 등록 여부 등 **자체 확인 게이트**가 있으므로, Alfred는 중복 질문을 만들지 않는다.
+3. **종합 보고**: 호출이 끝나면 생성 경로와 Top3 요약을 Alfred 톤으로 짧게 보고한다(과정 로그가 아니라 결론 먼저).
+
+### 경계
+
+- **비대화형 호출 가드**: `--push` 등 무인 호출에서는 daily:start의 확인 게이트에 응답할 수 없으므로 인계하지 않는다. 하루 시작은 대화형 세션 몫이다.
+- **단일 출처 원칙**: daily 절차를 이 문서에 복제하지 않는다. 절차가 바뀌면 daily:start 스킬만 고친다. Alfred는 호출자다.
 
 ---
 
@@ -276,7 +312,7 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$BRIEFING_TEXT"
      python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json > /tmp/alfred-todos.json
      python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build --active-json /tmp/alfred-active.json --todos-json /tmp/alfred-todos.json
      ```
-2. **헤드리스 가드**: `--push`/cron 등 비대화형 호출이면 picker를 띄우지 않는다. "인터랙티브 세션에서 `/alfred resume`를 실행하세요" 한 줄만 출력하고 종료(무인 상태에서 세션 launch를 시도하지 않는다).
+2. **비대화형 가드**: `--push` 등 무인 호출이면 picker를 띄우지 않는다. "인터랙티브 세션에서 `/alfred resume`를 실행하세요" 한 줄만 출력하고 종료(무인 상태에서 세션 launch를 시도하지 않는다).
 3. **번호 목록 출력**(🎩 톤, 결론 먼저):
    ```
    🎩 오늘 브리핑된 작업 — 어느 것을 이어가시겠습니까?
@@ -584,12 +620,9 @@ python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "{Task
 ```
 - Daily Note 없으면: skip + "(Daily Note 없음 — `daily:start`로 생성 후 직접 기록 권합니다)" 안내.
 
-**(C) TUI todo_store Task 상태 → 완료**
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-task-status \
-  --task <page_id> --status 완료
-```
-- 실패 시: skip (로컬 store 복구 비용 낮음).
+> 로컬 TUI store는 여기서 건드리지 않는다. (A)가 Notion(= source of truth) 상태를 직접 바꾸므로,
+> 로컬 store는 다음 sync(ctrl-r/ctrl-u 또는 드릴인 fetch)로 완료 상태를 pull해 반영한다.
+> store에 별도 쓰기를 하면 같은 source에 이중 쓰기(meta_dirty → push)가 되어 중복이다.
 
 **클로징 완료 보고 포맷:**
 ```
@@ -597,7 +630,6 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py set-t
 
 ✓ Notion: 완료 (due 비어있었으면: · due {MM/DD} 자동 기록)
 ✓ Daily Note: [x] {Task명} 기록
-✓ TUI Store: 완료
 (실패 항목은 ✗와 원인 1줄)
 
 복구: update-status --page-id {id} --status "진행 중" 으로 되돌릴 수 있습니다.
@@ -804,16 +836,16 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconc
 - **아니요** 선택 시: "확인됐습니다. 필요하시면 언제든 `/daily:review`로 이어가실 수 있습니다." 후 종료.
 - **이 게이트는 인터랙티브 전용**이다. 헤드리스(`--push`)에서는 묻지도 호출하지도 않는다(아래 발송 참조).
 
-### 발송 (`--push` 인 경우에만)
+### 발송 (`--push` 인 경우에만 — 선택적 수동 발송)
 
-저녁 review를 헤드리스 cron이 호출할 때(`/alfred review --push`) 위 3축 출력을 한 메시지로 정리해 Slack DM으로 보낸다:
+저녁 review 결과를 본인 Slack DM으로도 받고 싶을 때 `/alfred review --push`로 호출하면 위 3축 출력을 한 메시지로 정리해 보낸다:
 ```bash
 bash /Users/changhwan/.claude/scripts/notify-slack.sh "$REVIEW_TEXT"
 ```
 - `notify-slack.sh`는 본인(U098T8A1XL0)에게 발송하며 실패해도 `exit 0`.
 - `--push`가 없으면 발송하지 않고 화면 출력만 한다.
-- 헤드리스 발송 시에는 후속 등록 같은 **동의 필요 쓰기를 하지 않는다**(무인 상태에서 동의를 받을 수 없음). 레버리지 후속 제안은 본문에 "후속으로 남기시겠습니까?" 문구로만 남기고, 실제 등록은 인터랙티브 세션에서 한다.
-- 헤드리스에서는 **daily:review 인계 게이트도 띄우지 않는다**(무인 동의 불가). 깊은 회고는 인터랙티브 세션 몫이며, cron 메시지는 3축 요약까지만 보낸다.
+- `--push`(무인 발송) 시에는 후속 등록 같은 **동의 필요 쓰기를 하지 않는다**(무인 상태에서 동의를 받을 수 없음). 레버리지 후속 제안은 본문에 "후속으로 남기시겠습니까?" 문구로만 남기고, 실제 등록은 인터랙티브 세션에서 한다.
+- `--push`에서는 **daily:review 인계 게이트도 띄우지 않는다**(무인 동의 불가). 깊은 회고는 인터랙티브 세션 몫이며, `--push` 메시지는 3축 요약까지만 보낸다.
 
 ### 리뷰 경계
 

@@ -188,11 +188,36 @@ prompt_choose() {  # $@=옵션들 → 선택값 stdout
     local n; read -rp "번호: " n; echo "${@:$n:1}"; fi
 }
 
-run_sync() {  # 전체 양방향 sync (시간 소요 — gum spinner로 피드백)
+run_sync() {  # 기본 ctrl-r: lazy sync — Task 메타 + push만(본문 스킵). 빠름(~1s).
+  # 본문(to_do)은 Task 드릴인 시 pull_task_for로, 전체는 ctrl-u(run_sync_full)로 당긴다.
   if have_gum; then
-    gum spin --title "Notion 동기화 중..." -- python3 "$SYNC" sync >/dev/null
+    gum spin --title "동기화 중 (메타)..." -- python3 "$SYNC" sync-meta >/dev/null
   else
-    echo "동기화 중..."; python3 "$SYNC" sync >/dev/null
+    echo "동기화 중..."; python3 "$SYNC" sync-meta >/dev/null
+  fi
+}
+
+run_sync_full() {  # ctrl-u: full sync — 메타 + 본문 reconcile + push. 느림(Task 수 비례).
+  # $1=우선순위 범위(P1/P2/P3, 비우면 전체). 평면 탭은 전체, Tasks 탭은 현재 필터 범위.
+  local prio="${1:-}"
+  local title="전체 동기화 중 (본문 포함)..."
+  [ -n "$prio" ] && title="전체 동기화 중 ($prio 본문)..."
+  if have_gum; then
+    gum spin --title "$title" -- python3 "$SYNC" sync ${prio:+--priority "$prio"} >/dev/null
+  else
+    echo "$title"; python3 "$SYNC" sync ${prio:+--priority "$prio"} >/dev/null
+  fi
+}
+
+pull_task_for() {  # 드릴인 직전: 해당 Task 한 개의 본문만 동기화(~0.5s). Backlog은 제외.
+  local page_id="$1"
+  [ -z "$page_id" ] && return
+  [ "$page_id" = "__backlog__" ] && return  # Backlog은 Notion 미동기화(로컬 전용)
+  if have_gum; then
+    gum spin --title "Task 본문 동기화 중..." -- \
+      python3 "$SYNC" pull-task --page-id "$page_id" >/dev/null 2>&1 || true
+  else
+    python3 "$SYNC" pull-task --page-id "$page_id" >/dev/null 2>&1 || true
   fi
 }
 
@@ -301,7 +326,7 @@ todo_menu() {
                  fi
                fi ;;
       ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-todos 재렌더
-      ctrl-r)  run_sync ;;
+      ctrl-r)  pull_task_for "$page_id" ;;  # 이 Task 본문만 동기화(Backlog은 no-op)
     esac
   done
 }
@@ -317,23 +342,25 @@ PRIO_FILTER="P1" # Tasks 탭의 우선순위 필터 (P1|P2|P3|P4|"" 전체)
 TODAY_OVERDUE="0" # Today 탭의 지남(overdue) 표시 여부 (0=숨김 기본, 1=표시 / ctrl-o 토글)
 
 tab_bar() {
-  local a="○Todos" b="○Done" c="○Tasks" d="○Today"
+  local a="○Todos" b="○Done" c="○Tasks" d="○Today" e="○Doing"
   case "$TAB" in
     todos) a="●Todos" ;;
     done)  b="●Done" ;;
     tasks) c="●Tasks" ;;
     today) d="●Today" ;;
+    doing) e="●Doing" ;;
   esac
-  echo "[ $a │ $b │ $c │ $d ]"
+  echo "[ $a │ $b │ $c │ $d │ $e ]"
 }
 
-# ctrl-t/tab: todos → done → tasks → today → todos 순환
+# ctrl-t/tab: todos → done → tasks → today → doing → todos 순환
 next_tab() {
   case "$TAB" in
     todos) TAB="done" ;;
     done)  TAB="tasks" ;;
     tasks) TAB="today" ;;
-    today) TAB="todos" ;;
+    today) TAB="doing" ;;
+    doing) TAB="todos" ;;
   esac
 }
 
@@ -445,8 +472,8 @@ tasks_tab() {
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --multi --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48%:wrap \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  tab:다중선택  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
-          --expect=enter,space,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  tab:다중선택  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync(메타)  ctrl-u:전체sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
+          --expect=enter,space,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-u,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -455,12 +482,13 @@ tasks_tab() {
     2) PRIO_FILTER="P2" ;;
     3) PRIO_FILTER="P3" ;;
     0) PRIO_FILTER="" ;;
-    enter)   [ -n "$page_id" ] && open_task_session "$page_id" ;;
-    space)   [ -n "$page_id" ] && todo_menu "$page_id" ;;
+    enter)   [ -n "$page_id" ] && { pull_task_for "$page_id"; open_task_session "$page_id"; } ;;
+    space)   [ -n "$page_id" ] && { pull_task_for "$page_id"; todo_menu "$page_id"; } ;;
     ctrl-d)  delete_tasks "$out" ;;
     ctrl-o)  [ -n "$page_id" ] && open_notion_page "$page_id" ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-tasks 재렌더
     ctrl-r)  run_sync ;;
+    ctrl-u)  run_sync_full "$PRIO_FILTER" ;;  # 본문 포함 full sync(현재 우선순위 범위)
     ctrl-s)  [ -z "$page_id" ] && return
              [ "$page_id" = "__backlog__" ] && return  # Backlog은 Notion 상태 없음
              local st; st=$(prompt_choose "시작 전" "진행 중" "완료" "대기")
@@ -620,8 +648,8 @@ todos_tab() {
   out=$(list_todos_filtered "$TODOS_FILTER" \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-          --header="$(tab_bar)$fhdr$flabel  enter:Claude열기  space:상태전환(□▷✓)  ctrl-f:완료포함토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-f,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-p)
+          --header="$(tab_bar)$fhdr$flabel  enter:Claude열기  space:상태전환(□▷✓)  ctrl-f:완료포함토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync(메타)  ctrl-u:전체sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-f,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-u,ctrl-p)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -662,6 +690,7 @@ todos_tab() {
     ctrl-g)  choose_repo ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-all-todos 재렌더
     ctrl-r)  run_sync ;;
+    ctrl-u)  run_sync_full "" ;;  # 평면 뷰는 전체 본문 필요 → 우선순위 제한 없이 full
   esac
 }
 
@@ -685,11 +714,39 @@ today_tab() {
     enter)
       [ -z "$id" ] && return
       if [[ "$id" == td_* ]]; then open_todo_session "$id"  # Todo → 세션
-      else todo_menu "$id"; fi ;;                            # Task → 하위 Todo 목록
+      else pull_task_for "$id"; todo_menu "$id"; fi ;;       # Task → 본문 동기화 후 하위 Todo
     space)
       # 상태 전환은 Todo만 (Task 상태는 Tasks 탭의 ctrl-s에서 변경)
       [[ "$id" == td_* ]] && python3 "$STORE" toggle --id "$id" >/dev/null ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 today 재렌더
+    ctrl-r)  run_sync ;;
+  esac
+}
+
+# Doing 탭: 지금 진행 중인 것만 — 진행 중 Task(상태=진행 중) + 진행중 Todo(상태=진행중).
+# Today 탭이 마감 기준(지남/오늘)까지 섞는 것과 달리 순수 WIP만 모아 동시 진행 과부하를
+# 점검한다. Task는 page_id, Todo는 td_ 접두사 id로 구분 → enter 동작을 분기한다
+#   (Task=하위 Todo 드릴인 / Todo=Claude 세션 오픈).
+doing_tab() {
+  local out key line id
+  out=$(python3 "$STORE" doing --format fzf \
+    | fzf --delimiter='\t' --with-nth='2..' --ansi \
+          --preview "python3 '$STORE' preview-today {1}" --preview-window=right:46% \
+          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기/드릴인  space:Todo상태전환  ctrl-t:탭전환  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-l,ctrl-r)
+  if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
+  key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); id=$(cut -f1 <<<"$line")
+  [[ "$id" == __* ]] && id=""  # __none__/__info__ 등 정보 행은 선택 동작 없음
+  case "$key" in
+    tab|ctrl-t) next_tab ;;
+    enter)
+      [ -z "$id" ] && return
+      if [[ "$id" == td_* ]]; then open_todo_session "$id"  # Todo → 세션
+      else pull_task_for "$id"; todo_menu "$id"; fi ;;       # Task → 본문 동기화 후 하위 Todo
+    space)
+      # 상태 전환은 Todo만 (Task 상태는 Tasks 탭의 ctrl-s에서 변경)
+      [[ "$id" == td_* ]] && python3 "$STORE" toggle --id "$id" >/dev/null ;;
+    ctrl-l)  : ;;  # no-op → while loop 재진입으로 doing 재렌더
     ctrl-r)  run_sync ;;
   esac
 }
@@ -701,8 +758,8 @@ done_tab() {
   out=$(list_todos_filtered done \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-          --header="$(tab_bar)  완료 Todo(최근순)  enter:Claude열기  space:재오픈(✓→□)  ctrl-t:탭전환  ctrl-d:삭제  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-d,ctrl-l,ctrl-r)
+          --header="$(tab_bar)  완료 Todo(최근순)  enter:Claude열기  space:재오픈(✓→□)  ctrl-t:탭전환  ctrl-d:삭제  ctrl-l:새로고침  ctrl-r:sync(메타)  ctrl-u:전체sync  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-d,ctrl-l,ctrl-r,ctrl-u)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -713,6 +770,7 @@ done_tab() {
              prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 재렌더
     ctrl-r)  run_sync ;;
+    ctrl-u)  run_sync_full "" ;;  # 완료 평면 뷰도 전체 본문 필요 → full
   esac
 }
 
@@ -723,6 +781,7 @@ main_menu() {
       done)  done_tab ;;
       tasks) tasks_tab ;;
       today) today_tab ;;
+      doing) doing_tab ;;
       *)     todos_tab ;;
     esac
     [ "$NAV" = "quit" ] && return

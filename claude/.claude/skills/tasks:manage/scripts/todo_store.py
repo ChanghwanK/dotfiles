@@ -854,32 +854,119 @@ def cmd_today(args):
 
 
 def cmd_preview_today(args):
-    """Today 뷰 preview — id 접두사로 Task(page_id) / Todo(td_)를 자동 분기."""
+    """Today/Doing 뷰 preview — id 접두사로 Task(page_id) / Todo(td_)를 자동 분기."""
     tid = args.id
     if tid == "__none__":
         print("  오늘 처리할 항목이 없습니다.")
         return
+    if tid.startswith("__"):
+        return  # __info__ 등 정보 행 — preview 대상 아님
     if tid.startswith("td_"):
         cmd_preview_todo(argparse.Namespace(todo_id=tid))
     else:
         cmd_preview_task(argparse.Namespace(page_id=tid))
 
 
-def cmd_set_task_status(args):
-    """Task 상태를 로컬에서 변경하고 meta_dirty 표식 — push가 Notion에 반영한다.
-    모든 로컬 쓰기는 store가 소유하므로(sync는 Notion I/O만) 여기에 둔다."""
-    if args.status not in nc.VALID_STATUSES:
-        _err(f"Invalid status '{args.status}'. Valid: {sorted(nc.VALID_STATUSES)}")
-    doc = load_tasks()
-    task = next((t for t in doc["tasks"] if t["page_id"] == args.task), None)
-    if not task:
-        _err(f"task not found in cache: {args.task} (sync 먼저 실행)")
-    task["status"] = args.status
-    task["meta_dirty"] = True
-    task["meta_updated_at"] = nc.now_kst()
-    save_tasks(doc)
-    print(json.dumps({"success": True, "page_id": args.task, "status": args.status},
-                     ensure_ascii=False))
+# ── Doing 뷰 ──────────────────────────────────────────────────
+# "지금 붙잡고 있는 일"만 모은다 — 진행 중 Task(상태='진행 중') + 진행중 Todo(상태='진행중').
+# Today 뷰가 마감(지남/오늘)까지 섞는 것과 달리, 순수하게 in-progress 상태만 본다.
+# 동시 진행(WIP)이 과한지 한눈에 점검하는 용도.
+
+def _collect_doing():
+    """진행 중 Task(드릴인) / 진행중 Todo(세션 오픈)를 한 리스트로 모은다.
+
+    정렬: Task 먼저(우선순위 → 마감 → 이름), 그다음 Todo(마감 → 제목). Task와 Todo를
+    섞되 kind로 구분해 셸이 enter 동작(Task=드릴인 / Todo=세션 오픈)을 분기하게 한다.
+    """
+    tdoc = load_todos()
+    tasks = load_tasks()["tasks"]
+    tasks_map = {t["page_id"]: t.get("name", "") for t in tasks}
+    items = []
+
+    for task in tasks:
+        if task.get("status") == "진행 중":
+            done, total = _counts_for(tdoc, task["page_id"])
+            items.append({"kind": "task", "obj": task,
+                          "due": task.get("due_date", ""), "done": done, "total": total})
+
+    for t in _visible_todos(tdoc):
+        if _get_status(t) == "진행중":
+            pid = t.get("task_page_id")
+            ctx = BACKLOG_LABEL if pid == BACKLOG_ID else (tasks_map.get(pid) or "(task?)")
+            items.append({"kind": "todo", "obj": t,
+                          "due": t.get("due", ""), "context": ctx})
+
+    items.sort(key=lambda i: (i["obj"].get("title") or i["obj"].get("name") or ""))
+    items.sort(key=lambda i: i["due"] or "9999-99-99")
+    items.sort(key=lambda i: _priority_short(i["obj"].get("priority", "")) if i["kind"] == "task" else "P9")
+    items.sort(key=lambda i: 0 if i["kind"] == "task" else 1)  # stable: Task 그룹을 위로
+    return items
+
+
+def cmd_doing(args):
+    """진행 중 Task/Todo 통합 뷰 — Doing 탭(fzf) · 자동화(json) · 비인터랙티브(text)."""
+    items = _collect_doing()
+
+    if args.format == "json":
+        out = []
+        for i in items:
+            o = i["obj"]
+            if i["kind"] == "task":
+                out.append({"kind": "task", "page_id": o["page_id"],
+                            "name": o.get("name", ""), "due": i["due"],
+                            "priority": _priority_short(o.get("priority", "")),
+                            "todo_done": i["done"], "todo_count": i["total"]})
+            else:
+                out.append({"kind": "todo", "id": o["id"], "title": o.get("title", ""),
+                            "due": i["due"], "status": _get_status(o),
+                            "context": i["context"], "repo": repo_of(o)})
+        print(json.dumps({"items": out}, ensure_ascii=False, indent=2))
+        return
+
+    if args.format == "text":
+        if not items:
+            print("진행 중인 Task/Todo가 없습니다.")
+            return
+        for i in items:
+            o = i["obj"]
+            due = f" (~{i['due'][5:10]})" if i["due"] else ""
+            if i["kind"] == "task":
+                print(f"  📁 {o.get('name', '')}{due}  ({i['done']}/{i['total']})")
+            else:
+                print(f"  {_colored_icon(_get_status(o))} {o.get('title', '')}{due}  · {i['context']}")
+        return
+
+    # fzf: "<id>\t<표시줄>". Task는 page_id, Todo는 td_ 접두사 id → 셸이 enter 분기.
+    if not items:
+        print("__none__\t  ✨ 진행 중인 Task/Todo가 없습니다  (ctrl-t: 다른 탭)")
+        return
+    _cols = shutil.get_terminal_size((120, 24)).columns
+    title_width = max(26, int(_cols * 0.50) - 18)
+    n_task = sum(1 for i in items if i["kind"] == "task")
+    n_todo = len(items) - n_task
+    for i in items:
+        o = i["obj"]
+        due = i["due"]
+        due_str = f"~{due[5:10]}" if due else "     "
+        if i["kind"] == "task":
+            title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
+            title_col = _fit(title_field, title_width)
+            tail = f"[{_priority_short(o.get('priority', ''))}] ({i['done']}/{i['total']})"
+            print(f"{o['page_id']}\t📁 {title_col}  {due_str}  {tail}")
+        else:
+            status = _get_status(o)
+            glyph_col = _colored_icon(status) + " "  # box(1) + space → Task 📁(2)와 폭 정렬
+            title_field = (o.get("title", "")
+                           + (" 📋" if o.get("plan_id") else "")
+                           + (" 📝" if o.get("description") else "")
+                           + (" 🖼" if o.get("images") else ""))
+            title_col = _fit(title_field, title_width)
+            ctx = i["context"]
+            ctx_part = "" if ctx == BACKLOG_LABEL else f"  · {_fit(ctx, 14)}"
+            repo = repo_of(o)
+            repo_tag = f"  [{repo}]" if repo else ""
+            print(f"{o['id']}\t{glyph_col} {title_col}  {due_str}{ctx_part}{repo_tag}")
+    print(f"__info__\t   ⋯ WIP: Task {n_task} · Todo {n_todo}")
 
 
 def cmd_delete_task_local(args):
@@ -1091,10 +1178,6 @@ def main():
     pvt = sub.add_parser("preview-todo")
     pvt.add_argument("todo_id")
 
-    ss = sub.add_parser("set-task-status")
-    ss.add_argument("--task", required=True)
-    ss.add_argument("--status", required=True)
-
     dtl = sub.add_parser("delete-task-local")
     dtl.add_argument("--task", required=True)
 
@@ -1105,6 +1188,9 @@ def main():
     td.add_argument("--format", choices=["fzf", "json", "text"], default="fzf")
     td.add_argument("--include-overdue", dest="include_overdue", action="store_true",
                     help="지남(overdue)까지 포함 (기본: 오늘/진행만)")
+
+    dg = sub.add_parser("doing")
+    dg.add_argument("--format", choices=["fzf", "json", "text"], default="fzf")
 
     pty = sub.add_parser("preview-today")
     pty.add_argument("id")
@@ -1126,11 +1212,11 @@ def main():
         "delete": cmd_delete,
         "preview-task": cmd_preview_task,
         "preview-todo": cmd_preview_todo,
-        "set-task-status": cmd_set_task_status,
         "delete-task-local": cmd_delete_task_local,
         "import-memory": cmd_import_memory,
         "summary": cmd_summary,
         "today": cmd_today,
+        "doing": cmd_doing,
         "preview-today": cmd_preview_today,
         "link-plan": cmd_link_plan,
     }

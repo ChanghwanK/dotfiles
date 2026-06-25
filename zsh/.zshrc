@@ -246,3 +246,4 @@ _cmux_raycast_consume() {
 }
 _cmux_raycast_consume
 # === /cmux Raycast 워크스페이스 런처 훅 ===
+alias cdk8s-chart="cd $HOME/workspace/riiid/kubernetes-charts"

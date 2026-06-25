@@ -18,10 +18,20 @@
   - sync 시작 시 todos.json → todos.json.bak 백업
   - --dry-run: 어떤 쓰기(로컬/Notion)도 하지 않고 계획만 출력
 
+성능 모델 (lazy 본문 fetch):
+  본문(to_do 블록) 조회는 활성 Task당 1회 API 호출이라, Task가 많으면 sync가
+  느리다. 그래서 본문 fetch를 "필요할 때만"으로 분리한다.
+    - sync-meta : Task 목록(메타)만 pull + push. 본문 reconcile 없음 → 빠름.
+    - pull-task : 특정 Task 한 개의 본문만 reconcile (드릴인 시).
+    - sync      : 메타 + 전체 본문(또는 --priority 범위) + push (full).
+  메타만 갱신할 때 기존 body_md 캐시는 보존한다(preview가 깨지지 않게).
+
 Usage:
-  todo_sync.py sync   [--dry-run]   # pull → 충돌해소 → push (기본)
-  todo_sync.py pull   [--dry-run]   # Notion → 로컬만
-  todo_sync.py push   [--dry-run]   # 로컬 → Notion만
+  todo_sync.py sync       [--priority P1] [--dry-run]  # 메타+본문+push (full)
+  todo_sync.py sync-meta  [--dry-run]                  # 메타+push (본문 스킵, 빠름)
+  todo_sync.py pull-task  --page-id <id> [--dry-run]   # 단일 Task 본문+push
+  todo_sync.py pull       [--dry-run]                  # Notion → 로컬만 (full)
+  todo_sync.py push       [--dry-run]                  # 로컬 → Notion만
 """
 import argparse
 import json
@@ -138,15 +148,26 @@ def _conflict_entry(local, remote, winner):
 
 # ── PULL ──────────────────────────────────────────────────────
 
-def pull(token, doc, conflicts, dry_run):
-    """Notion → 로컬. tasks.json 재구성 + 각 페이지 to_do 블록 reconcile."""
-    stats = {"tasks": 0, "completed": 0, "created": 0, "adopted": 0, "remote_deleted": 0}
+def pull_meta(token, conflicts, dry_run):
+    """Notion → 로컬, Task 메타만. tasks.json 재구성 + 완료 캐시 갱신.
 
-    # 1) Task 메타 재구성 (meta_dirty 보존 + 충돌 판정)
+    본문(to_do 블록)은 건드리지 않는다 — get_all_children을 호출하지 않으므로
+    Task 수와 무관하게 1~2회 API 호출로 끝난다(빠름). 본문 reconcile은
+    pull_task_bodies가 담당한다.
+
+    반환: (stats, new_tasks). new_tasks는 메모리 리스트로, 후속 pull_task_bodies가
+    dry_run 여부와 무관하게 그대로 받아 본문을 채울 수 있게 전달한다.
+    """
+    stats = {"tasks": 0, "completed": 0}
     old_tasks = {t["page_id"]: t for t in store.load_tasks()["tasks"]}
     new_tasks = []
     for task in nc.query_active_tasks(token):
         old = old_tasks.get(task["page_id"])
+        # 본문 미리보기 캐시는 메타 갱신만으로 다시 만들 수 없다(children 미조회).
+        # 기존 캐시를 carry-over해 preview가 빈 본문으로 깨지지 않게 한다.
+        # 해당 Task 본문을 pull_task_bodies가 처리할 때 최신값으로 덮인다.
+        if old and old.get("body_md"):
+            task["body_md"] = old["body_md"]
         if old and old.get("meta_dirty"):
             remote_edited = nc.to_utc(task["notion_last_edited"])
             local_updated = nc.to_utc(old.get("meta_updated_at", ""))
@@ -160,7 +181,8 @@ def pull(token, doc, conflicts, dry_run):
                                   "local": old.get("status"), "remote": task["status"]})
                 new_tasks.append(task)
             else:
-                # 로컬 status 유지 + meta_dirty 보존 → push가 반영
+                # 로컬 status 유지 + meta_dirty 보존 → push가 반영.
+                # body_md는 위에서 task에 이미 carry되어 spread에 포함된다.
                 new_tasks.append({**task, "status": old["status"],
                                   "meta_dirty": True,
                                   "meta_updated_at": old.get("meta_updated_at")})
@@ -170,17 +192,32 @@ def pull(token, doc, conflicts, dry_run):
     if not dry_run:
         store.save_tasks({"version": 1, "synced_at": nc.now_kst(), "tasks": new_tasks})
 
-    # 1.5) 최근 완료 Task 캐시 갱신 — Tasks 탭 ALL 뷰 노출용 읽기 전용 캐시.
-    #      활성 Task와 분리되어 to_do reconcile/push/충돌 대상이 아니다(매번 통째로 교체).
-    if not dry_run:
+        # 최근 완료 Task 캐시 갱신 — Tasks 탭 ALL 뷰 노출용 읽기 전용 캐시.
+        # 활성 Task와 분리되어 to_do reconcile/push/충돌 대상이 아니다(매번 통째로 교체).
         completed = nc.query_recent_completed_tasks(token)
         store.save_completed_tasks({"version": 1, "synced_at": nc.now_kst(),
                                     "tasks": completed})
         stats["completed"] = len(completed)
 
-    # 2) 각 활성 Task 페이지의 to_do 블록 reconcile + 본문 캐시
+    return stats, new_tasks
+
+
+def pull_task_bodies(token, doc, conflicts, dry_run, tasks_list, page_ids=None):
+    """각 Task 페이지의 to_do 블록을 reconcile + 본문 preview 캐시 갱신.
+
+    page_ids=None이면 tasks_list 전체, 아니면 그 집합에 속한 Task만 처리한다
+    (lazy: 드릴인한 Task 또는 우선순위 범위만). get_all_children이 Task당 1회라
+    여기서 처리하는 Task 수가 곧 본문 fetch 비용이다.
+
+    tasks_list는 메모리 리스트(pull_meta 산출물 또는 load_tasks 결과)이며,
+    body_md를 채운 뒤 전체를 tasks.json에 재저장한다(처리 안 한 Task의 기존
+    body_md는 보존된다).
+    """
+    stats = {"created": 0, "adopted": 0, "remote_deleted": 0, "bodies": 0}
     remove_ids = []
-    for task in new_tasks:
+    targets = [t for t in tasks_list
+               if page_ids is None or t["page_id"] in page_ids]
+    for task in targets:
         page_id = task["page_id"]
         children = nc.get_all_children(token, page_id)
         remote_blocks = [
@@ -191,6 +228,7 @@ def pull(token, doc, conflicts, dry_run):
         # 페이지 본문(비-todo 블록)을 preview 표시용으로 캐시한다. children을
         # 위에서 이미 fetch했으므로 추가 API 호출 없이 추출한다.
         task["body_md"] = nc.blocks_to_preview_text(children)
+        stats["bodies"] += 1
         remote_by_id = {b["block_id"]: b for b in remote_blocks}
         local_todos = [t for t in doc["todos"]
                        if t.get("task_page_id") == page_id and not t.get("deleted")]
@@ -238,12 +276,25 @@ def pull(token, doc, conflicts, dry_run):
     if not dry_run and remove_ids:
         doc["todos"] = [t for t in doc["todos"] if t["id"] not in remove_ids]
 
-    # section 1의 tasks 저장에는 body_md가 없다(children은 section 2에서 fetch).
-    # 본문이 채워진 new_tasks로 재저장해 preview가 description+body를 읽게 한다.
+    # body_md가 채워진 tasks_list로 재저장해 preview가 description+body를 읽게 한다.
+    # page_ids로 일부만 처리해도 나머지 Task의 기존 body_md는 리스트에 그대로 남아
+    # 보존된다.
     if not dry_run:
-        store.save_tasks({"version": 1, "synced_at": nc.now_kst(), "tasks": new_tasks})
+        store.save_tasks({"version": 1, "synced_at": nc.now_kst(), "tasks": tasks_list})
 
     return stats
+
+
+def pull(token, doc, conflicts, dry_run):
+    """full pull (하위호환): 메타 + 전체 본문 reconcile."""
+    mstats, new_tasks = pull_meta(token, conflicts, dry_run)
+    bstats = pull_task_bodies(token, doc, conflicts, dry_run, new_tasks, None)
+    return {**mstats, **bstats}
+
+
+def _priority_page_ids(tasks, priority):
+    """우선순위 라벨에 해당하는 page_id 집합 (sync --priority 범위 제한용)."""
+    return {t["page_id"] for t in tasks if t.get("priority") == priority}
 
 
 def _todo_from_remote(page_id, rb):
@@ -340,7 +391,7 @@ def _backup():
         shutil.copy2(store.TODOS_FILE, BACKUP_FILE)
 
 
-def run(mode, dry_run):
+def run(mode, dry_run, page_id=None, priority=None):
     token = nc.get_token()
     state = load_sync_state()
     conflicts = state.get("conflicts", [])
@@ -351,11 +402,32 @@ def run(mode, dry_run):
 
     doc = store.load_todos()
     result = {"mode": mode, "dry_run": dry_run}
+    # 전체 본문을 빠짐없이 당긴 경우만 "full 본문 동기화"로 본다(헤더 stale 표시용).
+    # --priority로 일부만 당긴 sync는 부분이므로 제외한다.
+    did_full_bodies = False
 
     try:
-        if mode in ("sync", "pull"):
-            result["pull"] = pull(token, doc, conflicts, dry_run)
-        if mode in ("sync", "push"):
+        # ── PULL 계열 ──
+        if mode == "sync-meta":
+            mstats, _ = pull_meta(token, conflicts, dry_run)
+            result["pull"] = mstats
+        elif mode in ("sync", "pull"):
+            mstats, new_tasks = pull_meta(token, conflicts, dry_run)
+            page_ids = (_priority_page_ids(new_tasks, priority)
+                        if (mode == "sync" and priority) else None)
+            bstats = pull_task_bodies(token, doc, conflicts, dry_run, new_tasks, page_ids)
+            result["pull"] = {**mstats, **bstats}
+            did_full_bodies = page_ids is None
+        elif mode == "pull-task":
+            # 메타는 갱신하지 않는다(드릴인 대상은 이미 목록에 보였음).
+            # 현재 캐시에서 해당 Task의 본문만 reconcile한다.
+            tasks_list = store.load_tasks()["tasks"]
+            bstats = pull_task_bodies(token, doc, conflicts, dry_run,
+                                      tasks_list, {page_id})
+            result["pull"] = bstats
+
+        # ── PUSH 계열 ──
+        if mode in ("sync", "sync-meta", "pull-task", "push"):
             pstats, actions = push(token, doc, dry_run)
             result["push"] = pstats
             if dry_run:
@@ -372,6 +444,8 @@ def run(mode, dry_run):
         store.save_todos(doc)
         state["conflicts"] = conflicts
         state["last_full_sync"] = nc.now_kst()
+        if did_full_bodies:
+            state["last_body_sync"] = nc.now_kst()
         state["rate_limit_backoff_until"] = None
         save_sync_state(state)
 
@@ -383,11 +457,19 @@ def run(mode, dry_run):
 def main():
     p = argparse.ArgumentParser(description="양방향 Todo Sync 엔진")
     sub = p.add_subparsers(dest="command", required=True)
-    for name in ("sync", "pull", "push"):
+    for name in ("sync", "sync-meta", "pull-task", "pull", "push"):
         sp = sub.add_parser(name)
         sp.add_argument("--dry-run", action="store_true")
+        if name == "sync":
+            sp.add_argument("--priority", default=None,
+                            help="본문 reconcile을 이 우선순위(P1/P2/P3) Task로 제한")
+        if name == "pull-task":
+            sp.add_argument("--page-id", required=True,
+                            help="본문을 reconcile할 Task의 Notion page_id")
     args = p.parse_args()
-    run(args.command, args.dry_run)
+    run(args.command, args.dry_run,
+        page_id=getattr(args, "page_id", None),
+        priority=getattr(args, "priority", None))
 
 
 if __name__ == "__main__":
