@@ -421,16 +421,16 @@ for t in d['tasks']:
         print('  · '+t.get('name',''))
 " "${page_ids[@]}")
 
-  echo "삭제 대상 ($n개):"
+  echo "삭제 대상 (${n}개):"
   echo "$names"
-  prompt_confirm "위 $n개 Task를 삭제할까요?" || return
+  prompt_confirm "위 ${n}개 Task를 삭제할까요?" || return
 
   # 항목별로 아카이브 — 일부 실패해도 나머지는 진행하고, 실패 건은 로컬 유지.
   local fail=0
   for pid in "${page_ids[@]}"; do
     _archive_task "$pid" || fail=$((fail+1))
   done
-  [ "$fail" -gt 0 ] && { echo "$fail개 Task 삭제 실패 — 해당 항목은 로컬에 유지됨"; sleep 1; }
+  [ "$fail" -gt 0 ] && { echo "${fail}개 Task 삭제 실패, 해당 항목은 로컬에 유지됨"; sleep 1; }
 }
 
 # Tasks 탭: Notion Task(Project) 목록.
