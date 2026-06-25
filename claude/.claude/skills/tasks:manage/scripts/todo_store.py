@@ -345,6 +345,14 @@ def cmd_list_tasks(args):
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
     prio = getattr(args, "priority", "") or ""  # "P1"|"P2"|"P3"|"" (전체)
+    # 마감 필터(Tasks 탭 '오늘' 칩) — 켜지면 due_date ≤ 오늘(지남 포함)인 Task만.
+    due_today = getattr(args, "due_today", False)
+    _today = nc.now_kst()[:10]
+    def _due_ok(task):
+        if not due_today:
+            return True
+        d = task.get("due_date", "") or ""
+        return bool(d) and d[:10] <= _today
     counts = _counts_map(tdoc)  # page_id → (done, total), 1패스 집계
     bdone, btotal = counts(BACKLOG_ID)
     if args.format == "json":
@@ -353,27 +361,32 @@ def cmd_list_tasks(args):
         for task in tasks:
             if prio and not _priority_short(task.get("priority", "")).startswith(prio):
                 continue
+            if not _due_ok(task):
+                continue
             done, total = counts(task["page_id"])
             enriched.append({**task, "todo_done": done, "todo_count": total})
-        # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 뒤에 덧붙인다.
-        if not prio:
+        # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 뒤에 덧붙인다(마감 필터 시 제외).
+        if not prio and not due_today:
             for task in load_completed_tasks()["tasks"]:
                 done, total = counts(task["page_id"])
                 enriched.append({**task, "todo_done": done, "todo_count": total})
         print(json.dumps({"tasks": enriched}, ensure_ascii=False, indent=2))
         return
-    # fzf: "<page_id>\t<표시줄>". Backlog 버킷을 항상 최상단에 노출한다.
-    backlog_name = _fit(BACKLOG_LABEL, 40)
-    backlog_todo = f"({bdone}/{btotal})".rjust(7)
-    print(f"{BACKLOG_ID}\t   [--]  {backlog_name}  {backlog_todo}")
+    # fzf: "<page_id>\t<표시줄>". Backlog 버킷을 최상단에 노출한다(마감 필터 시 제외 — due 없음).
+    if not due_today:
+        backlog_name = _fit(BACKLOG_LABEL, 40)
+        backlog_todo = f"({bdone}/{btotal})".rjust(7)
+        print(f"{BACKLOG_ID}\t   [--]  {backlog_name}  {backlog_todo}")
     for task in tasks:
         if prio and not _priority_short(task.get("priority", "")).startswith(prio):
             continue
+        if not _due_ok(task):
+            continue
         done, total = counts(task["page_id"])
         print(f"{task['page_id']}\t{_task_display(task, done, total)}")
-    # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 활성 목록 아래에 노출한다.
+    # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 활성 목록 아래에 노출한다(마감 필터 시 제외).
     # 완료본은 하위 to_do를 pull하지 않으므로 todo 카운트는 (0/0)으로 표시된다.
-    if not prio:
+    if not prio and not due_today:
         for task in load_completed_tasks()["tasks"]:
             done, total = counts(task["page_id"])
             print(f"{task['page_id']}\t{_task_display(task, done, total)}")
@@ -446,15 +459,24 @@ def cmd_list_all_todos(args):
     repo_filter = getattr(args, "repo", None)
     if repo_filter:
         todos = [t for t in todos if repo_of(t) == repo_filter]
-    # 상태 필터 — active(남은 것만)·done(완료만)·all(전체). Todos 탭은 active,
-    # Done 탭은 done으로 호출한다. 기본 all은 json 조회 등 다른 호출자 호환용.
+    # 렌즈(Todos 탭) — active(남은것)/today(지남·오늘 마감)/done(완료)/all.
+    # lens가 있으면 우선하고, 없으면 기존 --status-filter로 하위호환(다른 호출자용).
+    #   active = 완료 제외 · done = 완료만 · today = active 중 마감 ≤ 오늘 · all = 전체
+    lens = getattr(args, "lens", None)
     status_filter = getattr(args, "status_filter", None) or "all"
+    if lens:
+        status_filter = "active" if lens in ("active", "today") else (lens if lens in ("done", "all") else "all")
     if status_filter == "active":
         todos = [t for t in todos if _get_status(t) != "완료"]
     elif status_filter == "done":
         todos = [t for t in todos if _get_status(t) == "완료"]
-    if status_filter == "done":
-        # 완료 전용 뷰는 최근 완료순(updated_at) — "오늘 뭘 끝냈나" 회고에 맞춘 정렬.
+    if lens == "today":
+        _today = nc.now_kst()[:10]
+        todos = [t for t in todos if t.get("due") and t.get("due")[:10] <= _today]
+    # 정렬: today=마감 임박순(지남 먼저), done=최근 완료순, 그 외=상태·repo·소속순
+    if lens == "today":
+        todos.sort(key=lambda t: (t.get("due") or "9999-99-99", TODO_STATUS_SORT.get(_get_status(t), 1)))
+    elif status_filter == "done":
         todos.sort(key=lambda t: t.get("updated_at", ""), reverse=True)
     else:
         todos.sort(key=lambda t: t.get("created_at", ""), reverse=True)
@@ -958,8 +980,18 @@ def _collect_doing():
     return items
 
 
+def _now_entity_badge(kind):
+    """Now 탭 전용 — 이 뷰는 전부 '진행중'이라 상태 badge가 무의미하다.
+    그 자리에 엔티티(Task/Todo)를 색을 달리한 badge로 표시해 혼합 목록에서
+    Task와 Todo를 한눈에 구분하게 한다. 폭은 상태 badge(8 cols)와 동일.
+    """
+    if kind == "task":
+        return f"[\033[1;36m{_fit('Task', 6)}{_RESET}]"   # 청록 — 프로젝트
+    return f"[\033[1;32m{_fit('Todo', 6)}{_RESET}]"       # 초록 — 실행 항목
+
+
 def cmd_doing(args):
-    """진행 중 Task/Todo 통합 뷰 — Doing 탭(fzf) · 자동화(json) · 비인터랙티브(text)."""
+    """진행 중 Task/Todo 통합 뷰 — Now 탭(fzf) · 자동화(json) · 비인터랙티브(text)."""
     items = _collect_doing()
 
     if args.format == "json":
@@ -1006,14 +1038,14 @@ def cmd_doing(args):
         due = i["due"]
         due_str = f"~{due[5:10]}" if due else "     "
         if i["kind"] == "task":
-            badge = _task_status_badge(o.get("status", ""))
+            badge = _now_entity_badge("task")  # 상태(전부 진행중) 대신 엔티티 표시
             title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
             title_col = _fit(title_field, title_width)
             tail = f"[{_priority_short(o.get('priority', ''))}] ({i['done']}/{i['total']})"
             print(f"{o['page_id']}\t📁 {badge} {title_col}  {due_str}  {tail}")
         else:
             status = _get_status(o)
-            badge = _status_badge(status)
+            badge = _now_entity_badge("todo")  # 상태(전부 진행중) 대신 엔티티 표시
             glyph_col = _colored_icon(status) + " "  # box(1) + space → Task 📁(2)와 폭 정렬
             title_field = (o.get("title", "")
                            + (" 📋" if o.get("plan_id") else "")
@@ -1202,6 +1234,8 @@ def main():
     lt = sub.add_parser("list-tasks")
     lt.add_argument("--format", choices=["fzf", "json"], default="fzf")
     lt.add_argument("--priority", default="", help="우선순위 필터 (P1|P2|P3|P4, 빈값=전체)")
+    lt.add_argument("--due-today", dest="due_today", action="store_true",
+                    help="마감 ≤ 오늘(지남 포함)인 Task만 — Tasks 탭 '오늘' 칩")
 
     ld = sub.add_parser("list-todos")
     ld.add_argument("--task", required=True)
@@ -1213,7 +1247,9 @@ def main():
     la.add_argument("--repo", default=None, help="해당 repo의 Todo만 필터")
     la.add_argument("--status-filter", dest="status_filter",
                     choices=["active", "done", "all"], default="all",
-                    help="active=미완료만, done=완료만, all=전체(기본)")
+                    help="active=미완료만, done=완료만, all=전체(기본). 하위호환용")
+    la.add_argument("--lens", choices=["active", "today", "done", "all"], default=None,
+                    help="Todos 탭 렌즈 — active/today(지남·오늘)/done/all. 있으면 status-filter보다 우선")
 
     gt = sub.add_parser("get")
     gt.add_argument("--id", required=True)
