@@ -31,6 +31,7 @@ import signal
 import sys
 import unicodedata
 import uuid
+from collections import defaultdict
 from pathlib import Path
 
 import notion_common as nc
@@ -111,9 +112,19 @@ PROJECT_PREFIX = ("project_",)
 # ── 저장소 I/O ────────────────────────────────────────────────
 
 def _load(path, default):
-    if path.exists():
+    if not path.exists():
+        return default
+    try:
         return json.loads(path.read_text())
-    return default
+    except (json.JSONDecodeError, OSError):
+        # 손상된 파일(외부 중단·수동 편집 등)을 .corrupt로 격리하고 기본값으로 복구한다.
+        # _atomic_write가 이 도구발 부분 쓰기는 막지만 외부 요인은 막지 못하므로,
+        # 한 파일의 손상이 TUI 전체 접근 불능으로 번지는 것(blast radius)을 차단한다.
+        try:
+            path.replace(path.with_suffix(path.suffix + ".corrupt"))
+        except OSError:
+            pass
+        return default
 
 
 def _atomic_write(path, data):
@@ -184,10 +195,36 @@ def _visible_todos(doc, page_id=None, include_done=True):
 
 
 def _counts_for(doc, page_id):
-    """Task의 (완료, 전체) Todo 수 — 표시 시점에 라이브 계산."""
+    """Task의 (완료, 전체) Todo 수 — 표시 시점에 라이브 계산.
+
+    단발 조회용. 여러 Task의 카운트를 한 화면에서 모두 필요로 할 때는
+    Task마다 전체 todos를 재스캔하지 않도록 _counts_map(doc)을 1회 쓴다.
+    """
     todos = _visible_todos(doc, page_id)
     done = sum(1 for t in todos if _get_status(t) == "완료")
     return done, len(todos)
+
+
+def _counts_map(doc):
+    """page_id → (완료, 전체) Todo 수를 1패스로 집계한다.
+
+    Task 목록 렌더처럼 다수 Task의 카운트가 한 번에 필요한 경로에서, Task당
+    todos 전체를 재스캔하던 O(Task×Todo)를 O(Todo) 단일 패스로 줄인다.
+    조회는 dict.get(pid, (0, 0))로 한다 — 미등록 page_id도 (0,0)으로 안전.
+    """
+    done = defaultdict(int)
+    total = defaultdict(int)
+    for t in doc["todos"]:
+        if t.get("deleted"):
+            continue
+        pid = t.get("task_page_id")
+        total[pid] += 1
+        if _get_status(t) == "완료":
+            done[pid] += 1
+
+    def get(page_id):
+        return done.get(page_id, 0), total.get(page_id, 0)
+    return get
 
 
 # ── 출력 포맷 ─────────────────────────────────────────────────
@@ -261,43 +298,45 @@ def _category_tag(task):
 
 
 def _task_display(task, done, total):
-    # 상태는 텍스트 badge로 표시한다(아이콘과 중복이라 아이콘은 제거).
-    cat_tag = _category_tag(task)  # 회사/개인 — 맨 앞 2칸(한글 ≈ 4 cols)
-    pri = _priority_short(task.get("priority", ""))
+    # 통일 행 문법(Today/Doing과 동일): 📁 │ [상태] │ 이름 │ due │ tail.
+    # category·priority·진행도·tags는 tail로 보내 제목 좌측 모서리를 모든 탭과 맞춘다.
     badge = _task_status_badge(task.get("status", ""))
     name = task.get("name", "(이름 없음)")
     plan_badge = " 📋" if task.get("plan_id") else ""
-    # 이름+배지를 터미널 너비 기반 동적 컬럼에 맞춤
-    # Tasks 탭은 preview 창(right:48%)이 있으므로 리스트 영역 ≈ 52%
-    # 오버헤드: cat(4)+space(1)+[Pn](4)+space(1)+badge(8)+sep(2)+todo(7)+sep(2)+due(5)+sep(2) = 36
+    # 제목 시작 위치는 📁(2)+sp(1)+badge(8)+sp(1)=12 cols로 고정 → 다른 탭과 정렬.
+    # Tasks 탭은 preview 창(right:48%)이 있으므로 리스트 영역 ≈ 52%.
+    # 오버헤드: prefix(12)+sep(2)+due(6)+sep(2)+tail(~16) = 38
     _cols = shutil.get_terminal_size((120, 24)).columns
-    name_width = max(36, int(_cols * 0.50) - 36)
+    name_width = max(34, int(_cols * 0.50) - 38)
     name_col = _fit(name + plan_badge, name_width)
     due = task.get("due_date", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD (5칸) 또는 공백
+    pri = _priority_short(task.get("priority", ""))
+    cat = _category_tag(task)
     tags = task.get("tags", [])
-    tag_str = " ".join(f"#{t}" for t in tags)
-    todo_str = f"({done}/{total})".rjust(7)
-    return f"{cat_tag} [{pri}] {badge}  {name_col}  {todo_str}  {due_str}  {tag_str}".rstrip()
+    tag_str = ("  " + " ".join(f"#{t}" for t in tags)) if tags else ""
+    tail = f"[{pri}] ({done}/{total})  {cat}{tag_str}".rstrip()
+    return f"📁 {badge} {name_col}  {due_str}  {tail}".rstrip()
 
 
 def _todo_display(todo):
-    """Level 2 및 preview용 — 터미널 너비 기반 동적 컬럼."""
+    """Level 2 및 preview용 — 통일 행 문법: icon │ [상태] │ 제목 │ due."""
     status = _get_status(todo)
-    box = _colored_icon(status)
+    glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
+    badge = _status_badge(status)
     title = todo.get("title", "")
     plan_badge = " 📋" if todo.get("plan_id") else ""
     desc_badge = " 📝" if todo.get("description") else ""
     img_badge = " 🖼" if todo.get("images") else ""
-    # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + status_badge(10) + buffer(4) = 25
+    # 제목 시작 위치: glyph(2)+badge(8)+sep = 다른 탭과 동일.
+    # 오버헤드: prefix(11) + sep(2) + due(6) + dirty(2) + buffer(4) = 25
     _cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(36, _cols - 25)
+    title_width = max(34, _cols - 25)
     title_col = _fit(title + plan_badge + desc_badge + img_badge, title_width)
     due = todo.get("due", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD 5칸
-    dirty = " *" if todo.get("dirty") else "  "
-    badge = _status_badge(status)
-    return f"{box} {title_col}  {due_str}{dirty}  {badge}"
+    dirty = " *" if todo.get("dirty") else ""
+    return f"{glyph_col} {badge} {title_col}  {due_str}{dirty}"
 
 
 # ── 커맨드 ────────────────────────────────────────────────────
@@ -306,19 +345,20 @@ def cmd_list_tasks(args):
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
     prio = getattr(args, "priority", "") or ""  # "P1"|"P2"|"P3"|"" (전체)
-    bdone, btotal = _counts_for(tdoc, BACKLOG_ID)
+    counts = _counts_map(tdoc)  # page_id → (done, total), 1패스 집계
+    bdone, btotal = counts(BACKLOG_ID)
     if args.format == "json":
         enriched = [{"page_id": BACKLOG_ID, "name": BACKLOG_LABEL, "status": "",
                      "priority": "", "todo_done": bdone, "todo_count": btotal}]
         for task in tasks:
             if prio and not _priority_short(task.get("priority", "")).startswith(prio):
                 continue
-            done, total = _counts_for(tdoc, task["page_id"])
+            done, total = counts(task["page_id"])
             enriched.append({**task, "todo_done": done, "todo_count": total})
         # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 뒤에 덧붙인다.
         if not prio:
             for task in load_completed_tasks()["tasks"]:
-                done, total = _counts_for(tdoc, task["page_id"])
+                done, total = counts(task["page_id"])
                 enriched.append({**task, "todo_done": done, "todo_count": total})
         print(json.dumps({"tasks": enriched}, ensure_ascii=False, indent=2))
         return
@@ -329,13 +369,13 @@ def cmd_list_tasks(args):
     for task in tasks:
         if prio and not _priority_short(task.get("priority", "")).startswith(prio):
             continue
-        done, total = _counts_for(tdoc, task["page_id"])
+        done, total = counts(task["page_id"])
         print(f"{task['page_id']}\t{_task_display(task, done, total)}")
     # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 활성 목록 아래에 노출한다.
     # 완료본은 하위 to_do를 pull하지 않으므로 todo 카운트는 (0/0)으로 표시된다.
     if not prio:
         for task in load_completed_tasks()["tasks"]:
-            done, total = _counts_for(tdoc, task["page_id"])
+            done, total = counts(task["page_id"])
             print(f"{task['page_id']}\t{_task_display(task, done, total)}")
 
 
@@ -424,15 +464,17 @@ def cmd_list_all_todos(args):
                          ensure_ascii=False, indent=2))
         return
     # title_width: preview 창(right:42%) 고려 → 리스트 영역 ≈ 56%
-    # 오버헤드: box(2) + sep(2) + due(5) + dirty(2) + status_badge(10) + max_repo(20) + buffer(6) = 47
+    # 통일 행 문법: 상태 badge를 제목 앞(좌측)에 둬 Tasks/Today/Doing과 정렬한다.
+    # 오버헤드: glyph(2)+badge(8)+sep(2)+due(6)+dirty(2)+max_repo(20)+ctx(18)+buffer(6) = 47
     _term_cols = shutil.get_terminal_size((120, 24)).columns
     title_width = max(28, int(_term_cols * 0.54) - 47)
 
-    # fzf: "{box} {title:dynamic} {due:5} {dirty}  {badge}  [· {task명}]  [{repo}]"
+    # fzf: "{glyph} {badge} {title:dynamic} {due:5}{dirty}  [· {task명}]  [{repo}]"
     # Todos 버킷 소속은 ctx 생략 (자명하므로), Task 연결 시만 Task명 표시
     for t in todos:
         status = _get_status(t)
-        box = _colored_icon(status)
+        glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
+        badge = _status_badge(status)
         title_field = (t.get("title", "")
                        + (" 📋" if t.get("plan_id") else "")
                        + (" 📝" if t.get("description") else "")
@@ -440,26 +482,37 @@ def cmd_list_all_todos(args):
         title_col = _fit(title_field, title_width)
         due = t.get("due", "")
         due_str = f"~{due[5:10]}" if due else "     "
-        dirty = " *" if t.get("dirty") else "  "
-        badge = _status_badge(status)
+        dirty = " *" if t.get("dirty") else ""
         repo = repo_of(t)
         repo_tag = f"  [{repo}]" if repo else ""
         ctx = ctx_of(t)
         ctx_part = f"  · {_fit(ctx, 16)}" if ctx != BACKLOG_LABEL else ""
-        print(f"{t['id']}\t{box} {title_col}  {due_str}{dirty}  {badge}{ctx_part}{repo_tag}")
+        print(f"{t['id']}\t{glyph_col} {badge} {title_col}  {due_str}{dirty}{ctx_part}{repo_tag}")
 
 
 def cmd_get(args):
-    """단일 Todo의 전체 JSON을 반환 — Enter 키로 Claude Code 세션 열 때 사용"""
+    """단일 Todo의 전체 JSON을 반환 — Enter 키로 Claude Code 세션 열 때 사용.
+
+    --field <key> 지정 시 해당 필드 값만 평문 한 줄로 출력한다. 셸에서 단일 필드를
+    뽑으려고 `get | python3 -c "...json..."`로 python을 2번 띄우던 패턴을 1번으로 줄인다.
+    """
+    field = getattr(args, "field", None)
     doc = load_todos()
-    tasks_map = {t["page_id"]: t.get("name", "") for t in load_tasks()["tasks"]}
     todo = next((t for t in doc["todos"] if t["id"] == args.id and not t.get("deleted")), None)
     if todo is None:
+        if field:
+            print("")  # 미존재 필드 조회는 빈 값으로 — 셸 분기가 [ -z ]로 판정
+            return
         print(json.dumps({"error": "not_found"}))
         return
     pid = todo.get("task_page_id", BACKLOG_ID)
-    ctx = BACKLOG_LABEL if pid == BACKLOG_ID else (tasks_map.get(pid) or "(task?)")
-    print(json.dumps({**todo, "context": ctx, "repo": repo_of(todo)}, ensure_ascii=False))
+    ctx = BACKLOG_LABEL if pid == BACKLOG_ID else (
+        {t["page_id"]: t.get("name", "") for t in load_tasks()["tasks"]}.get(pid) or "(task?)")
+    enriched = {**todo, "context": ctx, "repo": repo_of(todo)}
+    if field:
+        print(enriched.get(field, ""))
+        return
+    print(json.dumps(enriched, ensure_ascii=False))
 
 
 def cmd_add(args):
@@ -663,8 +716,8 @@ def cmd_preview_todo(args):
         print(f"\n  🖼 이미지 ({len(images)})")
         for img in images:
             exists = Path(img).exists() if not img.startswith("http") else True
-            status = "" if exists else " (파일 없음)"
-            print(f"     {img}{status}")
+            missing = "" if exists else " (파일 없음)"
+            print(f"     {img}{missing}")
         # imgcat 또는 macOS open 힌트
         if any(Path(img).exists() for img in images if not img.startswith("http")):
             first_local = next(img for img in images if not img.startswith("http") and Path(img).exists())
@@ -739,6 +792,7 @@ def _collect_today(today, include_overdue=True):
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
     tasks_map = {t["page_id"]: t.get("name", "") for t in tasks}
+    counts = _counts_map(tdoc)
     items = []
 
     for task in tasks:
@@ -747,7 +801,7 @@ def _collect_today(today, include_overdue=True):
                            task.get("status") == "진행 중",
                            today)
         if _keep(u):
-            done, total = _counts_for(tdoc, task["page_id"])
+            done, total = counts(task["page_id"])
             items.append({"kind": "task", "urgency": u, "obj": task,
                           "due": task.get("due_date", ""), "done": done, "total": total})
 
@@ -881,11 +935,12 @@ def _collect_doing():
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
     tasks_map = {t["page_id"]: t.get("name", "") for t in tasks}
+    counts = _counts_map(tdoc)
     items = []
 
     for task in tasks:
         if task.get("status") == "진행 중":
-            done, total = _counts_for(tdoc, task["page_id"])
+            done, total = counts(task["page_id"])
             items.append({"kind": "task", "obj": task,
                           "due": task.get("due_date", ""), "done": done, "total": total})
 
@@ -940,8 +995,10 @@ def cmd_doing(args):
     if not items:
         print("__none__\t  ✨ 진행 중인 Task/Todo가 없습니다  (ctrl-t: 다른 탭)")
         return
+    # 통일 행 문법: Doing은 전부 진행중이라 상태가 자명하지만, badge 컬럼을 둬야
+    # 제목 시작 위치가 다른 탭과 정렬된다(prefix 12 cols 고정).
     _cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(26, int(_cols * 0.50) - 18)
+    title_width = max(26, int(_cols * 0.50) - 27)
     n_task = sum(1 for i in items if i["kind"] == "task")
     n_todo = len(items) - n_task
     for i in items:
@@ -949,12 +1006,14 @@ def cmd_doing(args):
         due = i["due"]
         due_str = f"~{due[5:10]}" if due else "     "
         if i["kind"] == "task":
+            badge = _task_status_badge(o.get("status", ""))
             title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
             title_col = _fit(title_field, title_width)
             tail = f"[{_priority_short(o.get('priority', ''))}] ({i['done']}/{i['total']})"
-            print(f"{o['page_id']}\t📁 {title_col}  {due_str}  {tail}")
+            print(f"{o['page_id']}\t📁 {badge} {title_col}  {due_str}  {tail}")
         else:
             status = _get_status(o)
+            badge = _status_badge(status)
             glyph_col = _colored_icon(status) + " "  # box(1) + space → Task 📁(2)와 폭 정렬
             title_field = (o.get("title", "")
                            + (" 📋" if o.get("plan_id") else "")
@@ -965,7 +1024,7 @@ def cmd_doing(args):
             ctx_part = "" if ctx == BACKLOG_LABEL else f"  · {_fit(ctx, 14)}"
             repo = repo_of(o)
             repo_tag = f"  [{repo}]" if repo else ""
-            print(f"{o['id']}\t{glyph_col} {title_col}  {due_str}{ctx_part}{repo_tag}")
+            print(f"{o['id']}\t{glyph_col} {badge} {title_col}  {due_str}{ctx_part}{repo_tag}")
     print(f"__info__\t   ⋯ WIP: Task {n_task} · Todo {n_todo}")
 
 
@@ -988,6 +1047,28 @@ def cmd_delete_task_local(args):
     save_todos(doc)
     print(json.dumps({"success": True, "page_id": page_id,
                       "removed_task": removed_task, "removed_todos": removed_todos},
+                     ensure_ascii=False))
+
+
+def cmd_set_task_status(args):
+    """로컬 tasks.json의 Task 상태를 변경하고 meta_dirty를 세운다(offline-first).
+
+    Todo와 동일한 offline-first 모델: 쓰기는 로컬에만 일어나고, 실제 Notion 반영은
+    todo_sync.py push가 meta_dirty Task를 보고 상태+Done 체크박스를 함께 보낸다.
+    meta_updated_at(now)은 pull 시 충돌 판정(remote vs local 최신 비교)의 기준이 된다.
+    완료 캐시(tasks_completed)는 sync가 통째로 갱신하므로 여기서 건드리지 않는다.
+    """
+    if args.status not in nc.VALID_STATUSES:
+        _err(f"Invalid status '{args.status}'. Valid: {sorted(nc.VALID_STATUSES)}")
+    doc = load_tasks()
+    task = next((t for t in doc["tasks"] if t["page_id"] == args.task), None)
+    if task is None:
+        _err(f"task not found: {args.task}")
+    task["status"] = args.status
+    task["meta_dirty"] = True
+    task["meta_updated_at"] = nc.now_kst()
+    save_tasks(doc)
+    print(json.dumps({"success": True, "page_id": args.task, "status": args.status},
                      ensure_ascii=False))
 
 
@@ -1088,15 +1169,16 @@ def cmd_link_plan(args):
 def cmd_summary(args):
     """비인터랙티브 요약 — /task 커맨드와 statusline 노출에 공용."""
     tdoc = load_todos()
-    tasks = load_tasks()["tasks"]
-    in_progress = [t for t in tasks if t.get("status") == "진행 중"]
+    tasks_doc = load_tasks()  # synced_at을 json 분기에서 재조회하지 않도록 한 번만 읽는다
+    in_progress = [t for t in tasks_doc["tasks"] if t.get("status") == "진행 중"]
+    counts = _counts_map(tdoc)
     rows = []
     for task in in_progress:
-        done, total = _counts_for(tdoc, task["page_id"])
+        done, total = counts(task["page_id"])
         rows.append({"name": task["name"], "done": done, "total": total,
                      "priority": _priority_short(task.get("priority", ""))})
     if args.format == "json":
-        print(json.dumps({"in_progress": rows, "synced_at": load_tasks().get("synced_at", "")},
+        print(json.dumps({"in_progress": rows, "synced_at": tasks_doc.get("synced_at", "")},
                          ensure_ascii=False))
         return
     if not rows:
@@ -1135,6 +1217,8 @@ def main():
 
     gt = sub.add_parser("get")
     gt.add_argument("--id", required=True)
+    gt.add_argument("--field", default=None,
+                    help="지정 시 해당 필드 값만 평문 출력 (셸의 단일 필드 추출용)")
 
     ad = sub.add_parser("add")
     ad.add_argument("--task", required=True)
@@ -1181,6 +1265,11 @@ def main():
     dtl = sub.add_parser("delete-task-local")
     dtl.add_argument("--task", required=True)
 
+    sts = sub.add_parser("set-task-status")
+    sts.add_argument("--task", required=True, help="Task page_id")
+    sts.add_argument("--status", required=True, choices=sorted(nc.VALID_STATUSES),
+                     help="변경할 Task 상태 (로컬 기록 후 sync가 Notion에 push)")
+
     sm = sub.add_parser("summary")
     sm.add_argument("--format", choices=["text", "json"], default="text")
 
@@ -1213,6 +1302,7 @@ def main():
         "preview-task": cmd_preview_task,
         "preview-todo": cmd_preview_todo,
         "delete-task-local": cmd_delete_task_local,
+        "set-task-status": cmd_set_task_status,
         "import-memory": cmd_import_memory,
         "summary": cmd_summary,
         "today": cmd_today,

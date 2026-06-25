@@ -50,9 +50,11 @@ CONFLICT_LOG_CAP = 50  # 무한 성장 방지
 # ── sync 상태 ─────────────────────────────────────────────────
 
 def load_sync_state():
-    if SYNC_STATE_FILE.exists():
-        return json.loads(SYNC_STATE_FILE.read_text())
-    return {"last_full_sync": "", "conflicts": [], "rate_limit_backoff_until": None}
+    # 손상 시 .corrupt 격리 후 기본값 복구 — 충돌 로그가 든 이 파일이 깨져도
+    # sync 전체가 크래시하지 않게 한다(store._load와 동일한 방어 정책 재사용).
+    return store._load(
+        SYNC_STATE_FILE,
+        {"last_full_sync": "", "conflicts": [], "rate_limit_backoff_until": None})
 
 
 def save_sync_state(state):
@@ -374,8 +376,13 @@ def push(token, doc, dry_run):
         actions.append(("status", f"{task['name']} → {task['status']}"))
         stats["status_pushed"] += 1
         if not dry_run:
+            # 상태와 Done 체크박스를 함께 push한다. Task DB는 완료를 status와 Done
+            # 두 속성으로 이중 관리하므로(DONE 뷰·롤업은 Done 기준), 상태만 보내면
+            # status=완료인데 DONE 뷰에 안 보이는 불일치가 생긴다(notion-task.py와 동일 정책).
             nc.notion_request(token, "PATCH", f"/pages/{task['page_id']}",
-                              {"properties": {"상태": {"status": {"name": task["status"]}}}})
+                              {"properties": {
+                                  "상태": {"status": {"name": task["status"]}},
+                                  "Done": {"checkbox": task["status"] == "완료"}}})
             task["meta_dirty"] = False
             changed = True
     if not dry_run and changed:

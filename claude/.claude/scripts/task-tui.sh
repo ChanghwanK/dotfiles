@@ -19,6 +19,54 @@ SYNC="$SKILLS_DIR/todo_sync.py"
 NOTION_TASK="$SKILLS_DIR/notion-task.py"
 PLAN_TODO="$HOME/.claude/scripts/plan-todo.py"
 
+# ? 도움말 오버레이 — 헤더엔 핵심 키만 남기고 전체 키맵은 이 파일로 빼서 less로 띄운다.
+# fzf execute()는 터미널을 less에 잠시 넘겼다가 복귀하므로 preview 창과 충돌하지 않는다.
+HELP_FILE="$HOME/.claude/tasktui/.keymap-help.txt"
+
+# 전체 키맵을 HELP_FILE로 쓴다. 모든 탭 공용 단일 레퍼런스 — '?'로 어디서나 같은 화면을 띄운다.
+write_help_file() {
+  mkdir -p "$(dirname "$HELP_FILE")"
+  cat > "$HELP_FILE" <<'EOF'
+  todo TUI 키맵   (q: 닫기)
+  ──────────────────────────────────────────────
+
+  [탭 이동]
+    ctrl-t        다음 탭 (Todos → Done → Tasks → Today → Doing)
+    tab           탭 이동 (Tasks 탭에서는 '다중 선택' — 이동은 ctrl-t)
+
+  [공통]
+    enter         열기 (Todo=Claude 세션 / Task=하위 Todo 드릴인)
+    space         상태 전환 (□ → ▷ → ✓)
+    ctrl-l        새로고침(재렌더)
+    ctrl-r        동기화 (메타, 빠름)
+    ctrl-u        전체 동기화 (본문 포함, 느림)
+    ?             이 도움말
+    esc           종료 (Level 2에서는 뒤로)
+
+  [Todos 탭]
+    ctrl-a 추가    ctrl-e 제목    ctrl-n 설명    ctrl-d 삭제
+    ctrl-f 완료 포함/남은 것 토글     ctrl-g repo 필터     ctrl-p Plan
+
+  [Tasks 탭]
+    1 / 2 / 3 / 0   우선순위 필터 P1 / P2 / P3 / 전체
+    space           하위 Todo 드릴인
+    tab             다중 선택 (ctrl-d 일괄 삭제용)
+    ctrl-a 새 Task   ctrl-d 삭제(Notion)   ctrl-s 상태 변경
+    ctrl-o Notion 열기    ctrl-i import    ctrl-p Plan
+
+  [Today / Doing 탭]
+    enter         Task=드릴인 / Todo=세션
+    space         Todo 상태 전환
+    ctrl-o        (Today) 지남 항목 표시 토글
+
+  [Done 탭]
+    space 재오픈(✓→□)     ctrl-d 삭제
+
+  [Level 2 — Todo 목록]
+    ctrl-a 추가    ctrl-e 제목    ctrl-n 설명    ctrl-d 삭제    ctrl-p Plan
+EOF
+}
+
 # Claude Code 세션 런처(공유) — _build_and_launch_session / _launch_claude_session 제공.
 # Raycast Script Command도 같은 파일을 source하여 cmux 호출을 단일 SoT로 유지한다.
 source "$HOME/.claude/scripts/claude-session-launch.sh"
@@ -267,6 +315,46 @@ link_plan_to_target() {
   python3 "$STORE" link-plan --target "$target" --id "$id" --plan-id "$plan_id" >/dev/null
 }
 
+# Todo 설명(description) 편집 — gum write 우선, 없으면 $EDITOR로 degrade.
+# todo_menu / todos_tab 의 ctrl-n 공용 (동일 UX를 한 곳에서 유지).
+edit_description() {
+  local todo_id="$1"
+  [ -z "$todo_id" ] && return
+  local cur_desc new_desc
+  cur_desc=$(python3 "$STORE" get --id "$todo_id" --field description 2>/dev/null)
+  if have_gum; then
+    new_desc=$(gum write --placeholder "배경, 문제, 이유 등 자유 기술..." \
+      --value "$cur_desc" --width 72 --height 8)
+  else
+    local tmp; tmp=$(mktemp /tmp/todo-desc.XXXX.txt)
+    printf '%s' "$cur_desc" > "$tmp"
+    "${EDITOR:-vi}" "$tmp"
+    new_desc=$(cat "$tmp"); rm -f "$tmp"
+  fi
+  python3 "$STORE" edit --id "$todo_id" --title "" \
+    --description "$new_desc" --description-only >/dev/null
+}
+
+# task/todo의 plan_id를 조회해 있으면 Plan 뷰를, 없으면 Plan 연결 프롬프트를 연다.
+# 3개 탭(todo_menu/tasks_tab/todos_tab)의 ctrl-p 공용 로직.
+#   target: "task"(list-tasks에서 page_id 매칭) | "todo"(get에서 plan_id 추출)
+resolve_and_open_plan() {
+  local target="$1" id="$2"
+  [ -z "$id" ] && return
+  local plan_id
+  if [ "$target" = "task" ]; then
+    plan_id=$(python3 "$STORE" list-tasks --format json \
+      | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t.get('plan_id','') for t in d['tasks'] if t['page_id']=='$id'),''))")
+  else
+    plan_id=$(python3 "$STORE" get --id "$id" --field plan_id 2>/dev/null)
+  fi
+  if [ -n "$plan_id" ]; then
+    plan_view "$plan_id"
+  else
+    link_plan_to_target "$target" "$id"
+  fi
+}
+
 # ── Level 2: Todo 목록 ────────────────────────────────────────
 
 todo_menu() {
@@ -276,7 +364,8 @@ todo_menu() {
     out=$(python3 "$STORE" list-todos --task "$page_id" --format fzf \
       | fzf --delimiter='\t' --with-nth='2..' --ansi \
             --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-            --header="enter:Claude열기  space:상태전환(□▷✓)  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync  esc:뒤로" \
+            --bind "?:execute(less -R -- $HELP_FILE)" \
+            --header="enter:Claude  space:전환  ctrl-a:추가  ctrl-e:제목  ctrl-n:설명  ctrl-d:삭제  ?:도움말  esc:뒤로" \
             --expect=enter,space,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-l,ctrl-r,ctrl-p)
     [ -z "$out" ] && return  # esc/취소 → Level 1 복귀
     key=$(sed -n 1p <<<"$out")
@@ -287,44 +376,15 @@ todo_menu() {
       space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
       ctrl-a)  local t; t=$(prompt_input "새 todo 제목"); [ -n "$t" ] && python3 "$STORE" add --task "$page_id" --title "$t" >/dev/null ;;
       ctrl-e)  [ -z "$todo_id" ] && continue
-               local cur t; cur=$(cut -f2- <<<"$line" | sed 's/^[☐☑] //; s/  \*$//')
+               # 깨끗한 title은 JSON에서 조회한다(표시줄 파싱은 글리프·배지 변경에 취약).
+               local cur t
+               cur=$(python3 "$STORE" get --id "$todo_id" --field title 2>/dev/null)
                t=$(prompt_input "제목 수정" "$cur"); [ -n "$t" ] && python3 "$STORE" edit --id "$todo_id" --title "$t" >/dev/null ;;
-      ctrl-n)  [ -z "$todo_id" ] && continue
-               local cur_desc new_desc
-               cur_desc=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null \
-                 | python3 -c "import sys,json;print(json.load(sys.stdin).get('description',''))" 2>/dev/null)
-               if have_gum; then
-                 new_desc=$(gum write --placeholder "배경, 문제, 이유 등 자유 기술..." \
-                   --value "$cur_desc" --width 72 --height 8)
-               else
-                 local tmp; tmp=$(mktemp /tmp/todo-desc.XXXX.txt)
-                 printf '%s' "$cur_desc" > "$tmp"
-                 "${EDITOR:-vi}" "$tmp"
-                 new_desc=$(cat "$tmp"); rm -f "$tmp"
-               fi
-               python3 "$STORE" edit --id "$todo_id" --title "" \
-                 --description "$new_desc" --description-only >/dev/null ;;
+      ctrl-n)  edit_description "$todo_id" ;;
       ctrl-d)  [ -z "$todo_id" ] && continue
                prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
-      ctrl-p)
-               local plan_id
-               if [ -n "$todo_id" ]; then
-                 plan_id=$(python3 "$STORE" list-todos --task "$page_id" --format json \
-                   | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t.get('plan_id','') for t in d['todos'] if t['id']=='$todo_id'),''))")
-                 if [ -n "$plan_id" ]; then
-                   plan_view "$plan_id"
-                 else
-                   link_plan_to_target "todo" "$todo_id"
-                 fi
-               else
-                 plan_id=$(python3 "$STORE" list-tasks --format json \
-                   | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t.get('plan_id','') for t in d['tasks'] if t['page_id']=='$page_id'),''))")
-                 if [ -n "$plan_id" ]; then
-                   plan_view "$plan_id"
-                 else
-                   link_plan_to_target "task" "$page_id"
-                 fi
-               fi ;;
+      ctrl-p)  if [ -n "$todo_id" ]; then resolve_and_open_plan todo "$todo_id"
+               else resolve_and_open_plan task "$page_id"; fi ;;
       ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-todos 재렌더
       ctrl-r)  pull_task_for "$page_id" ;;  # 이 Task 본문만 동기화(Backlog은 no-op)
     esac
@@ -472,8 +532,9 @@ tasks_tab() {
   out=$(python3 "$STORE" list-tasks --format fzf $prio_arg \
     | fzf --multi --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-task {1}" --preview-window=right:48%:wrap \
-          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭전환  1:P1 2:P2 3:P3 0:전체  enter:Claude세션  space:todo목록  tab:다중선택  ctrl-d:Task삭제  ctrl-o:Notion열기  ctrl-p:Plan뷰  ctrl-l:새로고침  ctrl-r:sync(메타)  ctrl-u:전체sync  ctrl-s:상태  ctrl-n:새Task  ctrl-i:import  esc:종료" \
-          --expect=enter,space,ctrl-t,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-u,ctrl-s,ctrl-n,ctrl-i,ctrl-p,1,2,3,0)
+          --bind "?:execute(less -R -- $HELP_FILE)" \
+          --header="$(tab_bar) $(prio_bar)  ctrl-t:탭  1-3/0:우선순위  enter:세션  space:todo  ctrl-a:새Task  ctrl-d:삭제  ?:도움말  esc:종료" \
+          --expect=enter,space,ctrl-t,ctrl-a,ctrl-d,ctrl-o,ctrl-l,ctrl-r,ctrl-u,ctrl-s,ctrl-i,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); page_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -492,18 +553,13 @@ tasks_tab() {
     ctrl-s)  [ -z "$page_id" ] && return
              [ "$page_id" = "__backlog__" ] && return  # Backlog은 Notion 상태 없음
              local st; st=$(prompt_choose "시작 전" "진행 중" "완료" "대기")
+             # offline-first: 로컬 tasks.json에 기록(meta_dirty) → 화면 즉시 갱신, 종료 시
+             # trap의 push가 Notion에 반영. 네트워크 없어도 동작(Todo와 동일 모델).
              [ -n "$st" ] && python3 "$STORE" set-task-status --task "$page_id" --status "$st" >/dev/null ;;
-    ctrl-n)  create_task ;;
+    ctrl-a)  create_task ;;
     ctrl-i)  run_import ;;
-    ctrl-p)  [ -z "$page_id" ] || [ "$page_id" = "__backlog__" ] && return
-             local plan_id
-             plan_id=$(python3 "$STORE" list-tasks --format json \
-               | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t.get('plan_id','') for t in d['tasks'] if t['page_id']=='$page_id'),''))")
-             if [ -n "$plan_id" ]; then
-               plan_view "$plan_id"
-             else
-               link_plan_to_target "task" "$page_id"
-             fi ;;
+    ctrl-p)  { [ -z "$page_id" ] || [ "$page_id" = "__backlog__" ]; } && return
+             resolve_and_open_plan task "$page_id" ;;
   esac
 }
 
@@ -549,11 +605,15 @@ open_todo_session() {
   todo_json=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null)
   [ -z "$todo_json" ] && return 1
 
+  # 단일 라인 필드(title/repo/plan_id)는 한 번의 python3로 탭 구분 추출 → 콜드스타트 절감.
+  # description은 다줄 가능성이 있어 탭 묶음에서 분리(read가 첫 줄에서 끊기는 것 방지).
   local title repo plan_id desc
-  title=$(python3   -c "import sys,json; d=json.load(sys.stdin); print(d.get('title',''))"       <<<"$todo_json")
-  repo=$(python3    -c "import sys,json; d=json.load(sys.stdin); print(d.get('repo',''))"         <<<"$todo_json")
-  plan_id=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('plan_id',''))"     <<<"$todo_json")
-  desc=$(python3    -c "import sys,json; d=json.load(sys.stdin); print(d.get('description',''))" <<<"$todo_json")
+  IFS=$'\t' read -r title repo plan_id < <(python3 -c "
+import sys,json
+d=json.loads(sys.argv[1])
+print('\t'.join((d.get('title',''),d.get('repo',''),d.get('plan_id',''))))
+" "$todo_json")
+  desc=$(python3 -c "import sys,json; print(json.loads(sys.argv[1]).get('description',''))" "$todo_json")
 
   # 레포 디렉토리 결정.
   # - repo 필드가 있고 디렉토리가 존재 → $HOME/workspace/riiid/<repo>
@@ -594,11 +654,13 @@ open_task_session() {
     | python3 -c "import sys,json;d=json.load(sys.stdin);print(json.dumps(next((t for t in d['tasks'] if t['page_id']=='$page_id'),{}),ensure_ascii=False))")
   [ -z "$task_json" ] || [ "$task_json" = "{}" ] && return 1
 
+  # Task 필드는 모두 단일 라인 → 한 번의 python3로 탭 구분 추출(콜드스타트 4회→1회).
   local name status priority plan_id
-  name=$(python3     -c "import sys,json;print(json.load(sys.stdin).get('name',''))"     <<<"$task_json")
-  status=$(python3   -c "import sys,json;print(json.load(sys.stdin).get('status',''))"   <<<"$task_json")
-  priority=$(python3 -c "import sys,json;print(json.load(sys.stdin).get('priority',''))" <<<"$task_json")
-  plan_id=$(python3  -c "import sys,json;print(json.load(sys.stdin).get('plan_id',''))"  <<<"$task_json")
+  IFS=$'\t' read -r name status priority plan_id < <(python3 -c "
+import sys,json
+d=json.loads(sys.argv[1])
+print('\t'.join((d.get('name',''),d.get('status',''),d.get('priority',''),d.get('plan_id',''))))
+" "$task_json")
 
   # 하위 Todo 목록을 체크박스 형태로 컨텍스트에 담는다 (Task 단위 작업 시작 시 유용)
   local todos_block
@@ -648,7 +710,8 @@ todos_tab() {
   out=$(list_todos_filtered "$TODOS_FILTER" \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-          --header="$(tab_bar)$fhdr$flabel  enter:Claude열기  space:상태전환(□▷✓)  ctrl-f:완료포함토글  ctrl-a:추가  ctrl-e:편집  ctrl-n:설명편집  ctrl-d:삭제  ctrl-p:Plan뷰  ctrl-g:repo필터  ctrl-l:새로고침  ctrl-r:sync(메타)  ctrl-u:전체sync  esc:종료" \
+          --bind "?:execute(less -R -- $HELP_FILE)" \
+          --header="$(tab_bar)$fhdr$flabel  enter:열기  space:전환  ctrl-a:추가  ctrl-e:제목  ctrl-n:설명  ctrl-f:완료포함  ?:도움말  esc:종료" \
           --expect=enter,space,tab,ctrl-t,ctrl-f,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-u,ctrl-p)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
@@ -659,34 +722,12 @@ todos_tab() {
     space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
     ctrl-a)  t=$(prompt_input "새 Backlog todo"); [ -n "$t" ] && python3 "$STORE" add --task __backlog__ --title "$t" ${REPO_FILTER:+--repo "$REPO_FILTER"} >/dev/null ;;
     ctrl-e)  [ -z "$todo_id" ] && return
-             cur=$(python3 "$STORE" list-all-todos --format json | python3 -c "import sys,json;print(next((x['title'] for x in json.load(sys.stdin)['todos'] if x['id']=='$todo_id'),''))")
+             cur=$(python3 "$STORE" get --id "$todo_id" --field title 2>/dev/null)
              t=$(prompt_input "제목 수정" "$cur"); [ -n "$t" ] && python3 "$STORE" edit --id "$todo_id" --title "$t" >/dev/null ;;
-    ctrl-n)  [ -z "$todo_id" ] && return
-             local cur_desc new_desc
-             cur_desc=$(python3 "$STORE" get --id "$todo_id" 2>/dev/null \
-               | python3 -c "import sys,json;print(json.load(sys.stdin).get('description',''))" 2>/dev/null)
-             if have_gum; then
-               new_desc=$(gum write --placeholder "배경, 문제, 이유 등 자유 기술..." \
-                 --value "$cur_desc" --width 72 --height 8)
-             else
-               local tmp; tmp=$(mktemp /tmp/todo-desc.XXXX.txt)
-               printf '%s' "$cur_desc" > "$tmp"
-               "${EDITOR:-vi}" "$tmp"
-               new_desc=$(cat "$tmp"); rm -f "$tmp"
-             fi
-             python3 "$STORE" edit --id "$todo_id" --title "" \
-               --description "$new_desc" --description-only >/dev/null ;;
+    ctrl-n)  edit_description "$todo_id" ;;
     ctrl-d)  [ -z "$todo_id" ] && return
              prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
-    ctrl-p)  [ -z "$todo_id" ] && return
-             local plan_id
-             plan_id=$(python3 "$STORE" list-all-todos --format json \
-               | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((t.get('plan_id','') for t in d['todos'] if t['id']=='$todo_id'),''))")
-             if [ -n "$plan_id" ]; then
-               plan_view "$plan_id"
-             else
-               link_plan_to_target "todo" "$todo_id"
-             fi ;;
+    ctrl-p)  resolve_and_open_plan todo "$todo_id" ;;
     ctrl-g)  choose_repo ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 list-all-todos 재렌더
     ctrl-r)  run_sync ;;
@@ -703,7 +744,8 @@ today_tab() {
   out=$(python3 "$STORE" today --format fzf $ov_flag \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-today {1}" --preview-window=right:46% \
-          --header="$(tab_bar) [$ov_label]  📁=Task ▷=Todo  enter:열기/드릴인  space:Todo상태전환  ctrl-o:지남토글  ctrl-t:탭전환  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --bind "?:execute(less -R -- $HELP_FILE)" \
+          --header="$(tab_bar) [$ov_label]  📁=Task ▷=Todo  enter:열기  space:전환  ctrl-o:지남  ?:도움말  esc:종료" \
           --expect=enter,space,tab,ctrl-t,ctrl-o,ctrl-l,ctrl-r)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); id=$(cut -f1 <<<"$line")
@@ -732,7 +774,8 @@ doing_tab() {
   out=$(python3 "$STORE" doing --format fzf \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-today {1}" --preview-window=right:46% \
-          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기/드릴인  space:Todo상태전환  ctrl-t:탭전환  ctrl-l:새로고침  ctrl-r:sync  esc:종료" \
+          --bind "?:execute(less -R -- $HELP_FILE)" \
+          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기  space:전환  ?:도움말  esc:종료" \
           --expect=enter,space,tab,ctrl-t,ctrl-l,ctrl-r)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); id=$(cut -f1 <<<"$line")
@@ -758,7 +801,8 @@ done_tab() {
   out=$(list_todos_filtered done \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
           --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
-          --header="$(tab_bar)  완료 Todo(최근순)  enter:Claude열기  space:재오픈(✓→□)  ctrl-t:탭전환  ctrl-d:삭제  ctrl-l:새로고침  ctrl-r:sync(메타)  ctrl-u:전체sync  esc:종료" \
+          --bind "?:execute(less -R -- $HELP_FILE)" \
+          --header="$(tab_bar)  완료 Todo(최근순)  enter:열기  space:재오픈  ctrl-d:삭제  ?:도움말  esc:종료" \
           --expect=enter,space,tab,ctrl-t,ctrl-d,ctrl-l,ctrl-r,ctrl-u)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
@@ -812,5 +856,7 @@ if [ ! -s "$CACHE" ] || ! grep -q '"page_id"' "$CACHE" 2>/dev/null; then
   if have_gum; then gum spin --title "최초 동기화 중..." -- python3 "$SYNC" pull >/dev/null 2>&1 || true
   else echo "최초 동기화 중 (한 번만)..."; python3 "$SYNC" pull >/dev/null 2>&1 || true; fi
 fi
+
+write_help_file  # '?' 도움말 오버레이용 키맵 파일 생성
 
 main_menu
