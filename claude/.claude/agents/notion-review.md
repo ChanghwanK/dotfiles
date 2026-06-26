@@ -15,7 +15,8 @@ description: |
 
   This agent is read-and-fix only on ONE page. It cannot spawn other agents.
 tools: mcp__claude_ai_Notion__notion-fetch, mcp__claude_ai_Notion__notion-update-page, Read
-model: haiku
+model: inherit
+color: green
 ---
 
 # notion-review
@@ -45,6 +46,15 @@ and stop.
    - **emoji**: forbidden in document bodies. Remove the emoji; if it was a
      leading marker, keep the text. Exception: keep emojis that are part of a
      Notion `<callout icon="...">` attribute (that is an icon, not body text).
+   - **Label color missing** (`레이블: 내용` pattern): when a bullet item has a bold
+     label before a colon — i.e. `**label:**` — that is NOT already wrapped in
+     `<span color="brown">`, auto-apply the brown span:
+     `<span color="brown">**label:**</span> 내용`.
+     Detection rule: the segment from the start of the bullet text up to and
+     including the first `: ` (colon followed by space) is the label — but only
+     when it is already bold (`**...**`). If the label exists but is NOT bold,
+     report it as a subjective issue instead (see below); do not auto-add color
+     without bold.
 
    ### Subjective (report only, do NOT change)
    Judge against the global Notion writing-style convention at
@@ -66,6 +76,30 @@ and stop.
      - Multi-message sentences: one sentence chaining several messages
        (`~때문에 ~되어 ~됐고 ~였습니다`). Suggest splitting into short sentences.
      - Filler words that add no information ("실제로는", "기본적으로" 등).
+   - **Code block misuse** (ref: `~/.claude/docs/notion-writing-style.md` §코드 블록 사용 기준):
+     - Inline code wrapping general Korean nouns that are not identifiers/values/paths
+       (e.g. `` `스토리지` ``, `` `대시보드` `` — these should be plain text).
+     - Inline code used for **emphasis** instead of bold (`**...**`).
+     - Code blocks or inline code in section headings/labels.
+     - Single-line commands that would be run as-is should use a fenced code block,
+       not inline code.
+     For each instance, report the offending text and suggest the correct form.
+     Do NOT auto-fix (context-dependent — you cannot reliably distinguish an
+     identifier from a general noun without domain knowledge).
+   - **Label bold missing** (`레이블: 내용` pattern): in bullet items, if a short
+     phrase (typically 1–6 words) precedes a colon-space (`: `) and is plain text
+     (not bold, not already `<span color="brown">`), flag it. The correct form is
+     `<span color="brown">**label:**</span> 내용`. Report with a before → after
+     suggestion; do NOT auto-fix (requires judgment to distinguish a genuine label
+     from ordinary prose that happens to contain a colon).
+   - **Text color overuse**: if the fetched content contains colored text markup,
+     flag any use that is NOT one of the two sanctioned patterns:
+     (1) a Notion `<callout icon="...">` block, or
+     (2) `<span color="brown">**레이블:**</span>` wrapping a bold bullet label
+         (the team-standard label-coloring convention).
+     All other body text coloring is discouraged; suggest replacing with bold or a
+     callout block instead.
+     If no color markup is visible in the fetched content, skip this check.
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
 
