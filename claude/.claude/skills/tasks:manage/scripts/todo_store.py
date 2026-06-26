@@ -26,6 +26,7 @@ Usage:
 """
 import argparse
 import json
+import os
 import shutil
 import signal
 import sys
@@ -60,6 +61,10 @@ BACKLOG_LABEL = "📥 Todos"
 TODO_STATUS_VALUES = ("시작전", "진행중", "완료")
 TODO_STATUS_ICON = {"시작전": "□", "진행중": "▷", "완료": "✓"}
 TODO_STATUS_SORT = {"진행중": 0, "시작전": 1, "완료": 2}  # 진행중 최상단
+
+TODO_PRIORITY_VALUES = ("P1", "P2", "P3", "")
+# P1: 오늘/내일 처리 필요, P2: 이번 주 내, P3: 언젠가/여유 있을 때
+TODO_ROI_VALUES = ("high", "medium", "low", "")
 
 # ANSI 색상 — fzf --ansi 플래그 전제
 _STATUS_COLOR = {"시작전": "", "진행중": "\033[1;33m", "완료": "\033[2;32m"}
@@ -243,6 +248,22 @@ def _display_width(s: str) -> int:
     return sum(_eaw(c) for c in s)
 
 
+def _tty_cols() -> int:
+    """stdout이 파이프될 때도 실제 터미널 열 수를 반환한다.
+
+    python3 ... | fzf 파이프라인에서 fd=1(stdout)은 파이프라 ioctl 실패.
+    stderr(fd=2) → stdin(fd=0) 순으로 시도하고, 모두 실패하면 COLUMNS 환경변수,
+    그래도 없으면 120을 반환한다.
+    """
+    for fd in (2, 0, 1):
+        try:
+            return os.get_terminal_size(fd).columns
+        except OSError:
+            continue
+    env_cols = os.environ.get('COLUMNS', '')
+    return int(env_cols) if env_cols.isdigit() else 120
+
+
 def _fit(s: str, width: int) -> str:
     """CJK-aware 고정폭 컬럼: 넘치면 …로 잘라내고, 모자라면 공백으로 패딩."""
     dw = _display_width(s)
@@ -306,7 +327,7 @@ def _task_display(task, done, total):
     # 제목 시작 위치는 📁(2)+sp(1)+badge(8)+sp(1)=12 cols로 고정 → 다른 탭과 정렬.
     # Tasks 탭은 preview 창(right:48%)이 있으므로 리스트 영역 ≈ 52%.
     # 오버헤드: prefix(12)+sep(2)+due(6)+sep(2)+tail(~16) = 38
-    _cols = shutil.get_terminal_size((120, 24)).columns
+    _cols = _tty_cols()
     name_width = max(34, int(_cols * 0.50) - 38)
     name_col = _fit(name + plan_badge, name_width)
     due = task.get("due_date", "")
@@ -319,24 +340,39 @@ def _task_display(task, done, total):
     return f"📁 {badge} {name_col}  {due_str}  {tail}".rstrip()
 
 
+def _priority_badge(priority):
+    """P1/P2/P3 → 색상 배지 2칸. 없으면 공백."""
+    _COLOR = {"P1": "\033[1;31m", "P2": "\033[1;33m", "P3": "\033[0;36m"}
+    p = (priority or "").upper()
+    if p in _COLOR:
+        return f"{_COLOR[p]}{p}{_RESET}"
+    return "  "
+
+
+def _roi_short(roi):
+    """high→H, medium→M, low→L, 없으면 공백."""
+    return {"high": "H", "medium": "M", "low": "L"}.get((roi or "").lower(), " ")
+
+
 def _todo_display(todo):
-    """Level 2 및 preview용 — 통일 행 문법: icon │ [상태] │ 제목 │ due."""
+    """Level 2 및 preview용 — 통일 행 문법: icon pri [상태] 제목  due roi."""
     status = _get_status(todo)
     glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
+    pri = _priority_badge(todo.get("priority", ""))
     badge = _status_badge(status)
     title = todo.get("title", "")
     plan_badge = " 📋" if todo.get("plan_id") else ""
     desc_badge = " 📝" if todo.get("description") else ""
     img_badge = " 🖼" if todo.get("images") else ""
-    # 제목 시작 위치: glyph(2)+badge(8)+sep = 다른 탭과 동일.
-    # 오버헤드: prefix(11) + sep(2) + due(6) + dirty(2) + buffer(4) = 25
-    _cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(34, _cols - 25)
+    # 오버헤드: glyph(2)+pri(3)+badge(9)+sep(2)+due(6)+roi(2)+dirty(2)+buffer(4) = 30
+    _cols = _tty_cols()
+    title_width = max(30, _cols - 30)
     title_col = _fit(title + plan_badge + desc_badge + img_badge, title_width)
     due = todo.get("due", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD 5칸
+    roi = _roi_short(todo.get("roi", ""))
     dirty = " *" if todo.get("dirty") else ""
-    return f"{glyph_col} {badge} {title_col}  {due_str}{dirty}"
+    return f"{glyph_col}{pri} {badge} {title_col}  {due_str} {roi}{dirty}"
 
 
 # ── 커맨드 ────────────────────────────────────────────────────
@@ -485,17 +521,19 @@ def cmd_list_all_todos(args):
         print(json.dumps({"todos": [{**t, "context": ctx_of(t), "repo": repo_of(t)} for t in todos]},
                          ensure_ascii=False, indent=2))
         return
-    # title_width: preview 창(right:42%) 고려 → 리스트 영역 ≈ 56%
-    # 통일 행 문법: 상태 badge를 제목 앞(좌측)에 둬 Tasks/Today/Doing과 정렬한다.
-    # 오버헤드: glyph(2)+badge(8)+sep(2)+due(6)+dirty(2)+max_repo(20)+ctx(18)+buffer(6) = 47
-    _term_cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(28, int(_term_cols * 0.54) - 47)
+    # preview-window right:35% → list area ≈ 65%
+    # 고정 오버헤드: glyph(2)+pri(3)+badge(9)+sep(2)+due(5)+roi(1)+dirty(2)+buffer(2) = 26
+    # ctx_part / repo_tag는 title 이후에 붙으므로 오버플로우 시 fzf가 우단 절단 → 제목 우선
+    _term_cols = _tty_cols()
+    title_width = max(28, int(_term_cols * 0.65) - 26)
 
-    # fzf: "{glyph} {badge} {title:dynamic} {due:5}{dirty}  [· {task명}]  [{repo}]"
+    # fzf: "{glyph} {pri} {badge} {title:dynamic} {due:5} {roi}{dirty}  [· {task명}]  [{repo}]"
+    # priority를 제목 왼쪽에 배치 — 제목 잘림 시에도 우선순위가 항상 보임.
     # Todos 버킷 소속은 ctx 생략 (자명하므로), Task 연결 시만 Task명 표시
     for t in todos:
         status = _get_status(t)
         glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
+        pri = _priority_badge(t.get("priority", ""))
         badge = _status_badge(status)
         title_field = (t.get("title", "")
                        + (" 📋" if t.get("plan_id") else "")
@@ -504,12 +542,13 @@ def cmd_list_all_todos(args):
         title_col = _fit(title_field, title_width)
         due = t.get("due", "")
         due_str = f"~{due[5:10]}" if due else "     "
+        roi = _roi_short(t.get("roi", ""))
         dirty = " *" if t.get("dirty") else ""
         repo = repo_of(t)
         repo_tag = f"  [{repo}]" if repo else ""
         ctx = ctx_of(t)
         ctx_part = f"  · {_fit(ctx, 16)}" if ctx != BACKLOG_LABEL else ""
-        print(f"{t['id']}\t{glyph_col} {badge} {title_col}  {due_str}{dirty}{ctx_part}{repo_tag}")
+        print(f"{t['id']}\t{glyph_col}{pri} {badge} {title_col}  {due_str} {roi}{dirty}{ctx_part}{repo_tag}")
 
 
 def cmd_get(args):
@@ -548,6 +587,12 @@ def cmd_add(args):
     status = getattr(args, "status", None) or "시작전"
     if status not in TODO_STATUS_VALUES:
         _err(f"Invalid status '{status}'. Valid: {TODO_STATUS_VALUES}")
+    priority = (getattr(args, "priority", None) or "").upper()
+    if priority and priority not in TODO_PRIORITY_VALUES:
+        _err(f"Invalid priority '{priority}'. Valid: P1, P2, P3")
+    roi = (getattr(args, "roi", None) or "").lower()
+    if roi and roi not in TODO_ROI_VALUES:
+        _err(f"Invalid roi '{roi}'. Valid: high, medium, low")
     todo = {
         "id": _new_todo_id(),
         "task_page_id": args.task,
@@ -558,6 +603,8 @@ def cmd_add(args):
         "status": status,
         "done": status == "완료",
         "due": args.due or "",
+        "priority": priority,
+        "roi": roi,
         "created_at": now,
         "updated_at": now,
         "dirty": not is_backlog,  # Task-scoped만 다음 sync에서 Notion에 append
@@ -618,6 +665,18 @@ def cmd_edit(args):
     if add_images:
         existing = todo.get("images") or []
         todo["images"] = existing + [p for p in add_images if p.strip()]
+    new_priority = getattr(args, "priority", None)
+    if new_priority is not None:
+        p = new_priority.upper()
+        if p and p not in TODO_PRIORITY_VALUES:
+            _err(f"Invalid priority '{p}'. Valid: P1, P2, P3")
+        todo["priority"] = p
+    new_roi = getattr(args, "roi", None)
+    if new_roi is not None:
+        r = new_roi.lower()
+        if r and r not in TODO_ROI_VALUES:
+            _err(f"Invalid roi '{r}'. Valid: high, medium, low")
+        todo["roi"] = r
     todo["updated_at"] = nc.now_kst()
     todo["dirty"] = todo.get("task_page_id") != BACKLOG_ID  # Backlog은 로컬 전용
     save_todos(doc)
@@ -720,6 +779,10 @@ def cmd_preview_todo(args):
     badge = _status_badge(status)
     print(f"  {box} {todo.get('title', '')}")
     print(f"  상태: {badge}")
+    if todo.get("priority"):
+        print(f"  우선순위: {todo['priority']}")
+    if todo.get("roi"):
+        print(f"  ROI: {todo['roi']}")
     if todo.get("due"):
         print(f"  마감: {todo['due']}")
     if todo.get("repo"):
@@ -900,7 +963,7 @@ def cmd_today(args):
         hint = f"  (지남 {overdue_hidden}건은 ctrl-o로 표시)" if overdue_hidden else "  (ctrl-t: 다른 탭)"
         print(f"__none__\t  ✨ 오늘 처리할 Task/Todo가 없습니다{hint}")
         return
-    _cols = shutil.get_terminal_size((120, 24)).columns
+    _cols = _tty_cols()
     title_width = max(26, int(_cols * 0.50) - 22)
     for i in items:
         o = i["obj"]
@@ -1027,10 +1090,11 @@ def cmd_doing(args):
     if not items:
         print("__none__\t  ✨ 진행 중인 Task/Todo가 없습니다  (ctrl-t: 다른 탭)")
         return
-    # 통일 행 문법: Doing은 전부 진행중이라 상태가 자명하지만, badge 컬럼을 둬야
-    # 제목 시작 위치가 다른 탭과 정렬된다(prefix 12 cols 고정).
-    _cols = shutil.get_terminal_size((120, 24)).columns
-    title_width = max(26, int(_cols * 0.50) - 27)
+    # preview-window right:30% → list area ≈ 70%
+    # 오버헤드(Task): glyph(3)+badge(9)+pri(3)+sep(2)+due(5)+roi(2)+count(8) = 32
+    # 오버헤드(Todo): glyph(3)+badge(9)+pri(3)+sep(2)+due(5)+roi(2) = 24
+    _cols = _tty_cols()
+    title_width = max(26, int(_cols * 0.70) - 32)
     n_task = sum(1 for i in items if i["kind"] == "task")
     n_todo = len(items) - n_task
     for i in items:
@@ -1038,25 +1102,25 @@ def cmd_doing(args):
         due = i["due"]
         due_str = f"~{due[5:10]}" if due else "     "
         if i["kind"] == "task":
-            badge = _now_entity_badge("task")  # 상태(전부 진행중) 대신 엔티티 표시
+            badge = _now_entity_badge("task")
+            pri = _priority_badge(o.get("priority", ""))
+            roi = _roi_short(o.get("roi", ""))
             title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
             title_col = _fit(title_field, title_width)
-            tail = f"[{_priority_short(o.get('priority', ''))}] ({i['done']}/{i['total']})"
-            print(f"{o['page_id']}\t📁 {badge} {title_col}  {due_str}  {tail}")
+            tail = f"({i['done']}/{i['total']})"
+            print(f"{o['page_id']}\t📁 {badge} {pri} {title_col}  {due_str} {roi}  {tail}")
         else:
             status = _get_status(o)
-            badge = _now_entity_badge("todo")  # 상태(전부 진행중) 대신 엔티티 표시
+            badge = _now_entity_badge("todo")
             glyph_col = _colored_icon(status) + " "  # box(1) + space → Task 📁(2)와 폭 정렬
+            pri = _priority_badge(o.get("priority", ""))
+            roi = _roi_short(o.get("roi", ""))
             title_field = (o.get("title", "")
                            + (" 📋" if o.get("plan_id") else "")
                            + (" 📝" if o.get("description") else "")
                            + (" 🖼" if o.get("images") else ""))
             title_col = _fit(title_field, title_width)
-            ctx = i["context"]
-            ctx_part = "" if ctx == BACKLOG_LABEL else f"  · {_fit(ctx, 14)}"
-            repo = repo_of(o)
-            repo_tag = f"  [{repo}]" if repo else ""
-            print(f"{o['id']}\t{glyph_col} {badge} {title_col}  {due_str}{ctx_part}{repo_tag}")
+            print(f"{o['id']}\t{glyph_col} {badge} {pri} {title_col}  {due_str} {roi}")
     print(f"__info__\t   ⋯ WIP: Task {n_task} · Todo {n_todo}")
 
 
@@ -1262,6 +1326,10 @@ def main():
     ad.add_argument("--due", default=None)
     ad.add_argument("--status", default="시작전", choices=TODO_STATUS_VALUES,
                     help="진행 상태 (기본: 시작전)")
+    ad.add_argument("--priority", default=None, choices=["P1", "P2", "P3", ""],
+                    help="우선순위: P1(오늘/내일) / P2(이번 주) / P3(언젠가)")
+    ad.add_argument("--roi", default=None, choices=["high", "medium", "low", ""],
+                    help="기대 효과: high / medium / low")
     ad.add_argument("--description", default=None, help="배경·문제·이유 등 자유 텍스트")
     ad.add_argument("--image", dest="images", action="append", default=None,
                     help="이미지 파일 경로 또는 URL (여러 번 사용 가능)")
@@ -1282,6 +1350,10 @@ def main():
     ed.add_argument("--title", default="")
     ed.add_argument("--status", default=None, choices=TODO_STATUS_VALUES,
                     help="진행 상태 변경")
+    ed.add_argument("--priority", default=None, choices=["P1", "P2", "P3", ""],
+                    help="우선순위 변경 (빈 문자열로 초기화)")
+    ed.add_argument("--roi", default=None, choices=["high", "medium", "low", ""],
+                    help="기대 효과 변경 (빈 문자열로 초기화)")
     ed.add_argument("--description", default=None, help="설명 업데이트 (빈 문자열로 삭제)")
     ed.add_argument("--description-only", dest="description_only", action="store_true")
     ed.add_argument("--image", dest="images", action="append", default=None,

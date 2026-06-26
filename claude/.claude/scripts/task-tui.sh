@@ -50,6 +50,8 @@ write_help_file() {
 
   [Now 탭]  진행 중 Task+Todo
     enter         Task=드릴인 / Todo=세션
+    ctrl-o        Task=Notion 페이지 열기 (Todo에는 적용 안 됨)
+    ctrl-d        Todo 삭제 (Task에는 적용 안 됨 — Tasks 탭에서 삭제)
     space         Todo 상태 전환
 
   [Tasks 탭]  Task 전용
@@ -110,7 +112,12 @@ if [ "${1:-}" = "--add" ]; then
     fi
   fi
   [ -z "$_ADD_TITLE" ] && exit 0
-  python3 "$STORE" add --task __backlog__ --title "$_ADD_TITLE"
+  _ADD_PRI=""
+  if command -v gum >/dev/null; then
+    _ADD_PRI=$(gum choose --header "우선순위" "P1" "P2" "P3" "(없음)")
+    [ "$_ADD_PRI" = "(없음)" ] && _ADD_PRI=""
+  fi
+  python3 "$STORE" add --task __backlog__ --title "$_ADD_TITLE" ${_ADD_PRI:+--priority "$_ADD_PRI"}
   exit $?
 fi
 
@@ -118,7 +125,7 @@ fi
 if [ "${1:-}" = "add" ]; then
   shift
   if [ $# -eq 0 ]; then
-    echo "usage: todo add <제목> [--task <page_id>] [--repo <repo>] [--description <text>] [--status 시작전|진행중|완료]" >&2
+    echo "usage: todo add <제목> [--task <page_id>] [--repo <repo>] [--description <text>] [--status 시작전|진행중|완료] [--priority P1|P2|P3] [--roi high|medium|low]" >&2
     exit 1
   fi
   _ADD_TITLE="$1"; shift
@@ -130,6 +137,8 @@ if [ "${1:-}" = "add" ]; then
       --repo)        _ADD_EXTRA+=(--repo "$2"); shift 2 ;;
       --description) _ADD_EXTRA+=(--description "$2"); shift 2 ;;
       --status)      _ADD_EXTRA+=(--status "$2"); shift 2 ;;
+      --priority)    _ADD_EXTRA+=(--priority "$2"); shift 2 ;;
+      --roi)         _ADD_EXTRA+=(--roi "$2"); shift 2 ;;
       *) echo "알 수 없는 옵션: $1" >&2; exit 1 ;;
     esac
   done
@@ -339,6 +348,29 @@ edit_description() {
     --description "$new_desc" --description-only >/dev/null
 }
 
+# Todo 우선순위/ROI 편집 — gum choose 우선, 없으면 prompt_choose로 degrade.
+# todo_menu / todos_tab 의 ctrl-i 공용.
+edit_priority_roi() {
+  local todo_id="$1"
+  [ -z "$todo_id" ] && return
+  local cur_pri cur_roi new_pri new_roi
+  cur_pri=$(python3 "$STORE" get --id "$todo_id" --field priority 2>/dev/null)
+  cur_roi=$(python3 "$STORE" get --id "$todo_id" --field roi 2>/dev/null)
+  if have_gum; then
+    new_pri=$(gum choose --header "우선순위 (현재: ${cur_pri:-없음})" "P1" "P2" "P3" "(없음)")
+    [ "$new_pri" = "(없음)" ] && new_pri=""
+    new_roi=$(gum choose --header "ROI (현재: ${cur_roi:-없음})" "high" "medium" "low" "(없음)")
+    [ "$new_roi" = "(없음)" ] && new_roi=""
+  else
+    new_pri=$(prompt_choose "P1" "P2" "P3" "(없음)")
+    [ "$new_pri" = "(없음)" ] && new_pri=""
+    new_roi=$(prompt_choose "high" "medium" "low" "(없음)")
+    [ "$new_roi" = "(없음)" ] && new_roi=""
+  fi
+  python3 "$STORE" edit --id "$todo_id" --title "" --description-only \
+    --priority "$new_pri" --roi "$new_roi" >/dev/null
+}
+
 # task/todo의 plan_id를 조회해 있으면 Plan 뷰를, 없으면 Plan 연결 프롬프트를 연다.
 # 3개 탭(todo_menu/tasks_tab/todos_tab)의 ctrl-p 공용 로직.
 #   target: "task"(list-tasks에서 page_id 매칭) | "todo"(get에서 plan_id 추출)
@@ -367,10 +399,10 @@ todo_menu() {
     local out key line todo_id
     out=$(python3 "$STORE" list-todos --task "$page_id" --format fzf \
       | fzf --delimiter='\t' --with-nth='2..' --ansi \
-            --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
+            --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:35% \
             --bind "?:execute(less -R -- $HELP_FILE)" \
-            --header="enter:Claude  space:전환  ctrl-a:추가  ctrl-e:제목  ctrl-n:설명  ctrl-d:삭제  ?:도움말  esc:뒤로" \
-            --expect=enter,space,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-l,ctrl-r,ctrl-p)
+            --header="enter:Claude  space:전환  ctrl-a:추가  ctrl-e:제목  ctrl-n:설명  ctrl-i:우선순위  ctrl-d:삭제  ?:도움말  esc:뒤로" \
+            --expect=enter,space,ctrl-a,ctrl-e,ctrl-n,ctrl-i,ctrl-d,ctrl-l,ctrl-r,ctrl-p)
     [ -z "$out" ] && return  # esc/취소 → Level 1 복귀
     key=$(sed -n 1p <<<"$out")
     line=$(sed -n 2p <<<"$out")
@@ -378,13 +410,22 @@ todo_menu() {
     case "$key" in
       enter)   [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
       space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;
-      ctrl-a)  local t; t=$(prompt_input "새 todo 제목"); [ -n "$t" ] && python3 "$STORE" add --task "$page_id" --title "$t" >/dev/null ;;
+      ctrl-a)  local t _pri
+               t=$(prompt_input "새 todo 제목")
+               [ -z "$t" ] && continue
+               _pri=""
+               if have_gum; then
+                 _pri=$(gum choose --header "우선순위" "P1" "P2" "P3" "(없음)")
+                 [ "$_pri" = "(없음)" ] && _pri=""
+               fi
+               python3 "$STORE" add --task "$page_id" --title "$t" ${_pri:+--priority "$_pri"} >/dev/null ;;
       ctrl-e)  [ -z "$todo_id" ] && continue
                # 깨끗한 title은 JSON에서 조회한다(표시줄 파싱은 글리프·배지 변경에 취약).
                local cur t
                cur=$(python3 "$STORE" get --id "$todo_id" --field title 2>/dev/null)
                t=$(prompt_input "제목 수정" "$cur"); [ -n "$t" ] && python3 "$STORE" edit --id "$todo_id" --title "$t" >/dev/null ;;
       ctrl-n)  edit_description "$todo_id" ;;
+      ctrl-i)  [ -n "$todo_id" ] && edit_priority_roi "$todo_id" ;;
       ctrl-d)  [ -z "$todo_id" ] && continue
                prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
       ctrl-p)  if [ -n "$todo_id" ]; then resolve_and_open_plan todo "$todo_id"
@@ -722,10 +763,10 @@ todos_tab() {
   fhdr=${REPO_FILTER:+ [repo:$REPO_FILTER]}
   out=$(list_todos_filtered "$TODOS_LENS" \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
-          --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:42% \
+          --preview "python3 '$STORE' preview-todo {1}" --preview-window=right:35% \
           --bind "?:execute(less -R -- $HELP_FILE)" \
-          --header="$(tab_bar) $(lens_bar)$fhdr  1-3/0:렌즈  enter:열기  space:전환  ctrl-a:추가  ctrl-e:제목  ctrl-d:삭제  ?:도움말  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-n,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-u,ctrl-p,1,2,3,0)
+          --header="$(tab_bar) $(lens_bar)$fhdr  1-3/0:렌즈  enter:열기  space:전환  ctrl-a:추가  ctrl-e:제목  ctrl-i:우선순위  ctrl-d:삭제  ?:도움말  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-a,ctrl-e,ctrl-n,ctrl-i,ctrl-d,ctrl-g,ctrl-l,ctrl-r,ctrl-u,ctrl-p,1,2,3,0)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); todo_id=$(cut -f1 <<<"$line")
   case "$key" in
@@ -736,11 +777,21 @@ todos_tab() {
     enter)  [ -n "$todo_id" ] && open_todo_session "$todo_id" ;;
     tab|ctrl-t) next_tab ;;
     space)   [ -n "$todo_id" ] && python3 "$STORE" toggle --id "$todo_id" >/dev/null ;;  # 완료 렌즈에선 재오픈
-    ctrl-a)  t=$(prompt_input "새 Backlog todo"); [ -n "$t" ] && python3 "$STORE" add --task __backlog__ --title "$t" ${REPO_FILTER:+--repo "$REPO_FILTER"} >/dev/null ;;
+    ctrl-a)  t=$(prompt_input "새 Backlog todo")
+             if [ -n "$t" ]; then
+               local _pri=""
+               if have_gum; then
+                 _pri=$(gum choose --header "우선순위" "P1" "P2" "P3" "(없음)")
+                 [ "$_pri" = "(없음)" ] && _pri=""
+               fi
+               python3 "$STORE" add --task __backlog__ --title "$t" \
+                 ${REPO_FILTER:+--repo "$REPO_FILTER"} ${_pri:+--priority "$_pri"} >/dev/null
+             fi ;;
     ctrl-e)  [ -z "$todo_id" ] && return
              cur=$(python3 "$STORE" get --id "$todo_id" --field title 2>/dev/null)
              t=$(prompt_input "제목 수정" "$cur"); [ -n "$t" ] && python3 "$STORE" edit --id "$todo_id" --title "$t" >/dev/null ;;
     ctrl-n)  edit_description "$todo_id" ;;
+    ctrl-i)  [ -n "$todo_id" ] && edit_priority_roi "$todo_id" ;;
     ctrl-d)  [ -z "$todo_id" ] && return
              prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$todo_id" >/dev/null ;;
     ctrl-p)  resolve_and_open_plan todo "$todo_id" ;;
@@ -760,10 +811,10 @@ now_tab() {
   local out key line id
   out=$(python3 "$STORE" doing --format fzf \
     | fzf --delimiter='\t' --with-nth='2..' --ansi \
-          --preview "python3 '$STORE' preview-today {1}" --preview-window=right:46% \
+          --preview "python3 '$STORE' preview-today {1}" --preview-window=right:30% \
           --bind "?:execute(less -R -- $HELP_FILE)" \
-          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기  space:전환  ?:도움말  esc:종료" \
-          --expect=enter,space,tab,ctrl-t,ctrl-l,ctrl-r)
+          --header="$(tab_bar)  📁=Task ▷=Todo  enter:열기  space:전환  ctrl-o:Notion  ctrl-d:Todo삭제  ?:도움말  esc:종료" \
+          --expect=enter,space,tab,ctrl-t,ctrl-o,ctrl-d,ctrl-l,ctrl-r)
   if [ -z "$out" ]; then NAV="quit"; return; fi  # esc → 종료
   key=$(sed -n 1p <<<"$out"); line=$(sed -n 2p <<<"$out"); id=$(cut -f1 <<<"$line")
   [[ "$id" == __* ]] && id=""  # __none__/__info__ 등 정보 행은 선택 동작 없음
@@ -776,6 +827,15 @@ now_tab() {
     space)
       # 상태 전환은 Todo만 (Task 상태는 Tasks 탭의 ctrl-s에서 변경)
       [[ "$id" == td_* ]] && python3 "$STORE" toggle --id "$id" >/dev/null ;;
+    ctrl-o)
+      # Task만 Notion 열기 (Todo는 Notion 페이지 없음)
+      [ -z "$id" ] && return
+      [[ "$id" == td_* ]] || open_notion_page "$id" ;;
+    ctrl-d)
+      # Todo만 삭제 (Task 삭제는 Tasks 탭의 ctrl-d에서 수행)
+      [ -z "$id" ] && return
+      [[ "$id" == td_* ]] || return
+      prompt_confirm "이 todo를 삭제할까요?" && python3 "$STORE" delete --id "$id" >/dev/null ;;
     ctrl-l)  : ;;  # no-op → while loop 재진입으로 now 재렌더
     ctrl-r)  run_sync ;;
   esac
