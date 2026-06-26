@@ -64,6 +64,86 @@ allowed-tools:
 
 ---
 
+## 신규 Task 본격 템플릿 (5-필드)
+
+Alfred가 신규 Task를 생성할 때 **본격 Task**에 적용하는 공통 규칙이다.
+`tasks:capture`와 동일한 기준을 따르며, Alfred가 직접 `create-task`를 호출하는 모든 경로(week·gate·task 모드)에 적용한다.
+
+### 본격 판정 기준
+
+아래 중 하나라도 해당하면 본격 Task로 보고 5-필드 본문 템플릿을 적용한다.
+
+- 최종 Priority가 **P1 또는 P2** (명시 또는 자동 추천 포함)
+- 사용자가 Task에 대한 배경/이유를 추가로 설명한 경우
+
+P3/P4 이면서 단순 메모 수준이면 템플릿 없이 `--name`만으로 생성한다.
+
+### 5-필드 본문 템플릿
+
+```markdown
+## 문제 정의
+{무엇이 문제인지 — 현재 상태(As-Is)와 이상 상태(To-Be)의 gap을 구체적으로}
+
+## 해결 이유
+{왜 지금 해결해야 하는지 — 방치 시 발생하는 영향, 비즈니스/기술적 근거}
+
+## Summary
+{이 Task가 무엇인지 — 최소 3줄. 대상/현재 상태/접근을 각 줄로}
+
+## 기대 효과
+{이 Task로 무엇이 개선되는지 — 측정 가능하면 지표로}
+
+## Non-Goals
+{이번 Task에서 다루지 않는 것 — 오버엔지니어링 방지 경계}
+```
+
+### 세션 컨텍스트 분석 게이트
+
+`문제 정의`와 `해결 이유`는 추정으로 채우지 않는다. 생성 전 세션 대화에서 추출 가능한지 먼저 판단한다.
+
+| 판단 기준 | 추출 가능 | 추출 불가 |
+|----------|----------|----------|
+| 문제 정의 | 대화에서 현재 상태의 문제가 구체적으로 언급됨 | 요청이 "이거 해줘" 수준으로 맥락 없음 |
+| 해결 이유 | 영향·불편함·기술적 근거가 명시됨 | 동기가 전혀 언급되지 않음 |
+
+**불충분하면 등록 전 질문한다.** 최대 2개, AskUserQuestion으로 묶어 1회 확인.
+
+```
+Task를 생성하기 전에 두 가지를 확인할게요.
+
+1. 문제 정의: 지금 어떤 문제가 있나요? 현재 상태에서 무엇이 안 되거나 부족한가요?
+2. 해결 이유: 이 문제를 해결해야 하는 이유가 무엇인가요? 방치하면 어떤 영향이 있나요?
+```
+
+두 필드가 세션에서 명확히 추출 가능하면 질문 없이 합성 후 진행한다.
+
+### create-task 호출 형식 (본격 Task)
+
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
+  create-task --name "Task 이름" --priority "P2" --due "2026-03-20" \
+  --category "WORK" --description "한 줄 요약" \
+  --body '## 문제 정의
+현재 상태(As-Is)에서 무엇이 문제인지.
+
+## 해결 이유
+- 방치 시 영향
+- 기술/비즈니스 근거
+
+## Summary
+대상/현재 상태/접근을 각 줄로 (최소 3줄).
+
+## 기대 효과
+- 개선 지표
+
+## Non-Goals
+- 이번 범위에서 제외하는 것'
+```
+
+> 본문 헤딩은 `## 문제 정의` / `## 해결 이유` / `## Summary` / `## 기대 효과` / `## Non-Goals` 5개 고정. 본문에 작은따옴표가 포함되면 `'\''`로 이스케이프한다.
+
+---
+
 ## briefing · daily · daily:start 역할 경계
 
 세 컴포넌트는 책임이 다르다. 겹치는 데이터 소스(캘린더·Notion Task)는 캐시(`/tmp/alfred-calendar.json`)로 공유하되, 역할은 분리한다.
@@ -576,10 +656,13 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
   1. 등록 후 게이트 진행 [추천]
   0. 취소
   ```
-  - **1 선택** → 맥락에서 priority/category/ROI를 추정해 생성한다(곧 완료할 작업이므로 due는 생략, 상태는 기본 "시작 전"):
+  - **1 선택** → 맥락에서 priority/category/ROI를 추정해 생성한다(곧 완료할 작업이므로 due는 생략, 상태는 기본 "시작 전").
+    Priority가 P1/P2이면 **"신규 Task 본격 템플릿(5-필드)" 섹션의 세션 컨텍스트 분석 게이트**를 통과한 뒤 `--body`를 포함해 생성한다. P3이면 `--name`·`--priority`·`--category`만으로 즉시 생성한다.
     ```bash
+    # P3 단순 생성
     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
       --name "..." --priority "P2" --category WORK [--roi Medium]
+    # P1/P2 본격 생성은 위 섹션의 --body 형식 참조
     ```
     응답의 `page_id`를 확보한 뒤 그 값으로 **2단계(4체크)로 이어간다**. 완료 처리는 게이트의 4단계가 담당하므로 여기서 미리 완료로 바꾸지 않는다(4체크를 건너뛰지 않기 위함).
   - **0 선택** → 게이트를 보류한다(아무것도 생성·변경하지 않음).
@@ -1072,11 +1155,9 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
 - 복구 방법 병기: "되돌리려면 `/alfred task {명} 상태를 시작 전으로`"
 
 **신규 Task 생성**:
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
-  --name "..." --priority "P2" --category WORK [--due YYYY-MM-DD] [--roi Medium]
-```
 - priority 매핑: P1 → "P1", P2 → "P2", P3 → "P3" (3단계, 명시 없으면 P3 추천)
+- **본격 Task(P1/P2)이면** "신규 Task 본격 템플릿(5-필드)" 섹션의 세션 컨텍스트 분석 게이트를 먼저 통과한 뒤, `--body`로 5-필드 본문을 함께 전달한다.
+- **P3/P4 단순 메모**이면 `--body` 없이 `--name`·`--priority`·`--category`만으로 즉시 생성한다.
 - 생성 후 1줄 보고: "'{Task명}' Task를 생성했습니다 (P2, due MM/DD)."
 
 **완료된 작업 등록** (이미 끝낸 작업을 완료 상태로 기록):
