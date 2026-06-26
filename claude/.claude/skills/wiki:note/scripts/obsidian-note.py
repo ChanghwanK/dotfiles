@@ -10,7 +10,7 @@ import json
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # 공통 태그 유틸리티 임포트
@@ -45,6 +45,7 @@ TYPE_DIR_MAP = {
 SEARCH_DIRS = [
     "04. Wiki/engineering",
     "04. Wiki/career",
+    "04. Wiki/ignorance-notes",
     "03. Resources/runbooks",
     "03. Resources/troubleshooting",
     "03. Resources/cheatsheets",
@@ -76,6 +77,7 @@ def slugify(title: str) -> str:
 
 HISTORY_TYPE = "history"
 INCIDENT_TYPE = "incident"
+IGNORANCE_TYPE = "ignorance-note"
 
 
 def get_save_dir(note_type: str, category: str) -> str:
@@ -84,6 +86,8 @@ def get_save_dir(note_type: str, category: str) -> str:
         return os.path.join(VAULT_BASE, TYPE_DIR_MAP[note_type])
     if note_type in (HISTORY_TYPE, INCIDENT_TYPE):
         return os.path.join(VAULT_BASE, "04. Wiki/incidents")
+    if note_type == IGNORANCE_TYPE:
+        return os.path.join(VAULT_BASE, "04. Wiki/ignorance-notes")
     # Wiki 카테고리 매핑 (기본: concepts)
     wiki_subdir = WIKI_CATEGORY_MAP.get(category, "04. Wiki/concepts")
     return os.path.join(VAULT_BASE, wiki_subdir)
@@ -216,14 +220,29 @@ def create_note(title: str, tags: list[str], content: str, note_type: str = "lea
 
     aliases = aliases or []
 
+    # ignorance-note 전용 필드 계산
+    note_status = "active"
+    extra_frontmatter: list[str] = []
+    if note_type == IGNORANCE_TYPE:
+        note_status = "not-reviewed"
+        expires_date = (date.today() + timedelta(days=30)).isoformat()
+        review_date = (date.today() + timedelta(days=7)).isoformat()
+        extra_frontmatter = [
+            f"expires: {expires_date}",
+            "review-schedule:",
+            f"  - {review_date}",
+            f"  - {expires_date}",
+        ]
+
     # frontmatter 생성
     frontmatter_lines = [
         "---",
         f'title: "{title}"',
         f"date: {today}",
         f"last_reviewed: {today}",
-        f"status: active",
+        f"status: {note_status}",
         f"type: {note_type}",
+    ] + extra_frontmatter + [
         "tags:",
     ]
     if domain_tags:

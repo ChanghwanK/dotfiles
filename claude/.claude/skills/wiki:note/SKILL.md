@@ -4,11 +4,13 @@ description: |
   대화 결과를 04. Wiki/ 또는 03. Resources/에 구조화된 노트로 저장하는 스킬.
   사용자 요청(명시적) 또는 Claude 자동 제안(인사이트 감지) 두 가지 방식으로 동작.
   지원 타입: learning-note(기술 개념) · troubleshooting(에러 해결) · runbook(운영 절차) ·
-  cheatsheet · incident(장애 post-mortem).
+  cheatsheet · incident(장애 post-mortem) · ignorance-note(무지 노트, 1달 보관+재인터뷰).
   사용 시점: (1) 학습/개념 설명 대화 후 노트화, (2) 트러블슈팅 해결 패턴 기록,
-  (3) 장애 분석 post-mortem 저장, (4) 대화 인사이트 즉시 filing.
+  (3) 장애 분석 post-mortem 저장, (4) 대화 인사이트 즉시 filing,
+  (5) 몰랐던 개념을 무지 노트로 아카이빙 후 1달 후 재인터뷰.
   트리거 키워드: "wiki 노트", "노트로 저장", "wiki에 저장", "/wiki:note",
-  "위키에 저장", "wiki에 남겨", "노트로 저장해".
+  "위키에 저장", "wiki에 남겨", "노트로 저장해",
+  "무지 노트", "무지로 저장", "/wiki:note 무지".
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Agent
@@ -34,8 +36,27 @@ allowed-tools:
 | `runbook` | `03. Resources/runbooks/` |
 | `cheatsheet` | `03. Resources/cheatsheets/` |
 | `incident` | `04. Wiki/incidents/` |
+| `ignorance-note` | `04. Wiki/ignorance-notes/` |
 
 > Resource 타입(`runbook`, `troubleshooting`, `cheatsheet`) 지정 시 `--category` 옵션은 무시되며 타입이 경로를 결정합니다.
+
+### `ignorance-note` 타입 전용 구조
+
+`/wiki:note 무지` 또는 `--type ignorance-note`로 저장할 때 사용하는 특수 타입.
+이전에 몰랐던 내용을 아카이빙하고 1달 후 재인터뷰로 내재화 여부를 검증한다.
+
+**Frontmatter 추가 필드 (obsidian-note.py가 자동 계산):**
+- `expires`: 저장일 + 30일
+- `review-schedule`: [저장일 + 7일, 저장일 + 30일]
+- `status`: `not-reviewed` (기본값, 이후 `reviewed` → `mastered`로 갱신)
+
+**본문 구조 (이 순서로 작성):**
+- `## 무지 요약`: 무엇을 몰랐는지 (또는 잘못 알고 있었는지) 한 문단
+- `## 학습 내용`: 이번 설명에서 배운 핵심 (wiki:note learning-note 본문과 동일 품질)
+- `## 이해 점검 질문`: 재인터뷰 시 Claude가 읽고 질문할 내용 3개 (정의형, 메커니즘형, 실무 연계형)
+- `## 실무 연결`: SOCRAAI 환경에서 어디서 관련이 있는지
+
+재인터뷰: `/learn:recall {topic}`
 
 ## 핵심 원칙
 
@@ -200,7 +221,9 @@ python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py creat
 OBSIDIAN_CONTENT_EOF
 ```
 
-`--type` 옵션: `learning-note` (기본값) | `troubleshooting` | `cheatsheet`
+`--type` 옵션: `learning-note` (기본값) | `troubleshooting` | `cheatsheet` | `ignorance-note`
+
+`/wiki:note 무지` 또는 사용자가 "무지 노트로 저장"이라고 하면 `--type ignorance-note`를 사용한다.
 
 `--category` 옵션: `engineering` (기본값) | `career`
 - `engineering`: 기술 노트 전체 (개념, 장애 분석, 인사이트 포함) → `04. Wiki/engineering/`
