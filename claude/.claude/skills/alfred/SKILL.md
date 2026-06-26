@@ -106,6 +106,8 @@ allowed-tools:
 
 ### 1단계: 데이터 수집 (6개 소스, 실패는 개별 격리)
 
+> **실행 강제 (합성 금지)**: 아래 6개 소스는 **매 briefing 호출마다 반드시 실제 스크립트/도구로 수집**한다 — 첫 호출이든 같은 세션 내 재호출/resume이든 동일하다. 직전 브리핑 출력·transcript 기억·대화 맥락으로 **합성하지 않는다**. 특히 소스 (D) 로컬 Todo(`list-all-todos`)는 Notion(B)에 없는 Backlog 마감 항목이 들어오는 유일한 경로이므로, 이를 건너뛰면 오늘 마감 Backlog가 통째로 누락된다(2026-06-26 PgBouncer due-today 드롭 재발 방지). 캘린더(A)만 당일 캐시 재사용이 허용되고, 나머지(B~F)는 매번 다시 돌린다. **(D)의 `list-all-todos`를 한 번도 실행하지 않은 채로는 브리핑을 출력하지 않는다.**
+
 **(A) 일정: 캘린더 오늘 + 이번 주 (당일 캐시 우선, best-effort)**
 
 캘린더 MCP 조회는 느리므로 **하루 한 번만** 실제 조회하고, 같은 날 재브리핑은 캐시를 재사용한다. 보통 아침 첫 브리핑(또는 같은 날 daily:start)이 캐시를 만들고, 이후 당일 브리핑은 이를 그대로 쓴다.
@@ -198,7 +200,9 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 
 [주의]
 - (일정 충돌 / 오늘 마감(D-day) / 준비 임박 회의가 있으면 여기 한두 줄. 없으면 "특이사항 없습니다.")
-- **due ≤ 오늘인 P1·P2 항목(Notion·TUI 어느 소스든)은 ROI 정렬과 무관하게 여기 최상단에 무조건 올린다** — 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
+- **due ≤ 오늘인 항목(Notion·TUI 어느 소스든)은 ROI·우선순위 정렬과 무관하게 여기 최상단에 무조건 올린다** — 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
+  - Notion Task는 P1·P2를 기준으로 끌어올린다.
+  - **로컬 Backlog Todo(`__backlog__`)는 P-level이 없으므로 우선순위 필터를 적용하지 않는다 — due ≤ 오늘이면 무조건 [주의]에 올린다**(2026-06-26 PgBouncer due-today 드롭 재발 방지). Backlog Todo가 P가 없다는 이유로 누락시키지 않는다.
 
 오늘 일정 ({N}건){캐시 재사용 시 끝에: ` · 캘린더 오늘 HH:MM 조회 기준 (--refresh로 갱신)`}
 - HH:MM–HH:MM  {제목}
@@ -631,6 +635,32 @@ python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "{Task
 > 로컬 TUI store는 여기서 건드리지 않는다. (A)가 Notion(= source of truth) 상태를 직접 바꾸므로,
 > 로컬 store는 다음 sync(ctrl-r/ctrl-u 또는 드릴인 fetch)로 완료 상태를 pull해 반영한다.
 > store에 별도 쓰기를 하면 같은 source에 이중 쓰기(meta_dirty → push)가 되어 중복이다.
+> **단, 아래 (C)의 Backlog Todo(`__backlog__`)는 예외다** — Notion Task가 없어(notion_block_id: null) sync로 pull될 source 자체가 없으므로, 직접 store에 완료를 써야 한다.
+
+**(C) 로컬 Backlog Todo 완료 동기화 (강제 — 이번 세션에서 끝낸 것)**
+
+Backlog Todo(`__backlog__`)는 Notion Task가 없어 (A)/sync로 절대 완료 처리되지 않는다. 작업하며 곁다리로 끝낸 Backlog 항목이 `시작전`으로 방치되면, 다음 아침 브리핑이 due 초과로 계속 리마인드한다(2026-06-26 APM #4626·Alloy OOM Todo가 완료 후에도 D+2로 노출된 재발 방지). 따라서 gate 클로징마다 이 체크를 **건너뛰지 않는다**.
+
+1. **미완료 Backlog 조회** (읽기 전용):
+   ```bash
+   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos --task __backlog__ --format json
+   ```
+2. **후보 추림**: 위 목록 중 **이번 세션 맥락에서 끝난 것으로 보이는** 항목만 후보로 좁힌다(전체 Backlog를 덤프하지 않는다 — 잔소리 방지). 이번 gate의 대상 작업과 동일하거나, 세션 대화에서 명시적으로 "했다/끝냈다"가 확인된 항목이 후보다.
+3. **1회 확인**: 후보가 1건 이상이면 목록으로 보여주고 한 번만 확인받는다(어느 것을 완료로 처리할지는 store가 알 수 없으므로 자율 토글하지 않는다):
+   ```
+   🎩 이번 세션에서 끝난 것으로 보이는 Backlog Todo입니다. 완료 처리할까요?
+     1. {title} (due {MM/DD})
+     2. {title} (due {MM/DD})
+
+     1. 전체 완료 [추천]   ·   번호 선택   ·   0. 건너뜀
+   ```
+4. **완료 설정 (결정론적, toggle 금지)**: 선택된 각 항목을 `edit --status 완료`로 설정한다. `toggle`은 `시작전→진행중→완료` 3-state 순환이라 1회로 완료에 닿지 못할 수 있으므로 쓰지 않는다.
+   ```bash
+   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py edit --id <todo_id> --status 완료
+   ```
+   - `edit --status 완료`는 store에서 `done=true`를 함께 박는다(결정론적).
+5. **후보 0건 또는 0 선택**: store를 건드리지 않고 보고에 "이번 세션과 매칭되는 미완료 Backlog Todo 없음" 한 줄만 남긴다(체크는 했음을 명시 — 강제 체크의 가시성 유지).
+6. **실패 격리**: 조회/설정이 비-0 종료면 "Backlog 동기화 실패 — 수동 토글 필요(`edit --id <id> --status 완료`)" 1줄 출력 후 계속.
 
 **클로징 완료 보고 포맷:**
 ```
@@ -638,9 +668,10 @@ python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "{Task
 
 ✓ Notion: 완료 (due 비어있었으면: · due {MM/DD} 자동 기록)
 ✓ Daily Note: [x] {Task명} 기록
+✓ Backlog Todo: {N}건 완료 동기화 ({title …})   ← (C)에서 처리한 게 있을 때만. 없으면 생략
 (실패 항목은 ✗와 원인 1줄)
 
-복구: update-status --page-id {id} --status "진행 중" 으로 되돌릴 수 있습니다.
+복구: update-status --page-id {id} --status "진행 중" (Notion) · edit --id {todo_id} --status 시작전 (Backlog Todo)
 ```
 
 ### 5단계: 작업 내용 노트 (본문 기록: 자율 합성 + 1회 확인)
