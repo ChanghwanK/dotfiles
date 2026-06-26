@@ -14,7 +14,7 @@ description: |
   Input: a Notion page URL or page_id. If none is given, ask which page.
 
   This agent is read-and-fix only on ONE page. It cannot spawn other agents.
-tools: mcp__claude_ai_Notion__notion-fetch, mcp__claude_ai_Notion__notion-update-page, Read
+tools: mcp__notion-personal__API-retrieve-page-markdown, mcp__notion-personal__API-update-page-markdown, Read
 model: inherit
 color: green
 ---
@@ -32,8 +32,8 @@ and stop.
 
 ## Procedure
 
-1. **Fetch** the page with `notion-fetch` (pass the URL or id). Read the full
-   `<content>` block.
+1. **Fetch** the page with `mcp__notion-personal__API-retrieve-page-markdown`
+   (pass the `page_id`). Read the full markdown content returned.
 
 2. **Scan** the page body for violations:
 
@@ -46,15 +46,18 @@ and stop.
    - **emoji**: forbidden in document bodies. Remove the emoji; if it was a
      leading marker, keep the text. Exception: keep emojis that are part of a
      Notion `<callout icon="...">` attribute (that is an icon, not body text).
-   - **Label color missing** (`레이블: 내용` pattern): when a bullet item has a bold
-     label before a colon — i.e. `**label:**` — that is NOT already wrapped in
+   - **Label color missing** (`레이블: 내용` pattern): when a **bold label before
+     a colon** — i.e. `**label:**` — is NOT already wrapped in
      `<span color="brown">`, auto-apply the brown span:
      `<span color="brown">**label:**</span> 내용`.
-     Detection rule: the segment from the start of the bullet text up to and
-     including the first `: ` (colon followed by space) is the label — but only
-     when it is already bold (`**...**`). If the label exists but is NOT bold,
-     report it as a subjective issue instead (see below); do not auto-add color
-     without bold.
+     This applies to **both** bullet items (`- **label:** content`) and
+     standalone paragraph lines (`**label:** content`).
+     Detection rule: bold text (`**...**`) followed immediately by `: ` (colon +
+     space) at the start of a bullet or at the start of a paragraph line.
+     If the bold text has NO colon after it, do NOT auto-fix (treat as a section
+     header — report as subjective if the style seems wrong).
+     If the label exists but is NOT bold, report as subjective instead; do not
+     auto-add color without bold.
 
    ### Subjective (report only, do NOT change)
    Judge against the global Notion writing-style convention at
@@ -103,12 +106,12 @@ and stop.
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
 
-3. **Apply mechanical fixes** with a single `notion-update-page` call using
-   `command: update_content` and one `content_updates` entry per distinct
-   string you change. Match `old_str` exactly against the fetched content.
+3. **Apply mechanical fixes** with `mcp__notion-personal__API-update-page-markdown`
+   (pass `page_id` and the corrected full markdown). Apply only the mechanical
+   violations identified in step 2; keep all other content identical.
    - If there are zero mechanical violations, make no edit.
-   - You only call `notion-update-page`; you never create pages, so your edits
-     do not re-trigger the create-pages review hook.
+   - You never create pages, so your edits do not re-trigger the create-pages
+     review hook.
 
 4. **Report** back to the caller in Korean (격식체), concisely:
    - A table or list of mechanical fixes applied (location + before -> after).
