@@ -14,6 +14,7 @@ description: |
   직접 호출(슬래시): "/alfred", "/alfred briefing", "/alfred daily", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom", "/alfred syncup".
 model: sonnet
 allowed-tools:
+  - Agent
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-roi *)
@@ -808,6 +809,18 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py appe
    → 리뷰가 Notion Task 본문에 저장됐습니다 (blocks_appended: {N}).
    → 파생 액션 (즉시): {Step 8 결과 중 즉시 항목 1~2건}
    ```
+
+4. **notion-review 에이전트 실행 (자동)**:
+   저장 성공 시 즉시 `notion-review` 에이전트를 페이지에 실행해 문서 스타일을 자동 교정한다.
+
+   - `Agent(subagent_type="notion-review", prompt="{page_id}")` 로 페이지 교정.
+   - em dash(`—`), 이모지, 문장 스타일 위반을 자동 감지·수정한다.
+   - 완료 후 수정 건수를 Alfred 톤으로 1줄 보고한다.
+     ```
+     → notion-review: {N}건 교정 완료.
+     ```
+   - 교정이 없으면: "→ notion-review: 교정 불필요 (문서 스타일 적합)."
+   - 실패 시: "→ notion-review 실패 — Notion 페이지에서 수동 검토를 권합니다." 1줄 후 계속.
 
 **N 선택 시:** "확인됐습니다. 필요하시면 언제든 `/task:review`로 이어가실 수 있습니다." 후 종료.
 

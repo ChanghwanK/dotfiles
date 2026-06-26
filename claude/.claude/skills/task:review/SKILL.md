@@ -377,3 +377,55 @@ Part A 전체를 압축한다.
 - **비판 톤 금지**: "~를 안 했다"가 아니라 "~를 했으면 {구체적 효과}를 얻었을 것"으로 표현.
 - **작업 타입 우선**: 점검 항목은 감지된 타입 것만 적용. 해당 없는 항목은 건너뛴다.
 - **파생 액션은 제안만**: 사용자가 선택. 자동 실행하지 않는다.
+
+---
+
+## Step 10 — Notion 저장 & notion-review (독립 실행 시)
+
+**적용 범위**: `/task:review`를 독립 실행할 때만 수행한다. alfred gate 6단계에서 인라인 실행된 경우 alfred가 저장을 담당하므로 이 단계를 건너뛴다.
+
+Step 0~9 출력 직후 1회만 제안한다. 사용자가 생략해도 재촉하지 않는다.
+
+```
+이 리뷰를 Notion Task 본문에 저장하시겠습니까?
+저장 후 notion-review 에이전트가 문서를 자동 교정합니다. (Y/N)
+```
+
+**Y 선택 시:**
+
+1. **page_id 확정**: 대화 맥락의 가장 최근 활성 Task `page_id`를 사용한다. 없으면 사용자에게 Task명 확인 후 검색:
+   ```bash
+   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
+   ```
+   Task명 fuzzy 매칭으로 `page_id`를 특정한다. 여러 후보가 있으면 1회 확인.
+
+2. **리뷰 본문 append**:
+   ```bash
+   cat > /tmp/task-review-{slug}.md << 'EOF'
+   ---
+   ## task:review
+   {Step 0~9 출력 전체}
+   EOF
+
+   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
+     --page-id <page_id> \
+     --content-file /tmp/task-review-{slug}.md
+   ```
+   - `{slug}` = Task명 소문자·하이픈 변환.
+   - 마크다운 표는 미지원이므로 review 본문에 표가 있으면 bullet로 대체.
+   - 저장 후: "리뷰가 Notion Task 본문에 저장됐습니다 (blocks_appended: {N})."
+   - 실패 시: "저장 실패 — `page_id`와 권한을 확인해 주십시오." 후 종료.
+
+3. **notion-review 에이전트 실행** (자동):
+   저장 성공 시 즉시 실행한다.
+
+   - `Agent(subagent_type="notion-review", prompt="{page_id}")` 로 페이지 교정.
+   - em dash(`—`), 이모지, 문장 스타일 위반을 자동 감지·수정.
+   - 완료 후 교정 결과 1줄 보고:
+     ```
+     → notion-review: {N}건 교정 완료.
+     ```
+   - 교정이 없으면: "→ notion-review: 교정 불필요 (문서 스타일 적합)."
+   - 실패 시: "→ notion-review 실패 — Notion 페이지에서 수동 검토를 권합니다." 후 종료.
+
+**N 선택 시:** 화면 출력으로만 종료. "필요하시면 언제든 `/alfred gate`에서 저장하실 수 있습니다."
