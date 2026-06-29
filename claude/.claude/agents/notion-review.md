@@ -8,6 +8,9 @@ description: |
   Spawn this agent when:
   - A Notion page was just created (the create-pages PostToolUse hook injects a
     reminder to run this agent on the new page).
+  - A Notion Task DB page was just created via `notion-task.py create-task`
+    (for example from `tasks:capture`; the Bash PostToolUse hook injects a
+    reminder to run this agent on the new task page).
   - The user asks to "review this Notion doc", "노션 문서 리뷰", "리뷰해줘"
     on a specific Notion page.
 

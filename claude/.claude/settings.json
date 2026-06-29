@@ -73,6 +73,15 @@
             "command": "python3 $HOME/.claude/scripts/notion-review-reminder.py"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/scripts/notion-review-reminder.py"
+          }
+        ]
       }
     ],
     "Stop": [
