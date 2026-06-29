@@ -12,7 +12,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "sonnet[1m]",
+  "model": "sonnet",
   "hooks": {
     "UserPromptSubmit": [
       {
