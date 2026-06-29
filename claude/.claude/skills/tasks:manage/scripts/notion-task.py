@@ -672,7 +672,8 @@ def markdown_to_blocks(md):
     """task:review 류 Markdown을 Notion 블록 리스트로 변환.
 
     지원: heading(#/##/###), ═══ 구분 헤딩, bullet(-/*), numbered(1.),
-    quote(>), divider(---), fenced code(```), 인라인 bold/code, paragraph.
+    checkbox(- [ ] / - [x]), quote(>), divider(---), fenced code(```),
+    인라인 bold/code, paragraph.
     """
     lines = md.split("\n")
     blocks, code_lines, code_lang, in_code = [], [], "plain text", False
@@ -713,6 +714,14 @@ def markdown_to_blocks(md):
         elif s.startswith("> "):
             blocks.append({"object": "block", "type": "quote",
                            "quote": {"rich_text": parse_rich_text(s[2:])}})
+        elif re.match(r"^[-*] \[[ xX]\] ", s):
+            checked = s[3].lower() == "x"
+            text = s[6:]
+            blocks.append({"object": "block", "type": "to_do",
+                           "to_do": {
+                               "rich_text": parse_rich_text(text),
+                               "checked": checked,
+                           }})
         elif re.match(r"^[-*] ", s):
             blocks.append({"object": "block", "type": "bulleted_list_item",
                            "bulleted_list_item": {"rich_text": parse_rich_text(s[2:])}})
