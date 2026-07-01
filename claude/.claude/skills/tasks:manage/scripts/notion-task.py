@@ -518,6 +518,18 @@ def cmd_update_status(args):
             backfilled_started_at = date.today().isoformat()
             properties["started_at"] = {"date": {"start": backfilled_started_at}}
 
+    # 완료로 전환할 때 Resolution Date(완료 처리 날짜)를 오늘(KST)로 채운다.
+    # Due Date(계획 마감)와 달리 Resolution Date는 "실제로 완료 처리한 날"을 나타내므로,
+    # 리드타임(착수→완료) 분석과 완료일 리포팅의 기준 축이 된다. Due Date는 사용자가 잡은
+    # 계획이라 완료 시점과 어긋날 수 있어 별도 속성으로 분리한다.
+    # 이미 값이 있으면 최초 완료 시점을 보존한다(재완료해도 덮어쓰지 않는다, 멱등).
+    backfilled_resolution = None
+    if is_done:
+        existing_resolution = existing_props.get("Resolution Date", {}).get("date") or {}
+        if not existing_resolution.get("start"):
+            backfilled_resolution = date.today().isoformat()
+            properties["Resolution Date"] = {"date": {"start": backfilled_resolution}}
+
     body = {"properties": properties}
     result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
 
@@ -533,6 +545,7 @@ def cmd_update_status(args):
         "done": is_done,
         "due_backfilled": backfilled_due,
         "started_at_backfilled": backfilled_started_at,
+        "resolution_date_backfilled": backfilled_resolution,
     }, ensure_ascii=False, indent=2))
 
 

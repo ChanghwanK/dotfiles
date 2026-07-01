@@ -58,6 +58,14 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py task
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <id> --status "진행 중"
 ```
 
+**완료(`--status "완료"`) 시 자동 backfill (스크립트가 처리, 별도 인자 불필요):**
+- `Done` 체크박스 = true (상태와 이중 동기화, DONE 뷰 노출용)
+- `Resolution Date` = 오늘(KST), 완료 처리 날짜. 이미 값이 있으면 보존(멱등)
+- `Due Date` 비어 있으면 오늘로 채움 (완료일 흔적)
+- `started_at` 비어 있으면 오늘로 채움 (리드타임 분석용)
+
+결과 JSON의 `resolution_date_backfilled` / `done` 필드로 반영 여부를 확인한다.
+
 ### Step 4: 결과 출력
 
 ```

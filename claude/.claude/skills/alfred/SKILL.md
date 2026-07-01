@@ -722,8 +722,9 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
    ```
 3. **완료 검증 (필수)**: 응답 JSON에서 `"status": "완료"` **및** `"done": true`를 모두 확인한다. 이 스크립트는 상태와 Done 체크박스를 함께 세팅한다(둘 중 하나만 되면 DONE 뷰에 안 보임). 둘 다 true가 아니면 실패로 간주하고 (D) 보고에 명시한다.
 - 실패 시: "Notion 상태 변경 실패 (수동 처리 필요)" 1줄 출력 후 계속.
+- **Resolution Date 자동 채움**: 완료 전환 시 스크립트가 `Resolution Date`(완료 처리 날짜)를 오늘(KST)로 박는다(이미 값이 있으면 보존, 멱등). 이 속성이 완료일 리포팅·리드타임 분석의 기준 축이다. 응답 JSON의 `resolution_date_backfilled`에 채워진 날짜가 온다. 별도 인자는 필요 없다.
 - **due 자동 채움**: 완료 전환 시 Due Date가 비어 있으면 스크립트가 완료일(오늘, KST)을 자동으로 박는다(이미 due가 있으면 보존). 응답 JSON의 `due_backfilled`에 채워진 날짜가 온다. 비어있지 않으면 보고에 한 줄 병기한다.
-- **보고 필수**: 클로징 요약에 "Task 완료 처리됨 (상태=완료, Done=true)" 또는 실패/미해결 사유를 반드시 한 줄로 남긴다. 통과했는데 완료로 못 바꾼 경우 침묵하지 않는다.
+- **보고 필수**: 클로징 요약에 "Task 완료 처리됨 (상태=완료, Done=true, Resolution Date={날짜})" 또는 실패/미해결 사유를 반드시 한 줄로 남긴다. 통과했는데 완료로 못 바꾼 경우 침묵하지 않는다.
 
 **(B) Daily Note 완료 Todo 기록**
 ```bash
@@ -795,7 +796,7 @@ gate를 여는 김에 밀린 Backlog를 함께 정리할 수 있게 한다(2026-
 ```
 🎩 완료 처리 — {Task명}
 
-✓ Notion: 완료 (due 비어있었으면: · due {MM/DD} 자동 기록)
+✓ Notion: 완료 (Resolution Date {MM/DD} 자동 기록 · due 비어있었으면: · due {MM/DD} 자동 기록)
 ✓ Daily Note: [x] {Task명} 기록
 ✓ Backlog Phase 1: {N}건 완료 ({title …})   ← 처리한 게 있을 때만
 ✓ Backlog Phase 2: {M}건 정리 ({완료 title …} / {재설정 title → MM/DD …})   ← 처리한 게 있을 때만
