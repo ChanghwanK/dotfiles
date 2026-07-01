@@ -482,10 +482,17 @@ def cmd_update_status(args):
     # DONE 뷰·롤업은 Done 체크박스를 필터 기준으로 쓰므로, 상태만 바꾸면
     # status=완료인데 DONE 뷰에 안 보이는 불일치가 생긴다. 둘을 항상 동기화한다.
     is_done = args.status == "완료"
+    is_starting = args.status == "진행 중"
     properties = {
         "상태": {"status": {"name": args.status}},
         "Done": {"checkbox": is_done},
     }
+
+    # 완료·진행 중 전환은 각각 다른 날짜 속성을 backfill하므로, 기존 값 확인을
+    # 위한 GET을 한 번만 수행하고 두 분기가 공유한다(중복 조회 방지).
+    existing_props = None
+    if is_done or is_starting:
+        existing_props = notion_request(token, "GET", f"/pages/{args.page_id}").get("properties", {})
 
     # 완료로 전환할 때 Due Date가 비어 있으면 완료일(오늘, KST)로 채운다.
     # due 없이 완료된 Task는 캘린더 동기화·기간 조회·브리핑에서 날짜 없이 묻혀
@@ -493,11 +500,23 @@ def cmd_update_status(args):
     # 이미 due가 있으면 사용자가 잡은 계획 마감을 덮어쓰지 않는다(완료 시점 != 계획 마감).
     backfilled_due = None
     if is_done:
-        existing = notion_request(token, "GET", f"/pages/{args.page_id}")
-        existing_due = existing.get("properties", {}).get("Due Date", {}).get("date") or {}
+        existing_due = existing_props.get("Due Date", {}).get("date") or {}
         if not existing_due.get("start"):
             backfilled_due = date.today().isoformat()
             properties["Due Date"] = {"date": {"start": backfilled_due}}
+
+    # 진행 중으로 전환할 때(작업 착수 시점) started_at이 비어 있으면 착수일(오늘, KST)로 채운다.
+    # 착수 시각이 없으면 "언제 시작했는지"가 사라져 리드타임(착수→완료) 분석이 불가능하다.
+    # Alfred resume loader의 '시작 전' → '진행 중' 전이가 이 명령을 타므로 착수일이 자동 기록된다.
+    # '시작 전' → '완료' 직행(진행 중 생략)도 backfill 대상이다: 착수일이 비면 완료 Task의
+    # 리드타임 계산에서 통째로 누락되므로, 이 경우 완료일(오늘) = 착수일로 함께 박는다.
+    # 이미 started_at이 있으면 최초 착수 시점을 보존한다(재개해도 덮어쓰지 않는다 — 멱등).
+    backfilled_started_at = None
+    if is_starting or is_done:
+        existing_started = existing_props.get("started_at", {}).get("date") or {}
+        if not existing_started.get("start"):
+            backfilled_started_at = date.today().isoformat()
+            properties["started_at"] = {"date": {"start": backfilled_started_at}}
 
     body = {"properties": properties}
     result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
@@ -513,6 +532,7 @@ def cmd_update_status(args):
         "status": args.status,
         "done": is_done,
         "due_backfilled": backfilled_due,
+        "started_at_backfilled": backfilled_started_at,
     }, ensure_ascii=False, indent=2))
 
 
