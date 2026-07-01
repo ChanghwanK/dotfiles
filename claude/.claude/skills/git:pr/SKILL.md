@@ -27,6 +27,7 @@ allowed-tools:
 - **prod/global 변경 시 Draft 권고** — 사용자 최종 확인 후 결정
 - **리뷰어 자동 지정**: `src/ai-santa/` → `@riiid/mlops`, 나머지 → `@riiid/infra`
 - **PR title = squash 후 main의 유일한 history 줄** — `git:commit`의 subject 규칙과 동일 기준을 적용한다 (아래 Title 컨벤션 참조)
+- **PR 본문에 "변경 의도/배경(Why)" 필수** — diff는 "무엇을 바꿨는지"만 보여준다. 리뷰어·미래의 변경자가 안전하게 리뷰·롤백하려면 "왜 이 변경이 필요했는지"(유발한 문제·요구·배경)가 본문에 있어야 한다. 스크립트가 `## 변경 의도 / 배경 (Why)` 섹션에 `<!-- FILL_ME ... -->` placeholder를 넣으므로, LLM이 대화 맥락에서 이를 반드시 채운 뒤 PR을 생성한다 (아래 Step 4/5 게이트 참조).
 
 ## Title 컨벤션 (= git:commit subject 규칙과 정렬)
 
@@ -112,11 +113,20 @@ JSON 출력 필드:
 ────────────────────────────────────────────
 ```
 
+**변경 의도/배경(Why) 채우기 (필수 게이트):**
+- `suggested_body`의 `## 변경 의도 / 배경 (Why)` 섹션에는 `<!-- FILL_ME ... -->` placeholder가 들어 있다.
+- 이 placeholder를 **대화 맥락**(무엇이 이 변경을 유발했는지: 알럿·장애·요구사항·리팩터링 목적 등)으로 교체한 뒤 미리보기에 반영한다.
+- 맥락이 불충분해 Why를 채울 수 없으면, PR을 생성하지 말고 사용자에게 "이 변경의 의도/배경"을 먼저 물어본다.
+- `<!-- FILL_ME -->` placeholder가 남아 있는 본문으로는 **Step 5(PR 생성)로 진행하지 않는다.**
+
 사용자 확인 항목:
 1. 제목 수정 여부 (엔터 = 그대로 사용)
-2. Draft 여부 (`suggest_draft=true`이면 기본 Yes, 사용자가 변경 가능)
+2. 변경 의도/배경(Why) 내용 확인 (엔터 = 그대로, 수정 가능)
+3. Draft 여부 (`suggest_draft=true`이면 기본 Yes, 사용자가 변경 가능)
 
 ### Step 5 — PR 생성
+
+**진행 전 확인**: `--body`로 넘길 본문에 `FILL_ME` placeholder가 남아 있으면 중단하고 Step 4의 Why 게이트로 돌아간다.
 
 upstream 없으면 먼저 push:
 
@@ -139,8 +149,10 @@ gh pr create \
   --title "<confirmed_title>" \
   --body "<generated_body>" \
   [--draft] \
-  --reviewer "riiid/infra"
+  --reviewer "riiid/infra"  # GIT_PR_SKILL=1
 ```
+
+> `# GIT_PR_SKILL=1` 트레일링 주석은 필수다. kubernetes 레포의 PreToolUse 훅(`.claude/settings.local.json`)이 이 sentinel 없는 `gh pr create`를 차단해 "PR은 git:pr 스킬로만 생성" 정책을 강제한다. 이 줄을 지우지 말 것.
 
 ### Step 6 — 결과 검증 및 출력
 

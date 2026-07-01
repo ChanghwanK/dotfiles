@@ -157,6 +157,13 @@ def generate_body(circles: dict, commits: list) -> str:
     lines.append(f'| 커밋 수 | {len(commits)} |')
     lines.append('')
 
+    # 의도/배경은 diff만으로 유추 불가 — git:pr 스킬(LLM)이 대화 맥락에서 채운다.
+    # placeholder가 남아 있으면 SKILL.md Step 4/5에서 PR 생성을 막는다.
+    lines.append('## 변경 의도 / 배경 (Why)')
+    lines.append('')
+    lines.append('<!-- FILL_ME: 이 변경을 유발한 문제·요구·배경을 대화 맥락에서 서술 (무엇을 바꿨는지가 아니라 왜 바꾸는지) -->')
+    lines.append('')
+
     lines.append('## 변경 내용')
     lines.append('')
     for (sphere, circle), envs in sorted(circles.items()):
