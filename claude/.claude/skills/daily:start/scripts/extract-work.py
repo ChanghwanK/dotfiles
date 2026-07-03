@@ -116,8 +116,13 @@ def extract_user_messages(jsonl_path: Path) -> list[str]:
     return messages
 
 
-def get_file_date(path: Path) -> date:
-    mtime = path.stat().st_mtime
+def get_file_date(path: Path) -> date | None:
+    # glob 이후 파일이 삭제되는 race(worktree 정리 등)로 stat이 실패할 수 있다.
+    # 2026-06-22, 2026-07-03 두 차례 FileNotFoundError로 전체 실행이 죽은 재발 이슈.
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
     return datetime.fromtimestamp(mtime).date()
 
 
@@ -146,7 +151,7 @@ def main():
         project_name = parse_project_name(dir_name)
 
         for jsonl_file in sorted(project_dir.glob("*.jsonl")):
-            # 오늘 수정된 파일만
+            # 오늘 수정된 파일만 (None = 삭제된 파일, skip)
             if get_file_date(jsonl_file) != target_date:
                 continue
 

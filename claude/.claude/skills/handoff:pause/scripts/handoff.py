@@ -20,6 +20,26 @@ from datetime import datetime
 TMP_DIR = Path.home() / ".claude" / "tmp"
 LATEST = TMP_DIR / "handoff-latest.json"
 
+# 아카이브 보관 기간. 초과분은 save 시 자동 삭제된다.
+ARCHIVE_RETENTION_DAYS = 14
+
+
+def _cleanup_old_archives(now: datetime) -> list:
+    """보관 기간이 지난 아카이브를 삭제하고 삭제된 파일명을 반환한다.
+
+    latest/payload는 이름 패턴(handoff-YYYY-MM-DD-HHMM.json)에 걸리지 않아 안전하다.
+    """
+    removed = []
+    cutoff = now.timestamp() - ARCHIVE_RETENTION_DAYS * 86400
+    for archive in TMP_DIR.glob("handoff-????-??-??-????.json"):
+        try:
+            if archive.stat().st_mtime < cutoff:
+                archive.unlink()
+                removed.append(archive.name)
+        except OSError:
+            continue
+    return removed
+
 
 def save(reason: str, data_path: str) -> None:
     """Handoff 데이터를 저장한다. 기존 pending은 자동 consumed 처리."""
@@ -67,15 +87,25 @@ def save(reason: str, data_path: str) -> None:
         json.dumps(handoff, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
-    # 아카이브 복사
+    # 아카이브 복사 (저장 시점의 불변 스냅샷: status는 이후 갱신되지 않으므로 신뢰하지 말 것)
     archive_name = f"handoff-{now.strftime('%Y-%m-%d-%H%M')}.json"
     archive_path = TMP_DIR / archive_name
     shutil.copy2(LATEST, archive_path)
+
+    # 보관 기간 초과 아카이브 정리
+    removed_archives = _cleanup_old_archives(now)
+
+    # stale payload가 다음 pause에서 재사용되는 사고 방지 (2026-07-03 실제 발생)
+    try:
+        payload_path.unlink()
+    except OSError:
+        pass
 
     print(json.dumps({
         "ok": True,
         "path": str(LATEST),
         "archive": str(archive_path),
+        "removed_archives": removed_archives,
         "handoff": handoff,
     }, ensure_ascii=False, indent=2))
 

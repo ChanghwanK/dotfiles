@@ -22,6 +22,9 @@
 ## 섹션 규칙
 
 - 항목이 없는 섹션은 출력하지 않는다
-- `in_progress` 항목은 `- {task} — {context}` 형식으로 출력
+- `in_progress` 항목은 **번호 목록**으로 출력: `{n}. **{task}** - {context 요약}`
+  - task가 2개 이상이면 출력 마지막에 픽업 안내 한 줄 추가: `"N번 이어가자"로 특정 작업을 바로 시작할 수 있습니다`
+  - context가 길면 핵심(현재 상태 + 다음 액션 + 작업 위치)만 남기고 요약
 - `completed`, `next` 항목은 `- {item}` 형식
 - `notes`가 빈 문자열이면 메모 섹션 생략
+- resume은 handoff를 consume하지 않는다 (SKILL.md Step 3 참조)
