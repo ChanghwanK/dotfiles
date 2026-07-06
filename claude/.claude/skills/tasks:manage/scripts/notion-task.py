@@ -701,15 +701,45 @@ def _heading_block(level, text):
     return {"object": "block", "type": htype, htype: {"rich_text": parse_rich_text(text)}}
 
 
+# children를 가질 수 있는(중첩 컨테이너로 동작하는) 블록 타입.
+# heading/divider/code는 목록 중첩의 부모가 되지 않고 항상 top-level로 둔다.
+_CONTAINER_TYPES = {
+    "bulleted_list_item", "numbered_list_item", "to_do", "paragraph", "quote",
+}
+
+
 def markdown_to_blocks(md):
     """task:review 류 Markdown을 Notion 블록 리스트로 변환.
 
     지원: heading(#/##/###), ═══ 구분 헤딩, bullet(-/*), numbered(1.),
     checkbox(- [ ] / - [x]), quote(>), divider(---), fenced code(```),
     인라인 bold/code, paragraph.
+
+    중첩(nesting): 리스트/문단의 선행 공백(들여쓰기)을 기준으로 더 깊은 항목을
+    직전의 더 얕은 항목의 children으로 넣는다. `- 부모\\n  - 자식` 또는
+    `- 부모\\n    - 자식`(2/4-space 무관, 상대 들여쓰기로 판정)이 계층으로 렌더된다.
+    heading/divider/code는 항상 top-level이며 중첩 스택을 리셋한다.
+
+    주의: Notion append는 한 요청에서 최대 2단계(page→자식→손자) 중첩만 허용한다.
+    3단계 이상이 필요하면 호출 측에서 나눠 append해야 한다.
     """
     lines = md.split("\n")
-    blocks, code_lines, code_lang, in_code = [], [], "plain text", False
+    blocks = []                       # top-level 블록
+    stack = []                        # [(indent, block)] 현재 조상 체인
+    code_lines, code_lang, in_code = [], "plain text", False
+
+    def place(indent, block):
+        # 현재 indent 이하(형제·더 얕음)인 조상은 pop → 남은 top이 부모
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        if stack:
+            parent = stack[-1][1]
+            ptype = parent["type"]
+            parent[ptype].setdefault("children", []).append(block)
+        else:
+            blocks.append(block)
+        if block["type"] in _CONTAINER_TYPES:
+            stack.append((indent, block))
 
     for raw in lines:
         stripped = raw.rstrip()
@@ -724,6 +754,7 @@ def markdown_to_blocks(md):
                        [{"type": "text", "text": {"content": ""}}]
                 blocks.append({"object": "block", "type": "code",
                                "code": {"rich_text": rich, "language": _notion_lang(code_lang)}})
+                stack.clear()
             continue
         if in_code:
             code_lines.append(raw)
@@ -732,38 +763,42 @@ def markdown_to_blocks(md):
         s = stripped.strip()
         if not s:
             continue
+
+        indent = len(stripped) - len(stripped.lstrip(" "))
+
+        # heading / divider: 항상 top-level, 중첩 리셋
         if s.startswith("═"):
-            blocks.append(_heading_block(2, s.strip("═ ").strip()))
-        elif s.startswith("#### "):
-            blocks.append(_heading_block(3, s[5:]))
-        elif s.startswith("### "):
-            blocks.append(_heading_block(3, s[4:]))
-        elif s.startswith("## "):
-            blocks.append(_heading_block(2, s[3:]))
-        elif s.startswith("# "):
-            blocks.append(_heading_block(1, s[2:]))
-        elif s in ("---", "***", "___"):
-            blocks.append({"object": "block", "type": "divider", "divider": {}})
-        elif s.startswith("> "):
-            blocks.append({"object": "block", "type": "quote",
-                           "quote": {"rich_text": parse_rich_text(s[2:])}})
+            blocks.append(_heading_block(2, s.strip("═ ").strip())); stack.clear(); continue
+        if s.startswith("#### "):
+            blocks.append(_heading_block(3, s[5:])); stack.clear(); continue
+        if s.startswith("### "):
+            blocks.append(_heading_block(3, s[4:])); stack.clear(); continue
+        if s.startswith("## "):
+            blocks.append(_heading_block(2, s[3:])); stack.clear(); continue
+        if s.startswith("# "):
+            blocks.append(_heading_block(1, s[2:])); stack.clear(); continue
+        if s in ("---", "***", "___"):
+            blocks.append({"object": "block", "type": "divider", "divider": {}}); stack.clear(); continue
+
+        # 중첩 가능한 블록들 (들여쓰기로 부모-자식 판정)
+        if s.startswith("> "):
+            block = {"object": "block", "type": "quote",
+                     "quote": {"rich_text": parse_rich_text(s[2:])}}
         elif re.match(r"^[-*] \[[ xX]\] ", s):
             checked = s[3].lower() == "x"
-            text = s[6:]
-            blocks.append({"object": "block", "type": "to_do",
-                           "to_do": {
-                               "rich_text": parse_rich_text(text),
-                               "checked": checked,
-                           }})
+            block = {"object": "block", "type": "to_do",
+                     "to_do": {"rich_text": parse_rich_text(s[6:]), "checked": checked}}
         elif re.match(r"^[-*] ", s):
-            blocks.append({"object": "block", "type": "bulleted_list_item",
-                           "bulleted_list_item": {"rich_text": parse_rich_text(s[2:])}})
+            block = {"object": "block", "type": "bulleted_list_item",
+                     "bulleted_list_item": {"rich_text": parse_rich_text(s[2:])}}
         elif re.match(r"^\d+\. ", s):
-            blocks.append({"object": "block", "type": "numbered_list_item",
-                           "numbered_list_item": {"rich_text": parse_rich_text(re.sub(r"^\d+\. ", "", s))}})
+            block = {"object": "block", "type": "numbered_list_item",
+                     "numbered_list_item": {"rich_text": parse_rich_text(re.sub(r"^\d+\. ", "", s))}}
         else:
-            blocks.append({"object": "block", "type": "paragraph",
-                           "paragraph": {"rich_text": parse_rich_text(s)}})
+            block = {"object": "block", "type": "paragraph",
+                     "paragraph": {"rich_text": parse_rich_text(s)}}
+        place(indent, block)
+
     return blocks
 
 
