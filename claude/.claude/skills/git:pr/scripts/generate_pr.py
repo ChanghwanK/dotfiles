@@ -220,7 +220,10 @@ def check_sensitivity(circles: dict) -> dict:
         'has_idc': has_idc,
         'has_infra': has_infra,
         'needs_mlops_reviewer': needs_mlops,
-        'suggest_draft': has_prod or has_global,
+        # 팀 컨벤션: PR은 기본 ready(non-draft)로 오픈한다 (merged PR 이력상
+        # prod/global 변경 포함 여부와 무관하게 전부 non-draft). 사용자가
+        # Step 4에서 명시적으로 요청할 때만 draft로 전환한다.
+        'suggest_draft': False,
     }
 
 

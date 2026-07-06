@@ -2,7 +2,7 @@
 name: git:pr
 description: |
   Kubernetes GitOps 레포에서 PR을 생성하는 스킬. git diff 분석으로 sphere/circle/env를 파악하고
-  PR 제목·본문을 자동 생성한다. prod/global 변경 시 Draft PR을 권고하고 리뷰어를 자동 제안한다.
+  PR 제목·본문을 자동 생성한다. PR은 기본 ready(non-draft)로 오픈하며 리뷰어를 자동 제안한다.
   사용 시점: (1) 커밋·푸시 후 PR 생성, (2) 변경 영향도 포함한 PR 작성, (3) git:commit → git:push 이후 최종 단계.
   트리거 키워드: "PR 만들어줘", "PR 생성", "pull request", "git:pr", "/git:pr".
 model: sonnet
@@ -24,7 +24,7 @@ allowed-tools:
 
 - **PR은 커밋·푸시 완료 후 생성** — uncommitted 변경은 경고 후 계속
 - **main 브랜치 직접 PR 생성 불가** — 별도 feature 브랜치 필요
-- **prod/global 변경 시 Draft 권고** — 사용자 최종 확인 후 결정
+- **PR은 기본 ready(non-draft)로 오픈** — 실제 merged PR 이력상 prod/global 변경 포함 여부와 무관하게 전부 non-draft로 오픈되어 왔다. 사용자가 명시적으로 요청할 때만 draft로 전환한다
 - **리뷰어 자동 지정**: `src/ai-santa/` → `@riiid/mlops`, 나머지 → `@riiid/infra`
 - **PR title = squash 후 main의 유일한 history 줄** — `git:commit`의 subject 규칙과 동일 기준을 적용한다 (아래 Title 컨벤션 참조)
 - **PR 본문에 "변경 의도/배경(Why)" 필수** — diff는 "무엇을 바꿨는지"만 보여준다. 리뷰어·미래의 변경자가 안전하게 리뷰·롤백하려면 "왜 이 변경이 필요했는지"(유발한 문제·요구·배경)가 본문에 있어야 한다. 스크립트가 `## 변경 의도 / 배경 (Why)` 섹션에 `<!-- FILL_ME ... -->` placeholder를 넣으므로, LLM이 대화 맥락에서 이를 반드시 채운 뒤 PR을 생성한다 (아래 Step 4/5 게이트 참조).
@@ -77,7 +77,8 @@ python3 /Users/changhwan/.claude/skills/git:pr/scripts/generate_pr.py \
 JSON 출력 필드:
 - `suggested_title` — `type(sphere/circle): message` 형식
 - `suggested_body` — Summary 테이블 + 변경 내용 + 테스트 플랜
-- `has_prod`, `has_global`, `suggest_draft` — Draft 여부
+- `has_prod`, `has_global` — prod/global 변경 포함 여부 (본문/리뷰어 판단용, draft 판단에는 미사용)
+- `suggest_draft` — 항상 `false` (팀 컨벤션: PR은 기본 ready로 오픈)
 - `has_infra` — infra/observability sphere 포함 여부
 - `needs_mlops_reviewer` — ai-santa sphere 포함 여부
 - `affected_circles` — `[{sphere, circle, envs}]`
@@ -104,7 +105,7 @@ JSON 출력 필드:
  📋 PR 미리보기
 ────────────────────────────────────────────
  제목  : feat(tech/ai-gateway): update image to v1.2.3
- Draft : 아니요  ← prod/global 변경 포함 시 "예 (권고)"
+ Draft : 아니요 (기본값 — 사용자가 명시 요청 시에만 예)
  리뷰어: riiid/infra
 ────────────────────────────────────────────
  ## Summary
@@ -122,7 +123,7 @@ JSON 출력 필드:
 사용자 확인 항목:
 1. 제목 수정 여부 (엔터 = 그대로 사용)
 2. 변경 의도/배경(Why) 내용 확인 (엔터 = 그대로, 수정 가능)
-3. Draft 여부 (`suggest_draft=true`이면 기본 Yes, 사용자가 변경 가능)
+3. Draft 여부 (기본 아니요/ready, 사용자가 명시적으로 요청할 때만 예)
 
 ### Step 5 — PR 생성
 
