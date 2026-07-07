@@ -108,6 +108,20 @@ and stop.
      If no color markup is visible in the fetched content, skip this check.
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
+   - **Resume bullet format** (only applies to a Working Task doc: a Task DB page
+     whose body contains a `### PAR 성과 문장` section, appended by the
+     `task:review` skill). Within that section's `이력서 bullet` block only
+     (not the `대표 PAR` or `성과평가용 확장형` blocks, which stay in PAR
+     narrative form), judge each bullet line against
+     `~/.claude/docs/resume-format-convention.md`:
+     - Ends with a sentence-final verb ("~했습니다", "~합니다") instead of a
+       noun-form ending (개선/해결/절감/구현/전환/완료 등).
+     - Result has no quantified before/after marker (`[...]` brackets or a
+       `N→M` arrow) — only a vague qualitative claim.
+     - A before-value is mentioned elsewhere in the page for this same fact but
+       missing from the bullet's Problem clause.
+     Report each with a before -> after suggestion. Do NOT auto-fix — rewriting
+     bullet structure needs a judgment call on which clause absorbs which fact.
 
 3. **Apply mechanical fixes** with `mcp__notion-personal__API-update-page-markdown`
    (pass `page_id` and the corrected full markdown). Apply only the mechanical
