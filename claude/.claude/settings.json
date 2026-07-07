@@ -3,7 +3,8 @@
   "env": {
     "ENABLE_TOOL_SEARCH": "auto:5",
     "CLAUDE_CODE_NO_FLICKER": "1",
-    "CLAUDE_MEM_MODE": "code--ko"
+    "CLAUDE_MEM_MODE": "code--ko",
+    "CLAUDE_CODE_ENABLE_DESIGN_MCP": "1"
   },
   "permissions": {
     "allow": [
