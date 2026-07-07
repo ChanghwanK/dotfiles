@@ -25,7 +25,7 @@ def placeholder_callout():
         "callout": {
             "rich_text": [{"type": "text", "text": {"content": _PLACEHOLDER_TEXT}}],
             "icon": {"type": "emoji", "emoji": TOC_ICON},
-            "color": "gray_background",
+            "color": "default",
         },
     }
 

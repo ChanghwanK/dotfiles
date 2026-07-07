@@ -459,6 +459,7 @@ def cmd_create_task(args):
     print(json.dumps({
         "success": True,
         "page_id": page_id,
+        "url": page_url,
         "name": name,
         "priority": priority,
         "category": category,

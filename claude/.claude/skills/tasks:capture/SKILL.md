@@ -370,12 +370,18 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 스크립트 JSON 출력의 `success` 필드로 성공 여부를 판단한다.
 
-**성공** (`"success": true`):
+**성공** (`"success": true`): 태그 요약 줄 다음에 반드시 `제목: {name} ({url})` 줄을 붙인다.
+JSON의 `url` 필드(Notion 페이지 URL)를 그대로 사용한다 — 사용자가 클릭해 캡처된 내용을 바로 확인할 수 있게 하기 위함이다.
 
 ```
-📥 캡처 완료: [P3] Task 이름
-📥 캡처 완료: [P2][ROI Medium] Task 이름 (~2026-03-20)
-📥 캡처 완료 ⚠️: [P3] Task 이름 (직접 입력 파싱 실패 → P3 기본값 적용)
+📥 캡처 완료: [P3]
+제목: Task 이름 (https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+
+📥 캡처 완료: [P2][ROI Medium] (~2026-03-20)
+제목: Task 이름 (https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+
+📥 캡처 완료 ⚠️: [P3] (직접 입력 파싱 실패 → P3 기본값 적용)
+제목: Task 이름 (https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
 ```
 
 ROI가 미설정(애매해서 생략)이면 `[ROI ...]` 태그 자체를 붙이지 않는다(불필요한 "미설정" 노이즈 방지).
