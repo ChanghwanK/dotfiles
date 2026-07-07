@@ -597,7 +597,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py sear
 
 개인(MY) Task처럼 6유형이 딱 들어맞지 않을 때는, 프레임워크의 판단 정신("안 하면 무엇이 막히는가/비용이 커지는가")을 그대로 적용해 가장 가까운 레벨로 근사한다.
 
-**Quick-Win 상향**: 위 표로 정한 레벨이 L3(Low)나 L2(Medium)여도, 소요 시간 약 30분 이내 또는 프롬프트/명령어 한 번으로 끝나는 **수정형 작업**이면 한 단계 올린다(L3→Medium, L2→High). 신규 조사·설계처럼 규모가 있는 작업은 겉보기 시간이 짧아도 제외한다. 근거는 `work-definition-framework.md`의 "Quick-Win 상향 규칙" 참조.
+**Quick-Win 상향**: 위 표로 정한 레벨이 L3(Low)나 L2(Medium)여도, 소요 시간 약 30분 이내 또는 프롬프트/명령어 한 번으로 끝나는 **수정형 작업**이면 한 단계 올린다(L3→Medium, L2→High). 신규 조사·설계처럼 규모가 있는 작업은 겉보기 시간이 짧아도 제외한다. **이 추정은 Alfred(나)가 Task 제목·설명만 보고 하는 것**이다 — 사용자에게 소요 시간을 되묻지 않고, 애매하면 상향하지 않는다. 판단 휴리스틱은 `work-definition-framework.md`의 "Quick-Win 상향 규칙" 참조.
 
 판단을 표로 제시한다(결론 먼저, 근거 1줄 — 유형·레벨을 근거에 명시. Quick-Win 상향이 적용됐으면 근거에 "(Quick-Win↑)" 표기):
 
