@@ -838,78 +838,93 @@ gate를 여는 김에 밀린 Backlog를 함께 정리할 수 있게 한다(2026-
 복구: update-status --page-id {id} --status "진행 중" (Notion) · edit --id {todo_id} --status 시작전 (Backlog Todo)
 ```
 
-### 5단계: 작업 내용 노트 (본문 기록: 자율 합성 + 1회 확인)
+### 5단계: 작업 내용 → Engineering Note 기록 (자율 합성 + 1회 확인)
 
-클로징 시퀀스(4단계) 직후, **무엇을 어떻게 했는지**를 간결·구조화한 "작업 내용" 노트를
-완료 Task의 Notion 본문에 남긴다. 무거운 회고(6단계 task:review)와 별개로 **완료 사실의
-최소 기록**이 목적이다: 나중에 이 Task를 열면 "무엇을/어떻게 + PR + 참고"가 바로 보이게 한다.
+클로징 시퀀스(4단계) 직후, **무엇을 어떻게 했는지**를 간결·구조화해 기록한다. 목적지는
+**Task 페이지 본문이 아니라 그 Task에 연결된 Engineering Note**(Task DB의 `Engineering`
+relation)다. Task 페이지는 "무엇을 하려 했는가"(00.Summary~04.Goals/Non Goals)만 담당하고,
+"어떻게 했는가"는 Engineering Note가 전담한다 — 두 문서에 같은 내용을 쓰면 한쪽만 갱신됐을 때
+드리프트가 생기기 때문이다(2026-07-07 정책 변경: 이전엔 Task 본문에 직접 기록했으나
+Engineering Note로 이전).
 
-> task:review(성과측정·성장회고)와 역할이 다르다. 작업 내용 노트는 **항상**(확인 후) 남기고,
-> task:review는 6단계에서 **자율 실행**한다(확인 없이 진행).
+> task:review(성과측정·성장회고)와 역할이 다르다. 작업 내용 기록은 **항상**(확인 후) 남기고,
+> task:review는 6단계에서 **자율 실행**한다(확인 없이 진행). 둘 다 같은 Engineering Note에
+> 쌓인다(전자는 "작업 History" 섹션, 후자는 "Task Review" 섹션).
 
-**(1) 초안 합성**: 현재 대화 맥락에서 자동으로 합성한다. 추가 질문하지 않는다.
+**(1) 기존 Engineering Note 확인**: Task에 이미 연결된 노트가 있는지 확인한다(중복 노트 생성 방지).
+
+```bash
+curl -s "https://api.notion.com/v1/pages/<page_id>" \
+  -H "Authorization: Bearer $NOTION_TOKEN" -H "Notion-Version: 2025-09-03" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); rel=d.get('properties',{}).get('Engineering',{}).get('relation',[]); print(rel[0]['id'] if rel else '')"
+```
+
+- 결과가 비어 있으면 → 아래 (4)에서 **신규 생성**.
+- id가 나오면 → 그 `note_page_id`에 **append**한다(신규 생성 금지).
+
+**(2) 초안 합성**: 현재 대화 맥락에서 자동으로 합성한다. 추가 질문하지 않는다.
 
 ```markdown
-## 작업 내용
-- {무엇을 / 어떻게 했는지 핵심 1줄}
-- {필요 시 디테일 1~2 bullet}
-- PR: {repo}#{번호} ({제목})        ← PR이 있을 때만
-- 참고: {제목} ({url})              ← 참고 자료가 있을 때만
+- YYYY-MM-DD: {무엇을 / 어떻게 했는지 핵심 1줄}
+  - {필요 시 디테일 1~2 bullet}
+  - PR: {repo}#{번호} ({제목})        ← PR이 있을 때만
+  - 참고: {제목} ({url})              ← 참고 자료가 있을 때만
 ```
 
-- **무엇을/어떻게**는 1~3 bullet로 간결하게. 장황한 서술·추정 금지.
-- **PR 링크**: 이번 작업의 실제 PR이 대화/세션에 있으면 `{repo}#{번호} ({제목})` 형태로 넣는다.
-  여러 개면 여러 bullet. 없으면 PR 줄을 **생략**한다(없는 링크를 만들지 않는다).
-- **참고 링크**: 작업 중 참고한 문서·이슈·런북 URL이 있으면 넣는다. 없으면 생략.
-- PR·참고 모두 없으면 `## 작업 내용` + 무엇을/어떻게 bullet만 남긴다.
+- 날짜 접두(`YYYY-MM-DD:`)를 반드시 붙인다 — Engineering Note "작업 History" 섹션은 날짜별
+  누적 기록이 표준 형식이다.
+- PR·참고 링크는 있을 때만 포함한다(없는 링크를 만들지 않는다).
 
-**(2) 1회 확인**: 합성한 초안을 보여주고 한 번만 확인받는다(gate 자율 모드와 일관):
+**(3) 1회 확인**: 합성한 초안을 보여주고 한 번만 확인받는다(gate 자율 모드와 일관):
 
 ```
-🎩 다음 작업 내용을 '{Task명}' 본문에 남길까요?
+🎩 다음 작업 내용을 Engineering Note에 남길까요? (연결: {Task명})
 
-## 작업 내용
-- ...
-- PR: kubernetes#123 (...)
+- YYYY-MM-DD: ...
+  - PR: kubernetes#123 (...)
 
 1. 저장 [추천]
 2. 수정 (직접 입력)
 0. 생략
 ```
 
-- "1. 저장" → 합성 초안 그대로 append.
-- "2. 수정" → 사용자 입력 반영 후 append.
+- "1. 저장" → 합성 초안 그대로 기록.
+- "2. 수정" → 사용자 입력 반영 후 기록.
 - "0. 생략" → 건너뛴다(잔소리 방지, 재촉 없음).
 
-**(3) Notion 본문 append**: 앞에 구분선(`---`)을 붙여 기존 본문과 분리한다.
+**(4) 기록 실행**:
 
-```bash
-cat > /tmp/work-log-{slug}.md << 'EOF'
----
-## 작업 내용
-- {무엇을 / 어떻게}
-- PR: {repo}#{번호} ({제목})
-- 참고: {제목} ({url})
-EOF
+- **기존 노트가 있는 경우** (append, `note_page_id`는 (1)에서 확인한 값):
+  ```bash
+  python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
+    --page-id <note_page_id> \
+    --content "- YYYY-MM-DD: {작업 내용 요약}"
+  ```
+- **기존 노트가 없는 경우** (신규 생성 + 자동 양방향 연결):
+  ```bash
+  cat > /tmp/eng-note-sections-{slug}.json << 'EOF'
+  {"history": "- YYYY-MM-DD: {작업 내용 요약}\n  - PR: {repo}#{번호} ({제목})"}
+  EOF
 
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
-  --page-id <4단계에서 사용한 page_id> \
-  --content-file /tmp/work-log-{slug}.md
-```
+  python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
+    --title "{Task명}" --task <page_id> --sections /tmp/eng-note-sections-{slug}.json
+  ```
+  - 응답의 `task_linked` 필드를 확인한다. `false`면 "Engineering Note는 생성됐으나 Task 연결
+    실패, 수동 연결 필요: {url}" 1줄 보고.
+  - 응답의 `page_id`를 `note_page_id`로 기억해 6단계(task:review)에서 재사용한다.
 
 - `{slug}` = Task명을 소문자·하이픈으로 변환. heredoc(`<< 'EOF'`)을 쓰면 본문 내 작은따옴표·특수문자가 안전하다.
-- `append-content`는 `---`(divider)·heading·bullet을 Notion 블록으로 변환한다(표 미지원).
-- 저장 후 1줄 보고: "→ 작업 내용을 본문에 기록했습니다 (blocks_appended: {N})."
+- 저장 후 1줄 보고: "→ 작업 내용을 Engineering Note에 기록했습니다 (신규 생성 / 기존 노트에 추가)."
 - 실패 시: "작업 내용 기록 실패, 수동 기록 필요" 1줄 후 계속(5.5단계로).
 
-### 5.5단계: 문서 스타일 패스 (전체 본문 간결화, 제안 + 1회 확인)
+### 5.5단계: 문서 스타일 패스 (Engineering Note 전체 간결화, 제안 + 1회 확인)
 
-작업 내용 노트(5단계)까지 본문이 채워진 뒤, **완료 Task 페이지 본문 전체**를 `~/.claude/docs/notion-writing-style.md` 기준으로 한 번 훑어 간결성을 교정한다. 목적은 트러블슈팅 기록이 깔끔한 표준 형태로 남게 하는 것이다.
+작업 내용 기록(5단계)까지 본문이 채워진 뒤, **Engineering Note(`note_page_id`) 본문 전체**를 `~/.claude/docs/notion-writing-style.md` 기준으로 한 번 훑어 간결성을 교정한다. 목적은 트러블슈팅 기록이 깔끔한 표준 형태로 남게 하는 것이다.
 
 > **안전 경계 — 의미 불변, confirm 필수**: 이 패스는 prose 재작성(섹션 중복 제거·문장 분리)이므로 기술적 사실을 바꿀 수 있다. **silent 자동 반영 금지.** 반드시 diff를 보여주고 1회 확인을 받은 뒤에만 적용한다. 사실·수치·PR 번호·결정 내용은 절대 바꾸지 않는다. 스타일만 정리한다.
 
 **(1) 탐지**: 본문에서 다음 3종만 찾는다(그 외는 건드리지 않는다).
-- 섹션 간 동일 사실 재진술 (예: `작업 내용`이 요약·원인·해결·교훈을 반복) → 고유 정보만 남기도록 중복 bullet 삭제 제안.
+- 섹션 간 동일 사실 재진술 (예: `작업 History`가 설계·계획·질문 섹션과 같은 내용을 반복) → 고유 정보만 남기도록 중복 bullet 삭제 제안.
 - 한 문장 다중 메시지 (`~때문에 ~되어 ~됐고 ~였습니다` 연쇄) → 짧은 문장 분리 제안.
 - 군더더기 표현("실제로는", "기본적으로" 등) → 삭제 제안.
 
@@ -918,44 +933,45 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py appe
 **(2) 1회 확인**: 교정안을 before → after diff로 보여주고 한 번만 확인받는다(gate 자율 모드와 일관).
 
 ```
-🎩 '{Task명}' 본문을 다음과 같이 간결화할까요? (사실·수치는 그대로, 스타일만)
+🎩 Engineering Note 본문을 다음과 같이 간결화할까요? (사실·수치는 그대로, 스타일만)
 
-- [중복] '작업 내용'의 원인 재진술 3 bullet → 삭제 (PR·수동조치만 유지)
-- [연쇄문] 문제 원인 2번째 문장 → 3문장으로 분리
-- [군더더기] 문제 요약 "실제로는" → 삭제
+- [중복] '작업 History'의 원인 재진술 3 bullet → 삭제 (PR·수동조치만 유지)
+- [연쇄문] 설계 섹션 2번째 문장 → 3문장으로 분리
+- [군더더기] 요약 "실제로는" → 삭제
 
 1. 적용 [추천]
 2. 일부만 (항목 번호 지정)
 0. 생략
 ```
 
-**(3) 반영**: 확인되면 `notion-task.py`로 본문을 교정한다(부분 치환 우선, 전체 교체 지양).
+**(3) 반영**: 확인되면 `note_page_id` 본문을 교정한다(부분 치환 우선, 전체 교체 지양).
 
 - 단순 치환·삭제는 페이지 markdown을 부분 업데이트한다.
 - 적용 후 1줄 보고: "→ 문서 스타일 교정 {N}건 반영 (의미 불변)."
 - "0. 생략" → 건너뛴다(재촉 없음).
 - 실패 시: "스타일 교정 실패, 수동 정리 권합니다" 1줄 후 계속(6단계로).
 
-### 6단계: task:review + Notion 본문 저장 (자율 실행)
+### 6단계: task:review → Engineering Note (자율 실행)
 
-작업 내용 노트(5단계) 직후 **확인 없이 바로 진행**한다. gate는 이미 자율 쓰기 모드이므로 task:review 저장 여부를 묻지 않는다(잔소리 방지 및 흐름 유지).
+작업 내용 기록(5단계) 직후 **확인 없이 바로 진행**한다. gate는 이미 자율 쓰기 모드이므로 task:review 저장 여부를 묻지 않는다(잔소리 방지 및 흐름 유지).
 
-> **저장 위치 정책**: task:review 결과는 **완료 처리한 Notion Task 페이지 본문**에 누적한다(개인 Obsidian이 아님). 성과·회고가 해당 Task와 한 곳에 묶여 나중에 그 Task를 열면 바로 보이게 하기 위함이다. 4단계(A)에서 사용한 `page_id`를 그대로 재사용한다.
+> **저장 위치 정책**: task:review 결과는 **5단계에서 확보한 `note_page_id`**(Task에 연결된 Engineering Note)에 누적한다(Task 페이지도 개인 Obsidian도 아니다). 성과·회고가 해당 노트에 묶여 나중에 그 Task의 Engineering 링크를 열면 바로 보이게 하기 위함이다.
 
 **실행 절차:**
 
 1. 현재 대화 컨텍스트를 기반으로 `task:review/SKILL.md`의 Step 0~9 절차를 인라인으로 수행한다 (별도 스킬 호출 없이 Alfred 내에서 실행).
 
-2. review 결과를 임시 파일에 저장 후 Notion Task 본문에 append한다:
+2. review 결과를 임시 파일에 저장 후 Engineering Note 본문에 append한다:
    ```bash
    # review 텍스트(Markdown)를 임시 파일에 저장 — 맨 앞에 구분선(---) + 제목 헤딩 포함
    cat > /tmp/task-review-{slug}.md << 'EOF'
    {review 전체 텍스트 — task:review 출력 포맷 그대로}
    EOF
 
-   # Notion Task 페이지 본문에 누적 (Markdown → Notion 블록 자동 변환)
+   # Engineering Note 본문에 누적 (Markdown → Notion 블록 자동 변환, 페이지 ID만 있으면
+   # Engineering DB 페이지도 동작한다)
    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
-     --page-id <4단계에서 사용한 page_id> \
+     --page-id <note_page_id> \
      --content-file /tmp/task-review-{slug}.md
    ```
    - `append-content`는 heading(#~####)·bullet·numbered·quote·divider·code fence·인라인 bold/code를 Notion 블록으로 변환한다. **마크다운 표는 미지원** — review 본문은 표 대신 bullet로 작성한다.
@@ -963,14 +979,14 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py appe
 
 3. 저장 완료 보고:
    ```
-   → 리뷰가 Notion Task 본문에 저장됐습니다 (blocks_appended: {N}).
+   → 리뷰가 Engineering Note에 저장됐습니다 (blocks_appended: {N}).
    → 파생 액션 (즉시): {Step 8 결과 중 즉시 항목 1~2건}
    ```
 
 4. **notion-review 에이전트 실행 (자동)**:
-   저장 성공 시 즉시 `notion-review` 에이전트를 페이지에 실행해 문서 스타일을 자동 교정한다.
+   저장 성공 시 즉시 `notion-review` 에이전트를 `note_page_id`에 실행해 문서 스타일을 자동 교정한다.
 
-   - `Agent(subagent_type="notion-review", prompt="{page_id}")` 로 페이지 교정.
+   - `Agent(subagent_type="notion-review", prompt="{note_page_id}")` 로 페이지 교정.
    - em dash(`—`), 이모지, 문장 스타일 위반을 자동 감지·수정한다.
    - 완료 후 수정 건수를 Alfred 톤으로 1줄 보고한다.
      ```
