@@ -25,7 +25,7 @@
                 git bb help; \
             fi; \
         }; f"
-	
+
     bselect = "! # select branch with preview; \n\
         f() { \
             _height=$(stty size | awk '{print $1}');\
@@ -39,7 +39,7 @@
 	br = branch
 	df = diff
 	log = log --graph --oneline --decorate --all --color
-    lg = log --graph --all --pretty=format:'%C(yellow) %h %C(reset)%C(green)%ad %C(blue)%an %C(reset) : %C(bold cyan)%d%C(reset) %C(white)%s' --date=short 
+    lg = log --graph --all --pretty=format:'%C(yellow) %h %C(reset)%C(green)%ad %C(blue)%an %C(reset) : %C(bold cyan)%d%C(reset) %C(white)%s' --date=short
 
     [push]
         default = current
