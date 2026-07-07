@@ -54,6 +54,7 @@ PRIORITY_OPTIONS = {
 }
 CATEGORY_OPTIONS = {"WORK", "MY"}
 # ROI = 가치/노력 판단 버킷. Alfred groom 모드가 기록, 브리핑이 정렬 키로 사용.
+# 판단 기준 SSOT: devops-wiki/01-decisions/work-definition-framework.md (L1/L2/L3/보류 → High/Medium/Low/미설정 매핑)
 ROI_OPTIONS = {"High", "Medium", "Low"}
 
 
