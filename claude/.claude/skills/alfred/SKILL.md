@@ -836,7 +836,7 @@ gate를 여는 김에 밀린 Backlog를 함께 정리할 수 있게 한다(2026-
 최소 기록**이 목적이다: 나중에 이 Task를 열면 "무엇을/어떻게 + PR + 참고"가 바로 보이게 한다.
 
 > task:review(성과측정·성장회고)와 역할이 다르다. 작업 내용 노트는 **항상**(확인 후) 남기고,
-> task:review는 6단계에서 **선택적으로** 제안한다.
+> task:review는 6단계에서 **자율 실행**한다(확인 없이 진행).
 
 **(1) 초안 합성**: 현재 대화 맥락에서 자동으로 합성한다. 추가 질문하지 않는다.
 
@@ -927,19 +927,13 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py appe
 - "0. 생략" → 건너뛴다(재촉 없음).
 - 실패 시: "스타일 교정 실패, 수동 정리 권합니다" 1줄 후 계속(6단계로).
 
-### 6단계: task:review + Notion 본문 저장 (선택적)
+### 6단계: task:review + Notion 본문 저장 (자율 실행)
 
-작업 내용 노트(5단계) 직후 **1회만** 제안한다. 잔소리 방지: 사용자가 생략해도 재촉하지 않는다.
+작업 내용 노트(5단계) 직후 **확인 없이 바로 진행**한다. gate는 이미 자율 쓰기 모드이므로 task:review 저장 여부를 묻지 않는다(잔소리 방지 및 흐름 유지).
 
 > **저장 위치 정책**: task:review 결과는 **완료 처리한 Notion Task 페이지 본문**에 누적한다(개인 Obsidian이 아님). 성과·회고가 해당 Task와 한 곳에 묶여 나중에 그 Task를 열면 바로 보이게 하기 위함이다. 4단계(A)에서 사용한 `page_id`를 그대로 재사용한다.
 
-**제안 문구:**
-```
-이 작업을 task:review로 기록하시겠습니까?
-성과 측정(Part A) + 성장 회고(Part B)가 Notion Task 본문에 저장됩니다. (Y/N)
-```
-
-**Y 선택 시:**
+**실행 절차:**
 
 1. 현재 대화 컨텍스트를 기반으로 `task:review/SKILL.md`의 Step 0~9 절차를 인라인으로 수행한다 (별도 스킬 호출 없이 Alfred 내에서 실행).
 
@@ -975,8 +969,6 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py appe
      ```
    - 교정이 없으면: "→ notion-review: 교정 불필요 (문서 스타일 적합)."
    - 실패 시: "→ notion-review 실패 — Notion 페이지에서 수동 검토를 권합니다." 1줄 후 계속.
-
-**N 선택 시:** "확인됐습니다. 필요하시면 언제든 `/task:review`로 이어가실 수 있습니다." 후 종료.
 
 ### 7단계: 후속 액션 등록 (자율 실행)
 
