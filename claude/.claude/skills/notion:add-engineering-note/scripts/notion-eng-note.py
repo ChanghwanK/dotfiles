@@ -5,14 +5,20 @@ Usage:
   python3 notion-eng-note.py create --title "제목" [--group "#업무노트"] [--task <task-page-id>] [--sections /tmp/sections.json]
   python3 notion-eng-note.py list [--limit 10]
 
-sections.json 형식:
+--task를 지정하면(Task 연결) 문제 정의/목표/비목표 섹션은 생략된다 — 그 내용은 연결된
+Task 페이지의 01.문제 정의 / 04.Goals-Non Goals 섹션이 단일 출처이므로 중복 작성하지 않는다.
+--task 없이 만드는 독립 노트는 참조할 Task가 없으므로 문제 정의/목표/비목표를 그대로 포함한다.
+
+sections.json 형식 (--task 지정 시, problem/goal/non_goal 생략 가능):
 {
-  "problem":  "문제 상황과 배경 (마크다운)",
-  "goal":     "목표 (마크다운)",
-  "non_goal": "비목표 (마크다운)",
+  "problem":  "문제 상황과 배경 (마크다운, 독립 노트에서만 사용)",
+  "goal":     "목표 (마크다운, 독립 노트에서만 사용)",
+  "non_goal": "비목표 (마크다운, 독립 노트에서만 사용)",
   "design":   "설계 내용 (마크다운)",
   "alternatives": "대안 검토 (마크다운)",
-  "plan":     "구현 계획 (마크다운)",
+  "plan":     "작업 계획 (마크다운)",
+  "history":  "작업 History (마크다운, 날짜별 진행 기록. append-content로 계속 추가 권장)",
+  "review":   "Task Review (마크다운, 완료 후 회고)",
   "questions": "미결 질문 (마크다운)"
 }
 """
@@ -247,11 +253,14 @@ def md_to_blocks(text):
     return blocks
 
 
-def make_template_blocks(sections=None):
+def make_template_blocks(sections=None, linked_to_task=False):
     """업무 노트 템플릿 블록 구조 생성.
 
-    sections: dict with keys: problem, goal, non_goal, design, alternatives, plan, questions
+    sections: dict with keys: problem, goal, non_goal, design, alternatives, plan, history, review, questions
     값이 있으면 해당 섹션에 내용 채움. 없으면 placeholder 사용.
+
+    linked_to_task: True면 problem/goal/non_goal 섹션을 생략한다 — 그 내용은 연결된 Task
+    페이지(01.문제 정의 / 04.Goals-Non Goals)가 단일 출처이므로 여기서 중복 작성하지 않는다.
     """
     s = sections or {}
 
@@ -291,36 +300,49 @@ def make_template_blocks(sections=None):
             return md_to_blocks(content)
         return placeholders
 
+    toc_titles = ([] if linked_to_task else ["문제 정의", "목표 / 비목표"]) + [
+        "설계", "대안 검토", "작업 계획", "작업 History", "Task Review", "미결 질문",
+    ]
+    toc_text = "\n".join(f"{i}. {t}" for i, t in enumerate(toc_titles, start=1))
+    n = iter(range(1, len(toc_titles) + 1))
+
     blocks = [
         # TOC callout
         {"type": "callout", "callout": {
-            "rich_text": [{"type": "text", "text": {"content": "1. 문제 정의\n2. 목표 / 비목표\n3. 설계\n4. 대안 검토\n5. 구현 계획\n6. 미결 질문"}}],
+            "rich_text": [{"type": "text", "text": {"content": toc_text}}],
             "icon": {"type": "emoji", "emoji": "📋"}, "color": "gray_background"
         }},
-        # 1. 문제 정의
-        h1("1. 문제 정의"),
-        *section_blocks("problem", [
-            paragraph("현재 어떤 상황이고, 무엇이 문제인가?"),
-            paragraph("해결하지 않으면 어떤 일이 생기나? (왜 진행하는가?)"),
-        ]),
-        divider(),
-        # 2. 목표 / 비목표
-        h1("2. 목표 / 비목표"),
-        paragraph("Goal"),
-        *section_blocks("goal", [quote()]),
-        paragraph("Non-goal"),
-        *section_blocks("non_goal", [quote()]),
-        divider(),
-        # 3. 설계
-        h1("3. 설계"),
+    ]
+
+    if not linked_to_task:
+        # 문제 정의 (독립 노트에만 포함 — Task 연결 노트는 연결된 Task 01.문제 정의가 단일 출처)
+        blocks += [
+            h1(f"{next(n)}. 문제 정의"),
+            *section_blocks("problem", [
+                paragraph("현재 어떤 상황이고, 무엇이 문제인가?"),
+                paragraph("해결하지 않으면 어떤 일이 생기나? (왜 진행하는가?)"),
+            ]),
+            divider(),
+            # 목표 / 비목표 (독립 노트에만 포함 — Task 연결 노트는 04.Goals-Non Goals가 단일 출처)
+            h1(f"{next(n)}. 목표 / 비목표"),
+            paragraph("Goal"),
+            *section_blocks("goal", [quote()]),
+            paragraph("Non-goal"),
+            *section_blocks("non_goal", [quote()]),
+            divider(),
+        ]
+
+    blocks += [
+        # 설계
+        h1(f"{next(n)}. 설계"),
         *section_blocks("design", [quote()]),
         divider(),
-        # 4. 대안 검토
-        h1("4. 대안 검토"),
+        # 대안 검토
+        h1(f"{next(n)}. 대안 검토"),
         *section_blocks("alternatives", [paragraph("")]),
         divider(),
-        # 5. 구현 계획
-        h1("5. 구현 계획"),
+        # 작업 계획
+        h1(f"{next(n)}. 작업 계획"),
         *section_blocks("plan", [
             paragraph("Phase 1 (이번 스프린트)"),
             todo("작업 1"),
@@ -331,8 +353,25 @@ def make_template_blocks(sections=None):
             bullet("리스크 항목과 대응 방안"),
         ]),
         divider(),
-        # 6. 미결 질문
-        h1("6. 미결 질문"),
+        # 작업 History — 진행하며 append-content로 날짜별 기록을 계속 추가한다
+        h1(f"{next(n)}. 작업 History"),
+        *section_blocks("history", [
+            bullet("YYYY-MM-DD: 무엇을 했는지, 어떤 이슈가 있었는지 한 줄로"),
+        ]),
+        divider(),
+        # Task Review — 완료 후 작성 (목표 대비 결과 회고)
+        h1(f"{next(n)}. Task Review"),
+        *section_blocks("review", [
+            paragraph("목표 대비 결과"),
+            quote(""),
+            paragraph("잘된 점 / 아쉬운 점"),
+            quote(""),
+            paragraph("다음에 다르게 할 것"),
+            quote(""),
+        ]),
+        divider(),
+        # 미결 질문
+        h1(f"{next(n)}. 미결 질문"),
         *section_blocks("questions", [
             todo("아직 결정 안 된 것 (@담당자 YYYY-MM-DD까지)"),
             todo("확인 필요한 것"),
@@ -390,7 +429,7 @@ def cmd_create(args):
     page_body = {
         "parent": {"type": "data_source_id", "data_source_id": resolve_ds_id(DB_ID)},
         "properties": properties,
-        "children": make_template_blocks(sections),
+        "children": make_template_blocks(sections, linked_to_task=bool(task_id)),
     }
 
     resp = notion_request("POST", "/pages", page_body)
@@ -475,7 +514,9 @@ def main():
     create_p.add_argument("--task", default="",
                           help="연결할 Notion Task 페이지 ID. 지정 시 노트↔Task 양방향 relation을 건다")
     create_p.add_argument("--sections", default="",
-                          help="섹션 내용이 담긴 JSON 파일 경로 (keys: problem, goal, non_goal, design, alternatives, plan, questions)")
+                          help="섹션 내용이 담긴 JSON 파일 경로 "
+                               "(keys: design, alternatives, plan, history, review, questions; "
+                               "problem/goal/non_goal은 --task 미지정 독립 노트에서만 사용)")
 
     # list
     list_p = subparsers.add_parser("list", help="최근 업무 노트 목록 조회")
