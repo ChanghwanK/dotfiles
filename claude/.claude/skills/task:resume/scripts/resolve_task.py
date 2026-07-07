@@ -89,8 +89,10 @@ def cmd_resolve(args):
 
     props = page.get("properties", {})
     parent = page.get("parent", {})
-    parent_ref = parent.get("data_source_id") or parent.get("database_id") or ""
-    is_task_db = TASK_DB_ID in parent_ref
+    # API 버전 2025-09-03부터 database_id(컨테이너)와 data_source_id(테이블)가
+    # 분리되어 서로 다른 UUID를 가진다. TASK_DB_ID는 database_id 기준이므로
+    # 두 필드 모두 확인해야 data_source_id만 있는 응답에서 false negative가 안 난다.
+    is_task_db = TASK_DB_ID in (parent.get("database_id") or "") or TASK_DB_ID in (parent.get("data_source_id") or "")
 
     name = rich_text_to_plain(props.get("이름", {}).get("title", []))
     status = (props.get("상태", {}).get("status") or {}).get("name")
