@@ -39,6 +39,17 @@ try:
 except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
     def sanitize_body(text):
         return text
+try:
+    from notion_toc import placeholder_callout, build_toc_rich_text
+except Exception:  # backstop: TOC 링크 없이도 페이지 생성 자체는 깨지지 않는다
+    def placeholder_callout():
+        return {"type": "callout", "callout": {
+            "rich_text": [{"type": "text", "text": {"content": "목차"}}],
+            "icon": {"type": "emoji", "emoji": "📌"}, "color": "gray_background",
+        }}
+
+    def build_toc_rich_text(created_blocks, page_url):
+        return None, None
 
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 DB_ID = "17964745-3170-8030-bf01-e7f20a6e1bd7"
@@ -300,18 +311,13 @@ def make_template_blocks(sections=None, linked_to_task=False):
             return md_to_blocks(content)
         return placeholders
 
-    toc_titles = ([] if linked_to_task else ["문제 정의", "목표 / 비목표"]) + [
-        "설계", "대안 검토", "작업 계획", "작업 History", "Task Review", "미결 질문",
-    ]
-    toc_text = "\n".join(f"{i}. {t}" for i, t in enumerate(toc_titles, start=1))
-    n = iter(range(1, len(toc_titles) + 1))
+    section_count = (0 if linked_to_task else 2) + 6  # 6개 공통 섹션 + (독립 노트만) 문제정의/목표비목표
+    n = iter(range(1, section_count + 1))
 
     blocks = [
-        # TOC callout
-        {"type": "callout", "callout": {
-            "rich_text": [{"type": "text", "text": {"content": toc_text}}],
-            "icon": {"type": "emoji", "emoji": "📋"}, "color": "gray_background"
-        }},
+        # TOC 콜아웃 placeholder — cmd_create가 페이지 생성 후 각 heading/Goal-Non-goal
+        # 문단의 실제 block id로 링크를 채운다 (build_toc_rich_text).
+        placeholder_callout(),
     ]
 
     if not linked_to_task:
@@ -443,6 +449,14 @@ def cmd_create(args):
 
     page_id = resp.get("id", "")
     page_url = resp.get("url", f"https://www.notion.so/{page_id.replace('-', '')}")
+
+    # POST /pages 응답은 생성된 자식 블록의 id를 담지 않으므로, 콜아웃/heading id를
+    # 얻으려면 별도로 top-level children을 조회해야 한다.
+    children_resp = notion_request("GET", f"/blocks/{page_id}/children?page_size=100")
+    created_blocks = children_resp.get("results", []) if children_resp.get("object") != "error" else []
+    callout_id, toc_rich_text = build_toc_rich_text(created_blocks, page_url)
+    if callout_id:
+        notion_request("PATCH", f"/blocks/{callout_id}", {"callout": {"rich_text": toc_rich_text}})
 
     task_linked = False
     task_link_error = None

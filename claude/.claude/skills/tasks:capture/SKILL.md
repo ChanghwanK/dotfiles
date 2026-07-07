@@ -156,8 +156,10 @@ P3/P4 이면서 description도 없는 **단순 한 줄 메모**는 템플릿을 
 - {측정 가능한 지표 또는 확인 기준}
 
 ## 04. Goals/Non Goals
-- Goals: {이번 Task로 달성할 것}
-- Non-Goals: {이번엔 다루지 않는 것 (오버엔지니어링 방지 경계)}
+Goals
+- {이번 Task로 달성할 것}
+Non-Goals
+- {이번엔 다루지 않는 것 (오버엔지니어링 방지 경계)}
 ```
 
 ### 합성 가이드
@@ -165,11 +167,16 @@ P3/P4 이면서 description도 없는 **단순 한 줄 메모**는 템플릿을 
 - **문제 정의·해결 이유는 세션 컨텍스트에서 먼저 추출한다.** "세션 컨텍스트 분석 게이트" 섹션 참조.
 - **추정으로 채우지 않는다.** 불명확하면 게이트에서 질문하여 확인 후 합성한다.
 - **Summary는 반드시 3줄 이상.** 정보가 부족하면 `- (TBD) {확인 필요한 항목}` 형태로 표시한다.
-- **Goals/Non Goals는 한 섹션에서 `Goals:` / `Non-Goals:` 라벨로 구분**한다. Non-Goals는 오버엔지니어링
-  방지 관점에서 "이번엔 가시성만, 자동화는 범위 외" 같이 범위를 좁히는 경계를 제시한다.
+- **Goals/Non Goals는 `Goals`/`Non-Goals`를 각각 독립된 줄(문단)로 두고 그 아래 불릿을 붙인다**
+  (인라인 라벨이 아니라 별도 줄이어야 페이지 상단 TOC 콜아웃이 각 항목에 개별 링크를 걸 수 있다).
+  Non-Goals는 오버엔지니어링 방지 관점에서 "이번엔 가시성만, 자동화는 범위 외" 같이 범위를 좁히는
+  경계를 제시한다.
 - 본문은 `--body` 인라인 Markdown 문자열로 전달한다 (위 템플릿 헤딩 구조 그대로).
 - 체크리스트가 필요한 본문 또는 후속 액션은 `- [ ] 항목` / `- [x] 항목` Markdown을 사용한다.
   `notion-task.py`가 이를 Notion `to_do` block으로 변환하므로, 일반 bullet에 `[ ]` 텍스트를 직접 쓰지 않는다.
+- **본문에 헤딩(`## 00.` ~ `## 04.`)이 있으면 `notion-task.py`가 페이지 맨 위에 TOC 콜아웃을
+  자동으로 붙이고 각 헤딩/Goals/Non-Goals로 링크를 건다.** Claude가 별도로 목차를 작성할 필요는
+  없다 (수동으로 콜아웃/목차 텍스트를 body에 넣지 않는다).
 
 ---
 
@@ -243,8 +250,10 @@ Task를 생성하기 전에 두 가지를 확인할게요.
 - ...
 
 ## 04. Goals/Non Goals
-- Goals: ...
-- Non-Goals: ...
+Goals
+- ...
+Non-Goals
+- ...
 
 1. 생성 [추천]
 2. 수정 (속성·본문 직접 입력)
@@ -342,8 +351,10 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 - 확인 기준
 
 ## 04. Goals/Non Goals
-- Goals: 이번 Task로 달성할 것
-- Non-Goals: 이번 범위에서 제외하는 것'
+Goals
+- 이번 Task로 달성할 것
+Non-Goals
+- 이번 범위에서 제외하는 것'
 
 # 이미지 포함 (URL: Notion에 이미지 블록 삽입, 로컬 경로: callout 텍스트로 기록)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \

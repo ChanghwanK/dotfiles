@@ -42,6 +42,17 @@ try:
 except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
     def sanitize_body(text):
         return text
+try:
+    from notion_toc import placeholder_callout, build_toc_rich_text
+except Exception:  # backstop: TOC 링크 없이도 페이지 생성 자체는 깨지지 않는다
+    def placeholder_callout():
+        return {"type": "callout", "callout": {
+            "rich_text": [{"type": "text", "text": {"content": "목차"}}],
+            "icon": {"type": "emoji", "emoji": "📌"}, "color": "gray_background",
+        }}
+
+    def build_toc_rich_text(created_blocks, page_url):
+        return None, None
 
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
@@ -365,10 +376,15 @@ def cmd_create_task(args):
 
     result = notion_request(token, "POST", "/pages", body)
     page_id = result.get("id", "")
+    page_url = result.get("url", f"https://www.notion.so/{page_id.replace('-', '')}")
 
-    # 본문 템플릿(있으면) → 업무 노트 리마인더 → 이미지 블록 순서로 본문 구성.
-    # 템플릿이 페이지 최상단에 오도록 callout 앞에 prepend 한다.
-    children_blocks = body_blocks + [
+    # 본문 템플릿에 헤딩이 있으면(본격 Task 5-필드 등) 맨 앞에 TOC 콜아웃 placeholder를
+    # 넣는다. PATCH 응답으로 실제 block id를 받은 뒤 링크된 목차로 채운다(아래).
+    has_headings = any(b.get("type", "").startswith("heading_") for b in body_blocks)
+    toc_blocks = [{"object": "block", **placeholder_callout()}] if has_headings else []
+
+    # TOC 콜아웃 → 본문 템플릿(있으면) → 업무 노트 리마인더 → 이미지 블록 순서로 본문 구성.
+    children_blocks = toc_blocks + body_blocks + [
         {
             "object": "block",
             "type": "callout",
@@ -428,9 +444,17 @@ def cmd_create_task(args):
             },
         })
 
-    notion_request(token, "PATCH", f"/blocks/{page_id}/children", {
+    patch_result = notion_request(token, "PATCH", f"/blocks/{page_id}/children", {
         "children": children_blocks
     })
+
+    if has_headings:
+        created_blocks = patch_result.get("results", [])
+        callout_id, toc_rich_text = build_toc_rich_text(created_blocks, page_url)
+        if callout_id:
+            notion_request(token, "PATCH", f"/blocks/{callout_id}", {
+                "callout": {"rich_text": toc_rich_text}
+            })
 
     print(json.dumps({
         "success": True,
