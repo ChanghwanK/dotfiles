@@ -2,7 +2,7 @@
 """
 Engineering DB 업무 노트 CLI
 Usage:
-  python3 notion-eng-note.py create --title "제목" [--group "#업무노트"] [--tag "#Kubernetes,#Infra"] [--sections /tmp/sections.json]
+  python3 notion-eng-note.py create --title "제목" [--group "#업무노트"] [--task <task-page-id>] [--sections /tmp/sections.json]
   python3 notion-eng-note.py list [--limit 10]
 
 sections.json 형식:
@@ -38,10 +38,8 @@ NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 DB_ID = "17964745-3170-8030-bf01-e7f20a6e1bd7"
 
 GROUP_OPTIONS = ["#Study", "#Article", "#업무노트", "#정리"]
-TAG_OPTIONS = [
-    "#Kubernetes", "#Network", "#Istio", "#Issue", "#Infra", "#Observabiliy",
-    "#Security", "#자동화", "#AI", "#Agent", "#OS", "#Terraform", "#AWS", "#Engineering"
-]
+# Task DB(개인 Task DB) 페이지의 관계형 속성 이름. Engineering DB "Task" 관계의 반대편.
+TASK_DB_RELATION_PROPERTY = "Engineering"
 
 
 def notion_request(method, path, body=None):
@@ -112,87 +110,137 @@ def md_to_rich_text(text):
     return segments if segments else [{"type": "text", "text": {"content": text}}]
 
 
+# children을 가질 수 있는(중첩 컨테이너로 동작하는) 블록 타입.
+# heading/divider는 목록 중첩의 부모가 되지 않고 항상 top-level로 둔다.
+_CONTAINER_TYPES = {"bulleted_list_item", "numbered_list_item", "to_do", "paragraph", "quote"}
+
+
 def md_to_blocks(text):
-    """마크다운 텍스트를 Notion 블록 리스트로 변환 (간단 파서)."""
+    """마크다운 텍스트를 Notion 블록 리스트로 변환.
+
+    들여쓰기(2/4-space 무관, 상대 들여쓰기)로 리스트/문단을 중첩한다: `- 부모\\n  - 자식`
+    또는 `- 부모\\n    - 자식` 모두 자식이 부모의 children으로 들어간다. 구현 계획처럼
+    스텝 아래에 세부 내용이나 코드/설정을 붙일 때 이 중첩을 쓴다:
+
+        - [ ] Step 1: values.yaml 수정
+          - requests.memory 2Gi -> 6Gi, limits.memory 12Gi -> 10Gi
+          ```yaml
+          resources:
+            requests:
+              memory: 6Gi
+          ```
+
+    fenced 코드블록은 자신을 연 줄의 들여쓰기를 기준으로 같은 깊이의 형제로 붙는다
+    (코드 자체는 컨테이너가 아니라 그 아래에 더 중첩되지 않는다).
+    heading/divider는 항상 top-level이며 중첩 스택을 리셋한다.
+    """
     blocks = []
     if not text or not text.strip():
         return blocks
 
-    lines = text.strip().split("\n")
+    stack = []  # [(indent, block)] 현재 조상 체인
+
+    def place(indent, block):
+        # 현재 indent 이하(형제·더 얕음)인 조상은 pop → 남은 top이 부모
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        if stack:
+            parent = stack[-1][1]
+            ptype = parent["type"]
+            parent[ptype].setdefault("children", []).append(block)
+        else:
+            blocks.append(block)
+        if block["type"] in _CONTAINER_TYPES:
+            stack.append((indent, block))
+
+    lines = text.strip("\n").split("\n")
     in_code = False
     code_lang = ""
     code_lines = []
+    code_indent = 0
 
     for line in lines:
+        stripped = line.rstrip()
+        lstripped = stripped.lstrip(" ")
+        indent = len(stripped) - len(lstripped)
+
         if in_code:
-            if line.startswith("```"):
+            if lstripped.startswith("```"):
                 content = "\n".join(code_lines)
-                blocks.append({"type": "code", "code": {
+                code_block = {"type": "code", "code": {
                     "rich_text": [{"type": "text", "text": {"content": content[:2000]}}],
                     "language": code_lang or "plain text",
-                }})
+                }}
+                place(code_indent, code_block)
                 in_code = False
                 code_lines = []
             else:
-                code_lines.append(line)
+                # 여는 펜스의 들여쓰기만큼 걷어내 코드 자체의 상대 들여쓰기를 보존한다.
+                if len(line) >= code_indent and line[:code_indent].strip() == "":
+                    code_lines.append(line[code_indent:])
+                else:
+                    code_lines.append(line.lstrip())
             continue
 
-        if line.startswith("```"):
+        if lstripped.startswith("```"):
             in_code = True
-            code_lang = line[3:].strip()
+            code_lang = lstripped[3:].strip()
+            code_indent = indent
             continue
 
-        if re.match(r'^-{3,}$', line.strip()):
+        if re.match(r'^-{3,}$', lstripped.strip()):
             blocks.append({"type": "divider", "divider": {}})
+            stack.clear()
             continue
 
-        m = re.match(r'^(#{1,3})\s+(.*)', line)
+        m = re.match(r'^(#{1,3})\s+(.*)', lstripped)
         if m:
             level = len(m.group(1))
             blocks.append({f"type": f"heading_{level}", f"heading_{level}": {
                 "rich_text": md_to_rich_text(m.group(2).strip()),
                 "color": "default"
             }})
+            stack.clear()
             continue
 
-        m = re.match(r'^[-*]\s+\[( |x|X)\]\s+(.*)', line)
+        m = re.match(r'^[-*]\s+\[( |x|X)\]\s+(.*)', lstripped)
         if m:
             checked = m.group(1).lower() == "x"
-            blocks.append({"type": "to_do", "to_do": {
+            place(indent, {"type": "to_do", "to_do": {
                 "rich_text": md_to_rich_text(m.group(2).strip()),
                 "checked": checked, "color": "default"
             }})
             continue
 
-        m = re.match(r'^[-*]\s+(.*)', line)
+        m = re.match(r'^[-*]\s+(.*)', lstripped)
         if m:
-            blocks.append({"type": "bulleted_list_item", "bulleted_list_item": {
+            place(indent, {"type": "bulleted_list_item", "bulleted_list_item": {
                 "rich_text": md_to_rich_text(m.group(1).strip()),
                 "color": "default"
             }})
             continue
 
-        m = re.match(r'^\d+\.\s+(.*)', line)
+        m = re.match(r'^\d+\.\s+(.*)', lstripped)
         if m:
-            blocks.append({"type": "numbered_list_item", "numbered_list_item": {
+            place(indent, {"type": "numbered_list_item", "numbered_list_item": {
                 "rich_text": md_to_rich_text(m.group(1).strip()),
                 "color": "default"
             }})
             continue
 
-        m = re.match(r'^>\s*(.*)', line)
+        m = re.match(r'^>\s*(.*)', lstripped)
         if m:
-            blocks.append({"type": "quote", "quote": {
+            place(indent, {"type": "quote", "quote": {
                 "rich_text": md_to_rich_text(m.group(1).strip()),
                 "color": "default"
             }})
             continue
 
-        if not line.strip():
+        if not lstripped.strip():
             continue
 
-        blocks.append({"type": "paragraph", "paragraph": {
-            "rich_text": md_to_rich_text(line),
+        place(indent, {"type": "paragraph", "paragraph": {
+            "rich_text": md_to_rich_text(lstripped),
             "color": "default"
         }})
 
@@ -293,10 +341,28 @@ def make_template_blocks(sections=None):
     return blocks
 
 
+def link_task_relation(task_id, note_page_id):
+    """Task 페이지의 Engineering relation에 note_page_id를 추가한다 (기존 링크 보존, 중복 방지)."""
+    task_page = notion_request("GET", f"/pages/{task_id}")
+    if task_page.get("object") == "error":
+        return {"success": False, "error": task_page.get("message", str(task_page))}
+
+    existing = task_page.get("properties", {}).get(TASK_DB_RELATION_PROPERTY, {}).get("relation", [])
+    existing_ids = [r["id"] for r in existing]
+    if note_page_id not in existing_ids:
+        existing_ids.append(note_page_id)
+
+    patch_body = {"properties": {TASK_DB_RELATION_PROPERTY: {"relation": [{"id": i} for i in existing_ids]}}}
+    resp = notion_request("PATCH", f"/pages/{task_id}", patch_body)
+    if resp.get("object") == "error":
+        return {"success": False, "error": resp.get("message", str(resp))}
+    return {"success": True}
+
+
 def cmd_create(args):
     title = sanitize_body(args.title)  # 제목 하드룰 backstop (em dash/이모지)
     group = args.group or "#업무노트"
-    tags = [t.strip() for t in args.tag.split(",")] if args.tag else []
+    task_id = args.task.strip() if args.task else ""
     today = date.today().isoformat()
 
     # Load sections from JSON file if provided
@@ -312,18 +378,13 @@ def cmd_create(args):
         print(json.dumps({"success": False, "error": f"Invalid group '{group}'. Options: {GROUP_OPTIONS}"}))
         sys.exit(1)
 
-    invalid_tags = [t for t in tags if t not in TAG_OPTIONS]
-    if invalid_tags:
-        print(json.dumps({"success": False, "error": f"Invalid tags: {invalid_tags}. Options: {TAG_OPTIONS}"}))
-        sys.exit(1)
-
     properties = {
         "Title": {"title": [{"type": "text", "text": {"content": title}}]},
         "Group": {"select": {"name": group}},
         "Created At": {"date": {"start": today}},
     }
-    if tags:
-        properties["Tag"] = {"multi_select": [{"name": t} for t in tags]}
+    if task_id:
+        properties["Task"] = {"relation": [{"id": task_id}]}
 
     # Create the page
     page_body = {
@@ -343,14 +404,28 @@ def cmd_create(args):
 
     page_id = resp.get("id", "")
     page_url = resp.get("url", f"https://www.notion.so/{page_id.replace('-', '')}")
-    print(json.dumps({
+
+    task_linked = False
+    task_link_error = None
+    if task_id:
+        # Engineering DB "Task" relation은 위에서 이미 설정됨. Task DB 쪽 "Engineering"
+        # relation은 dual-property가 아닐 수 있으므로 반대편도 명시적으로 채운다.
+        link_result = link_task_relation(task_id, page_id)
+        task_linked = link_result["success"]
+        if not task_linked:
+            task_link_error = link_result["error"]
+
+    result = {
         "success": True,
         "page_id": page_id,
         "title": title,
         "group": group,
-        "tags": tags,
         "url": page_url,
-    }, ensure_ascii=False, indent=2))
+        "task_linked": task_linked,
+    }
+    if task_link_error:
+        result["task_link_error"] = task_link_error
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def cmd_list(args):
@@ -372,7 +447,7 @@ def cmd_list(args):
         title = title_rt[0].get("plain_text", "") if title_rt else "(no title)"
         group = props.get("Group", {}).get("select", {})
         group_name = group.get("name", "") if group else ""
-        tags = [t["name"] for t in props.get("Tag", {}).get("multi_select", [])]
+        task_relation = props.get("Task", {}).get("relation", [])
         created = props.get("Created At", {}).get("date", {})
         created_date = created.get("start", "") if created else ""
         page_id = page.get("id", "")
@@ -380,7 +455,7 @@ def cmd_list(args):
         results.append({
             "title": title,
             "group": group_name,
-            "tags": tags,
+            "task_linked": bool(task_relation),
             "created": created_date,
             "url": url,
         })
@@ -397,8 +472,8 @@ def main():
     create_p.add_argument("--title", required=True, help="페이지 제목")
     create_p.add_argument("--group", default="#업무노트",
                           help=f"Group 속성. 옵션: {GROUP_OPTIONS} (기본: #업무노트)")
-    create_p.add_argument("--tag", default="",
-                          help=f"Tag 속성 (쉼표 구분). 옵션: {TAG_OPTIONS}")
+    create_p.add_argument("--task", default="",
+                          help="연결할 Notion Task 페이지 ID. 지정 시 노트↔Task 양방향 relation을 건다")
     create_p.add_argument("--sections", default="",
                           help="섹션 내용이 담긴 JSON 파일 경로 (keys: problem, goal, non_goal, design, alternatives, plan, questions)")
 
