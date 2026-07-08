@@ -150,13 +150,11 @@ def generate_body(circles: dict, commits: list) -> str:
     sphere_list = sorted({s for s, _ in circles.keys()})
     lines = ['## Summary', '']
 
-    # 두괄식 topline 요약: 짧은 선언문 3개(문제/해결/영향), 절 연결 없이 문장 단위로 끊는다.
+    # 두괄식 topline 요약: 짧은 선언문 3개(문제/해결/영향)를 불릿 리스트로, 절 연결 없이 문장 단위로 끊는다.
     # diff/title만으로 부족하면 git:pr 스킬(LLM)이 대화 맥락으로 채운다 (SKILL.md Step 4).
-    lines.append('<!-- FILL_ME: 문제 상황을 짧은 한 문장으로 (기술문서체, 쉼표로 이어붙이지 않음) -->')
-    lines.append('')
-    lines.append('<!-- FILL_ME: 해결 방법을 짧은 한 문장으로 -->')
-    lines.append('')
-    lines.append('<!-- FILL_ME: 영향 범위/주의사항을 짧은 한 문장으로 -->')
+    lines.append('- <!-- FILL_ME: 문제 상황을 짧은 한 문장으로, 높임말(~습니다/합니다) 종결, 쉼표로 이어붙이지 않음 -->')
+    lines.append('- <!-- FILL_ME: 해결 방법을 짧은 한 문장으로, 높임말 종결 -->')
+    lines.append('- <!-- FILL_ME: 영향 범위/주의사항을 짧은 한 문장으로, 높임말 종결 -->')
     lines.append('')
 
     lines.append('### 환경 요약')
@@ -173,7 +171,7 @@ def generate_body(circles: dict, commits: list) -> str:
     # placeholder가 남아 있으면 SKILL.md Step 4/5에서 PR 생성을 막는다.
     lines.append('## 변경 의도 / 배경 (Why)')
     lines.append('')
-    lines.append('<!-- FILL_ME: 이 변경을 유발한 문제·요구·배경을 대화 맥락에서 서술 (무엇을 바꿨는지가 아니라 왜 바꾸는지) -->')
+    lines.append('<!-- FILL_ME: 이 변경을 유발한 문제·요구·배경을 대화 맥락에서 서술, 높임말(~습니다/합니다) 종결 (무엇을 바꿨는지가 아니라 왜 바꾸는지) -->')
     lines.append('')
 
     lines.append('## 변경 내용')
