@@ -149,6 +149,18 @@ def generate_body(circles: dict, commits: list) -> str:
 
     sphere_list = sorted({s for s, _ in circles.keys()})
     lines = ['## Summary', '']
+
+    # 두괄식 topline 요약: 짧은 선언문 3개(문제/해결/영향), 절 연결 없이 문장 단위로 끊는다.
+    # diff/title만으로 부족하면 git:pr 스킬(LLM)이 대화 맥락으로 채운다 (SKILL.md Step 4).
+    lines.append('<!-- FILL_ME: 문제 상황을 짧은 한 문장으로 (기술문서체, 쉼표로 이어붙이지 않음) -->')
+    lines.append('')
+    lines.append('<!-- FILL_ME: 해결 방법을 짧은 한 문장으로 -->')
+    lines.append('')
+    lines.append('<!-- FILL_ME: 영향 범위/주의사항을 짧은 한 문장으로 -->')
+    lines.append('')
+
+    lines.append('### 환경 요약')
+    lines.append('')
     lines.append('| 항목 | 내용 |')
     lines.append('|------|------|')
     lines.append(f'| 변경 Sphere | {", ".join(sphere_list)} |')
