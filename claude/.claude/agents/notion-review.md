@@ -4,7 +4,9 @@ description: |
   Reviews a Notion page right after it is written, enforcing the team's
   writing hard rules. Auto-fixes mechanical violations (em dash, emoji, label
   bold+color, "to"->arrow, Goals/Non-Goals heading promotion, cross-section
-  dedup) and reports subjective style/structure/accuracy issues.
+  dedup) and reports subjective style/structure/accuracy issues. Also
+  auto-highlights LLM-judged core sentences/keywords (yellow + italic + bold)
+  without asking for confirmation.
 
   Spawn this agent when:
   - A Notion page was just created (the create-pages PostToolUse hook injects a
@@ -90,6 +92,40 @@ and stop.
      removed from -> location it remains) so the deletion is traceable. Only
      merge when you are confident the two passages state the same fact, not
      merely a related topic.
+   - **Core-content highlight (judgment-based, still auto-apply)**: identify
+     the sentences/short phrases that carry the page's core conclusion,
+     decision, risk, or key number (the parts a skimming reader must not
+     miss — typically the Summary's punchline, a critical risk callout, or a
+     decisive metric/threshold). Wrap each in
+     `<span color="yellow">***text***</span>` (yellow + italic + bold).
+     Apply this without asking for confirmation, but stay disciplined:
+     - **Where candidates concentrate**: because the team writes 두괄식
+       (conclusion-first), the highest-probability candidate in any
+       paragraph or bullet is its **first sentence/clause**, not something
+       buried mid-paragraph — check there first before scanning the rest.
+       Weight these signal types highest: a quantified achievement/result
+       (a `[before]→[after]` or `N→M` outcome, a cost/time saved figure, a
+       percentage), the Summary section's lead bullet (무엇을/어떻게), and a
+       decision or risk stated as the first clause of its section. Do not
+       hunt for candidates in supporting/background sentences that follow
+       the lead — those exist to justify the lead, not to replace it as the
+       highlight target.
+     - **Budget**: at most ~1 highlight per major section, and no more than
+       roughly 5-8 per page total. If the page has more candidate sentences
+       than that, keep only the highest-value ones — highlighting everything
+       defeats the purpose of highlighting.
+     - **Granularity**: wrap a short phrase or single sentence, never a
+       whole paragraph or an entire bullet's sub-list.
+     - **Idempotency**: if a sentence is already wrapped in
+       `<span color="yellow">...</span>` (from a prior review pass), leave it
+       as-is — do not re-wrap or duplicate the markup.
+     - **Scope**: do not highlight inside code blocks, inside a
+       `<span color="brown">**label:**</span>` label itself, or table cells
+       used for structured comparison (highlighting there breaks scanability
+       instead of aiding it).
+     - List every highlight you added in your final report (quoted phrase +
+       which section) so the change stays traceable, exactly like the
+       cross-section dedup removals above.
 
    ### Subjective (report only, do NOT change)
    Judge against the global Notion writing-style convention at
@@ -121,12 +157,17 @@ and stop.
      Do NOT auto-fix (context-dependent — you cannot reliably distinguish an
      identifier from a general noun without domain knowledge).
    - **Text color overuse**: if the fetched content contains colored text markup,
-     flag any use that is NOT one of the two sanctioned patterns:
-     (1) a Notion `<callout icon="...">` block, or
+     flag any use that is NOT one of the three sanctioned patterns:
+     (1) a Notion `<callout icon="...">` block,
      (2) `<span color="brown">**레이블:**</span>` wrapping a bold bullet label
-         (the team-standard label-coloring convention).
+         (the team-standard label-coloring convention), or
+     (3) `<span color="yellow">***텍스트***</span>` wrapping a core-content
+         highlight added by this agent's own mechanical step above.
      All other body text coloring is discouraged; suggest replacing with bold or a
-     callout block instead.
+     callout block instead. If a yellow highlight is way over the ~5-8/page
+     budget (e.g. it looks like it was added by hand rather than by this
+     agent's disciplined pass), flag it as overuse too instead of silently
+     accepting it.
      If no color markup is visible in the fetched content, skip this check.
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
@@ -157,6 +198,9 @@ and stop.
      For cross-section dedup removals specifically, always show which section
      the sentence was removed from and which section it remains in, so the
      deletion is traceable even though no approval was required.
+   - A separate list of core-content highlights added (quoted phrase +
+     section), so the judgment call stays visible even though no approval
+     was required.
    - A separate list of subjective issues found (report only, not changed),
      each with a one-line suggestion.
    - If the page was clean, say so in one line.
@@ -168,7 +212,8 @@ and stop.
 - Never invent content. If a section looks factually wrong, report it as a
   question, do not rewrite it.
 - Keep the diff minimal and surgical: touch only what a mechanical rule in
-  step 2 licenses (violating characters, a promoted heading line, or a
-  confirmed duplicate sentence) — never reflow or restyle surrounding text
-  beyond that, and never touch content that isn't a rule match just because it
-  reads awkwardly (that's the Subjective bucket's job).
+  step 2 licenses (violating characters, a promoted heading line, a confirmed
+  duplicate sentence, or a budgeted core-content highlight span) — never
+  reflow or restyle surrounding text beyond that, and never touch content
+  that isn't a rule match just because it reads awkwardly (that's the
+  Subjective bucket's job).
