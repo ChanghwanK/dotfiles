@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-generate_pr.py — Analyze git diff/log and generate PR metadata for kubernetes GitOps repo.
+generate_pr.py: Analyze git diff/log and generate PR metadata for kubernetes GitOps repo.
 
 Usage:
     python3 generate_pr.py analyze <diff_file> <log_file>
@@ -169,7 +169,7 @@ def generate_body(circles: dict, commits: list) -> str:
     lines.append(f'| 커밋 수 | {len(commits)} |')
     lines.append('')
 
-    # 의도/배경은 diff만으로 유추 불가 — git:pr 스킬(LLM)이 대화 맥락에서 채운다.
+    # 의도/배경은 diff만으로 유추 불가하며, git:pr 스킬(LLM)이 대화 맥락에서 채운다.
     # placeholder가 남아 있으면 SKILL.md Step 4/5에서 PR 생성을 막는다.
     lines.append('## 변경 의도 / 배경 (Why)')
     lines.append('')
