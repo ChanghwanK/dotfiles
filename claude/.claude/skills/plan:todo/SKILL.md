@@ -22,7 +22,7 @@ python3 /Users/changhwan/.claude/scripts/plan-todo.py todo
 ## 출력 형식
 
 ```
-📋 **plan-name** — N/M 완료
+📋 **plan-name**: N/M 완료
 
   ✅ Step 1: 완료된 단계  _(완료: 2026-05-08T10:25)_
   ⏳ Step 2: 진행 중

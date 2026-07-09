@@ -17,7 +17,7 @@ allowed-tools:
   - Glob
   - Grep
 ---
-# git:revert — kubernetes GitOps 배포 롤백 워크플로우
+# git:revert: kubernetes GitOps 배포 롤백 워크플로우
 
 배포된 커밋을 찾아 `git revert`로 안전하게 되돌린다. 히스토리를 보존하는 비파괴적 롤백.
 
@@ -25,11 +25,11 @@ allowed-tools:
 
 ## 핵심 원칙
 
-- **`git reset --hard` 절대 금지** — 반드시 `git revert`로 히스토리 보존
-- **본인 커밋만 롤백** — 다른 사람의 커밋은 절대 revert하지 않는다. 검색 시 `--author` 필터 기본 사용
+- **`git reset --hard` 절대 금지**: 반드시 `git revert`로 히스토리 보존
+- **본인 커밋만 롤백**: 다른 사람의 커밋은 절대 revert하지 않는다. 검색 시 `--author` 필터 기본 사용
 - merge commit은 `git revert -m 1` 사용
 - 복수 커밋 revert 시 **최신 → 과거 역순**으로 처리
-- **prod 포함 시 명시적 확인 필수** — 자동 진행 금지
+- **prod 포함 시 명시적 확인 필수**: 자동 진행 금지
 - conflict 발생 시 `git revert --abort` 후 수동 안내
 - 스크립트만 호출한다. 직접 `git log` 파싱 금지.
 
@@ -37,7 +37,7 @@ allowed-tools:
 
 ## 워크플로우
 
-### Step 1 — 요청 분석 & 검색
+### Step 1: 요청 분석 & 검색
 
 사용자 요청에서 sphere, circle, env, tag, chart version 등을 추출하여 검색 실행.
 
@@ -80,13 +80,13 @@ python3 /Users/changhwan/.claude/skills/git:revert/scripts/rollback.py search \
 |---|------|------|---------|---------|---------|------|-------|
 ```
 
-### Step 2 — 사용자 확인
+### Step 2: 사용자 확인
 
 - 검색 결과에서 롤백 대상 커밋 선택을 사용자에게 확인
 - 관련 커밋이 여러 개면 모두 포함할지 확인
 - 하나도 찾지 못했으면 검색 조건 조정 제안
 
-### Step 3 — 영향도 분석
+### Step 3: 영향도 분석
 
 선택된 커밋들의 영향도를 분석:
 
@@ -105,7 +105,7 @@ python3 /Users/changhwan/.claude/skills/git:revert/scripts/rollback.py analyze \
 
 prod가 포함되면 반드시 "prod 환경이 포함되어 있습니다. 진행하시겠습니까?" 확인.
 
-### Step 4 — Revert 실행
+### Step 4: Revert 실행
 
 ```bash
 # 단일 커밋 revert (일반)
@@ -150,7 +150,7 @@ git revert --abort
 - 원인이 된 후속 커밋 정보 표시
 - 수동 수정 방법 제안
 
-### Step 5 — 검증
+### Step 5: 검증
 
 ```bash
 # YAML 린트 검증
@@ -162,7 +162,7 @@ git diff HEAD --stat
 
 린트 에러가 있으면 수정 후 재검증.
 
-### Step 6 — 결과 & Push
+### Step 6: 결과 & Push
 
 최종 요약 출력:
 
@@ -172,7 +172,7 @@ git diff HEAD --stat
 - **Reverted commits**: <hash1>, <hash2>
 - **영향 환경**: infra-k8s-dev, infra-k8s-stg
 - **변경 파일**: N개
-- **커밋**: <revert commit hash> — <message>
+- **커밋**: <revert commit hash>: <message>
 
 Push하시겠습니까? (y/n)
 ```

@@ -24,10 +24,10 @@ allowed-tools:
 
 ## 핵심 원칙
 
-- **읽기 전용** — 어떤 데이터도 수정하지 않는다
-- **"한 일" 중심** — 계획이 아닌 실제 수행 기록 기반
-- **병렬 수집** — 4개 소스를 단일 메시지에서 동시 호출하여 속도 최적화
-- **LLM 요약** — 원본 데이터 JSON 출력 금지, 반드시 자연어로 요약
+- **읽기 전용**: 어떤 데이터도 수정하지 않는다
+- **"한 일" 중심**: 계획이 아닌 실제 수행 기록 기반
+- **병렬 수집**: 4개 소스를 단일 메시지에서 동시 호출하여 속도 최적화
+- **LLM 요약**: 원본 데이터 JSON 출력 금지, 반드시 자연어로 요약
 
 ---
 
@@ -44,7 +44,7 @@ allowed-tools:
 
 ## 워크플로우
 
-### Step 1 — 4개 소스 병렬 수집
+### Step 1: 4개 소스 병렬 수집
 
 아래 4개를 **단일 메시지에서 동시 호출**한다 (순차 금지).
 
@@ -72,7 +72,7 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 
 ---
 
-### Step 2 — 프로젝트별 그룹핑 & LLM 요약
+### Step 2: 프로젝트별 그룹핑 & LLM 요약
 
 수집한 데이터를 분석하여:
 
@@ -93,7 +93,7 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 
 ---
 
-### Step 3 — 포맷팅 출력
+### Step 3: 포맷팅 출력
 
 아래 형식으로 출력한다:
 
@@ -113,7 +113,7 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 
 📋 계획 대비 실행 (Daily Note 기반)   ← Daily Note 없으면 이 섹션 생략
   - [x] {계획 항목} ✅
-  - [ ] {계획 항목} — 미착수
+  - [ ] {계획 항목}: 미착수
   진행률: {완료}/{전체} ({퍼센트}%)
 ```
 
@@ -135,4 +135,4 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 
 - 데이터 수정/쓰기 절대 금지 (읽기 전용)
 - JSON 원본 데이터 출력 금지
-- `tasks:show`와 혼동 금지 — 이 스킬은 "한 일" 조회, tasks:show는 "할 일" 조회
+- `tasks:show`와 혼동 금지: 이 스킬은 "한 일" 조회, tasks:show는 "할 일" 조회

@@ -1,4 +1,4 @@
-# Codebase Explorer Agent — grill-me 검증용
+# Codebase Explorer Agent: grill-me 검증용
 
 ## 역할
 
@@ -34,9 +34,9 @@
 
 ### 탐색 도구 사용 순서
 
-1. `Glob` — 관련 파일 패턴 찾기
-2. `Read` — 구체적인 파일 내용 확인
-3. `Grep` — 특정 설정값/패턴 검색
+1. `Glob`: 관련 파일 패턴 찾기
+2. `Read`: 구체적인 파일 내용 확인
+3. `Grep`: 특정 설정값/패턴 검색
 
 ## 출력 형식
 

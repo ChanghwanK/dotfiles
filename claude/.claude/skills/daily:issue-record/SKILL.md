@@ -26,7 +26,7 @@ allowed-tools:
 
 ## 워크플로우
 
-### Step 1 — 이슈 정보 추출
+### Step 1: 이슈 정보 추출
 
 대화 맥락을 분석하여 다음을 추출한다:
 
@@ -35,7 +35,7 @@ allowed-tools:
 
 맥락이 불충분하면 질문한다.
 
-### Step 2 — Daily Note 읽기
+### Step 2: Daily Note 읽기
 
 오늘 날짜로 Daily Note를 읽는다.
 
@@ -46,7 +46,7 @@ allowed-tools:
 파일이 없으면:
 - "오늘 Daily Note가 없습니다. `/daily:start`로 먼저 생성해 주세요." 출력 후 종료.
 
-### Step 3 — Issues 섹션에 append
+### Step 3: Issues 섹션에 append
 
 `## Issues` 섹션의 마지막 항목 뒤에 Edit 도구로 append한다.
 

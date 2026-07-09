@@ -219,7 +219,7 @@ def create_spec(title: str, tags: list[str], content: str, spec_types: list[str]
         for spec in related:
             tags_str = " ".join(f"#{t}" for t in spec["common_tags"])
             status_str = f" `{spec['status']}`" if spec["status"] else ""
-            related_section += f"- [[{spec['slug']}|{spec['title']}]]{status_str} — {tags_str}\n"
+            related_section += f"- [[{spec['slug']}|{spec['title']}]]{status_str}, {tags_str}\n"
         body = body.rstrip() + related_section + "\n"
 
     with open(filepath, "w", encoding="utf-8") as f:
@@ -388,7 +388,7 @@ def validate_spec(filename: str) -> dict:
     has_artifacts = bool(re.search(r'###\s*스펙 아티팩트', content))
 
     if is_ops:
-        detail = "운영 변경 — 스펙 아티팩트 불필요"
+        detail = "운영 변경: 스펙 아티팩트 불필요"
         passed = True
     else:
         passed = has_artifacts
@@ -668,7 +668,7 @@ def migrate_spec(filepath: str, dry_run: bool = True) -> dict:
                     1,
                 )
 
-    # 2. aliases — migrate 시에는 기존 값 유지 (수동 지정 필요)
+    # 2. aliases: migrate 시에는 기존 값 유지 (수동 지정 필요)
 
     # 3. last_reviewed 추가
     if "last_reviewed:" not in content:

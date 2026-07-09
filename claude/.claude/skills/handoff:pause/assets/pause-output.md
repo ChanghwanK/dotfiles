@@ -23,6 +23,6 @@
 ## 섹션 규칙
 
 - 항목이 없는 섹션은 출력하지 않는다
-- `in_progress` 항목은 `- {task} — {context}` 형식으로 출력
+- `in_progress` 항목은 `- {task}: {context}` 형식으로 출력
 - `completed`, `next` 항목은 `- {item}` 형식
 - `notes`가 빈 문자열이면 메모 섹션 생략

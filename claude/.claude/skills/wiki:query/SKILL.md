@@ -21,13 +21,13 @@ Obsidian vault(217개+ 노트)에서 키워드/태그/연관 링크 그래프로
 - `search`: 제목·본문 키워드 + 태그 필터 → 스코어 정렬
 - `related`: BFS 링크 그래프 + 태그 겹침으로 연관 노트 탐색 (depth 기본 2홉)
 - `find-issues`: Daily Note의 `## Issues` 섹션 수집
-- 결과는 JSON — Claude가 상위 노트를 Read 후 내용 요약 제공
+- 결과는 JSON: Claude가 상위 노트를 Read 후 내용 요약 제공
 
 ---
 
 ## 워크플로우
 
-### Step 1 — 검색 실행
+### Step 1: 검색 실행
 
 ```bash
 # 키워드 검색 (기본 scope: 02. Notes + 03. Resources)
@@ -43,13 +43,13 @@ python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \
   find-issues [--date 2026-04-20] [--days-back 7]
 ```
 
-### Step 2 — 결과 분석 및 노트 읽기
+### Step 2: 결과 분석 및 노트 읽기
 
 1. JSON 결과에서 score 상위 노트 2-3개 선택
 2. `Read` 도구로 해당 노트 파일 읽기
 3. 핵심 내용 요약 + 관련 노트 목록 제시
 
-### Step 3 — 연관 탐색 (필요 시)
+### Step 3: 연관 탐색 (필요 시)
 
 검색 결과 중 가장 관련성 높은 노트를 시작점으로 `related` 실행 → 추가 지식 발굴
 

@@ -18,7 +18,7 @@ tech_blog를 GitHub Pages(`dev.k10n.me`)에 배포한다.
 
 ## 배포 워크플로우
 
-### Step 1 — 사전 확인
+### Step 1: 사전 확인
 
 배포 전 현재 상태를 확인한다:
 
@@ -26,7 +26,7 @@ tech_blog를 GitHub Pages(`dev.k10n.me`)에 배포한다.
 2. 배포 명령: `gatsby build && gh-pages -d public -b deploy`
 3. 대상: GitHub Pages `deploy` 브랜치 → `dev.k10n.me`
 
-### Step 2 — 배포 실행
+### Step 2: 배포 실행
 
 ```bash
 bash /Users/changhwan/.claude/skills/blog:deploy/scripts/deploy.sh
@@ -37,7 +37,7 @@ bash /Users/changhwan/.claude/skills/blog:deploy/scripts/deploy.sh
 - `gatsby build` 실행 (public/ 생성)
 - `gh-pages` 로 deploy 브랜치에 push
 
-### Step 3 — 결과 보고
+### Step 3: 결과 보고
 
 배포 성공 시:
 ```

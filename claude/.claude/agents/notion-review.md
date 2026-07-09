@@ -44,7 +44,7 @@ and stop.
 2. **Scan** the page body for violations:
 
    ### Mechanical (auto-fix these)
-   - **em dash** (`—`, U+2014): forbidden anywhere in prose. Replace with a
+   - **em dash** (U+2014): forbidden anywhere in prose. Replace with a
      colon (`:`), comma (`,`), or parentheses `(...)` so the sentence still
      reads naturally. Do NOT touch: arrows (`→`), compound-word hyphens (`-`,
      e.g. `apply-order`, `celery-flower`), middle dots (`·`), or em dashes that
@@ -70,11 +70,11 @@ and stop.
      written as `A to B` (e.g. `0.93.0 to 0.118.0`, `dev to stg`), replace the
      literal `to` with `→`: `A → B`. Scope narrowly to transitions between
      two version-like (`\d+(\.\d+)+`), short-identifier, or backtick-wrapped
-     values — do not touch ordinary English "to" inside a full sentence
+     values. Do not touch ordinary English "to" inside a full sentence
      (e.g. "in order to", "want to fix").
    - **Goals/Non-Goals inline label → heading**: when a line's entire content
-     (trimmed) is just a bold section label — `**Goals**`, `**Goals:**`,
-     `**Non-Goals**`, `**목표**`, `**비목표**` — with no other text on that line,
+     (trimmed) is just a bold section label (`**Goals**`, `**Goals:**`,
+     `**Non-Goals**`, `**목표**`, `**비목표**`) with no other text on that line,
      promote it to a real heading (`## Goals` / `## Non-Goals`, or `###` if it
      is nested under another `##` section) and keep the following bullets
      under it unchanged. Do not touch bold labels that are followed by inline
@@ -95,30 +95,30 @@ and stop.
    - **Core-content highlight (judgment-based, still auto-apply)**: identify
      the sentences/short phrases that carry the page's core conclusion,
      decision, risk, or key number (the parts a skimming reader must not
-     miss — typically the Summary's punchline, a critical risk callout, or a
+     miss, typically the Summary's punchline, a critical risk callout, or a
      decisive metric/threshold). Wrap each in
      `<span color="yellow">***text***</span>` (yellow + italic + bold).
      Apply this without asking for confirmation, but stay disciplined:
      - **Where candidates concentrate**: because the team writes 두괄식
        (conclusion-first), the highest-probability candidate in any
        paragraph or bullet is its **first sentence/clause**, not something
-       buried mid-paragraph — check there first before scanning the rest.
+       buried mid-paragraph. Check there first before scanning the rest.
        Weight these signal types highest: a quantified achievement/result
        (a `[before]→[after]` or `N→M` outcome, a cost/time saved figure, a
        percentage), the Summary section's lead bullet (무엇을/어떻게), and a
        decision or risk stated as the first clause of its section. Do not
        hunt for candidates in supporting/background sentences that follow
-       the lead — those exist to justify the lead, not to replace it as the
+       the lead; those exist to justify the lead, not to replace it as the
        highlight target.
      - **Budget**: at most ~1 highlight per major section, and no more than
        roughly 5-8 per page total. If the page has more candidate sentences
-       than that, keep only the highest-value ones — highlighting everything
+       than that, keep only the highest-value ones; highlighting everything
        defeats the purpose of highlighting.
      - **Granularity**: wrap a short phrase or single sentence, never a
        whole paragraph or an entire bullet's sub-list.
      - **Idempotency**: if a sentence is already wrapped in
        `<span color="yellow">...</span>` (from a prior review pass), leave it
-       as-is — do not re-wrap or duplicate the markup.
+       as-is; do not re-wrap or duplicate the markup.
      - **Scope**: do not highlight inside code blocks, inside a
        `<span color="brown">**label:**</span>` label itself, or table cells
        used for structured comparison (highlighting there breaks scanability
@@ -148,13 +148,13 @@ and stop.
      - Filler words that add no information ("실제로는", "기본적으로" 등).
    - **Code block misuse** (ref: `~/.claude/docs/notion-writing-style.md` §코드 블록 사용 기준):
      - Inline code wrapping general Korean nouns that are not identifiers/values/paths
-       (e.g. `` `스토리지` ``, `` `대시보드` `` — these should be plain text).
+       (e.g. `` `스토리지` ``, `` `대시보드` ``; these should be plain text).
      - Inline code used for **emphasis** instead of bold (`**...**`).
      - Code blocks or inline code in section headings/labels.
      - Single-line commands that would be run as-is should use a fenced code block,
        not inline code.
      For each instance, report the offending text and suggest the correct form.
-     Do NOT auto-fix (context-dependent — you cannot reliably distinguish an
+     Do NOT auto-fix (context-dependent: you cannot reliably distinguish an
      identifier from a general noun without domain knowledge).
    - **Text color overuse**: if the fetched content contains colored text markup,
      flag any use that is NOT one of the three sanctioned patterns:
@@ -180,10 +180,10 @@ and stop.
      - Ends with a sentence-final verb ("~했습니다", "~합니다") instead of a
        noun-form ending (개선/해결/절감/구현/전환/완료 등).
      - Result has no quantified before/after marker (`[...]` brackets or a
-       `N→M` arrow) — only a vague qualitative claim.
+       `N→M` arrow), only a vague qualitative claim.
      - A before-value is mentioned elsewhere in the page for this same fact but
        missing from the bullet's Problem clause.
-     Report each with a before -> after suggestion. Do NOT auto-fix — rewriting
+     Report each with a before -> after suggestion. Do NOT auto-fix: rewriting
      bullet structure needs a judgment call on which clause absorbs which fact.
 
 3. **Apply mechanical fixes** with `mcp__notion-personal__API-update-page-markdown`
@@ -213,7 +213,7 @@ and stop.
   question, do not rewrite it.
 - Keep the diff minimal and surgical: touch only what a mechanical rule in
   step 2 licenses (violating characters, a promoted heading line, a confirmed
-  duplicate sentence, or a budgeted core-content highlight span) — never
+  duplicate sentence, or a budgeted core-content highlight span); never
   reflow or restyle surrounding text beyond that, and never touch content
   that isn't a rule match just because it reads awkwardly (that's the
   Subjective bucket's job).

@@ -16,12 +16,12 @@
 
 1. **실제 AWS 가격 런타임 조회**: 하드코딩 금지. 반드시 AWS Pricing API로 실시간 확인
 2. **경로별 비용 분해**: 각 hop에서 발생하는 비용을 별도 계산
-3. **리전 쌍 요금 검증**: Pricing API 결과로 확인 (하드코딩 요금은 오답 위험 — 과거 $0.02/GB 오답 사례)
+3. **리전 쌍 요금 검증**: Pricing API 결과로 확인 (하드코딩 요금은 오답 위험, 과거 $0.02/GB 오답 사례)
 4. **최적화 옵션은 실현 가능성 포함**: 단순 요금 비교가 아니라 구현 난이도까지 고려
 
 ---
 
-## Step 0 — AWS Pricing API로 실제 요금 조회 (반드시 먼저 실행)
+## Step 0: AWS Pricing API로 실제 요금 조회 (반드시 먼저 실행)
 
 분석에 필요한 모든 데이터 전송 요금을 **AWS Pricing API**로 런타임 조회한다.
 절대 요금을 추정하거나 하드코딩하지 않는다.
@@ -70,7 +70,7 @@ aws pricing get-products --service-code AmazonVPC --region us-east-1 \
 - Cross-AZ (같은 리전): $0.01/GB × 양방향
 - S3 Gateway Endpoint (같은 리전): 무료
 - Data Transfer IN: 무료
-- Cross-Region VPC Peering은 인터넷 경유와 **동일 요금** — Peering의 이점은 보안(Private)이지 비용 절감이 아님
+- Cross-Region VPC Peering은 인터넷 경유와 **동일 요금**. Peering의 이점은 보안(Private)이지 비용 절감이 아님
 
 ### 조회 결과 기록
 
@@ -87,7 +87,7 @@ aws pricing get-products --service-code AmazonVPC --region us-east-1 \
 
 ---
 
-## Step 1 — 현재 비용 계산
+## Step 1: 현재 비용 계산
 
 확인된 경로({confirmed_path})에서 각 구간별 비용을 분해한다.
 
@@ -103,13 +103,13 @@ aws pricing get-products --service-code AmazonVPC --region us-east-1 \
 
 ---
 
-## Step 2 — 최적화 옵션 비교
+## Step 2: 최적화 옵션 비교
 
 가능한 대안 경로를 최대 3개까지 비교한다.
 
 | 옵션 | 경로 변경 | GB당 비용 | 월 비용 | 절감 | 필요 작업 | 난이도 |
 |------|-----------|---------|---------|------|----------|--------|
-| 현재 | — | ${현재} | ${현재} | — | — | — |
+| 현재 | - | ${현재} | ${현재} | - | - | - |
 | A | {변경1} | ${A} | ${A} | ${절감A} | {작업A} | 低/中/高 |
 | B | {변경2} | ${B} | ${B} | ${절감B} | {작업B} | 低/中/高 |
 
@@ -123,7 +123,7 @@ aws pricing get-products --service-code AmazonVPC --region us-east-1 \
 
 ---
 
-## Step 3 — Terraform 참조 파일
+## Step 3: Terraform 참조 파일
 
 비용 최적화를 위해 인프라 변경이 필요한 경우 참조할 파일:
 

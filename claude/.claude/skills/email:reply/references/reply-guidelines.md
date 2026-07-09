@@ -18,7 +18,7 @@
 
 **필수 포함 항목**:
 - Support 케이스 번호 (있으면 제목에 포함: `[Case: 12345678]`)
-- AWS 계정 ID (12자리) — 요청이 계정 관련인 경우
+- AWS 계정 ID (12자리), 요청이 계정 관련인 경우
 - 요청 리전 명시
 
 **유형별 요점**:
@@ -64,7 +64,7 @@ SOCRA AI DevOps 팀 창환입니다.
 
 ---
 
-## CSP — GCP, Azure 등 (google.com, azure.com, microsoft.com)
+## CSP: GCP, Azure 등 (google.com, azure.com, microsoft.com)
 
 **언어**: 한국어 (한국 파트너/담당자) / 영어 (해외 CS 포털)
 

@@ -17,35 +17,35 @@ allowed-tools:
 ## 핵심 원칙
 
 - **병렬 우선**: 콘텐츠 추출과 보충 리서치는 반드시 단일 메시지에서 동시 실행
-- **원문 깊이 유지**: 요약이 아닌 정리 — 대화/원문의 모든 내용 포함
+- **원문 깊이 유지**: 요약이 아닌 정리: 대화/원문의 모든 내용 포함
 - **보충 통합**: Agent B 결과를 별도 섹션이 아닌 본문 흐름에 자연스럽게 통합
 - **관련 노트 연결**: obsidian:note 스크립트의 자동 wikilink를 적극 활용
 
 ## 워크플로우
 
-### Step 1 — URL 확인 및 분류
+### Step 1: URL 확인 및 분류
 
 사용자가 제공한 URL을 분석한다:
 
 - URL 형식 검증 (http/https 필수)
 - URL 타입 분류:
-  - `web` — 일반 웹 페이지 (기본값)
-  - `pdf` — `.pdf` 확장자 또는 `application/pdf` 반환 예상 URL
-  - `auth` — 로그인 페이지, GitHub private repo, Notion 등 인증이 필요한 URL
+  - `web`: 일반 웹 페이지 (기본값)
+  - `pdf`: `.pdf` 확장자 또는 `application/pdf` 반환 예상 URL
+  - `auth`: 로그인 페이지, GitHub private repo, Notion 등 인증이 필요한 URL
 - 주제 키워드 추출: URL 경로, 도메인, 파라미터에서 핵심 키워드 추론
   - 예: `ssup2.github.io/.../nvidia-gpu-architecture` → `NVIDIA, GPU, Architecture, H100`
 
-### Step 2 — 병렬 에이전트 실행
+### Step 2: 병렬 에이전트 실행
 
 아래 두 Agent를 **단일 메시지에서 동시에** 실행한다:
 
-**Agent A — 콘텐츠 추출**
+**Agent A: 콘텐츠 추출**
 Read `/Users/changhwan/.claude/skills/summary:article/agents/agent-content-extractor.md`
 변수 치환:
 - `{url}` → Step 1에서 확인한 URL
 - `{url_type}` → `web` / `pdf` / `auth`
 
-**Agent B — 보충 리서치**
+**Agent B: 보충 리서치**
 Read `/Users/changhwan/.claude/skills/summary:article/agents/agent-supplementary-research.md`
 변수 치환:
 - `{url}` → Step 1에서 확인한 URL
@@ -55,7 +55,7 @@ Agent 실패 처리:
 - Agent A 실패 → 중단 후 에러 처리 섹션 참조
 - Agent B 실패 → Agent A 결과만으로 Step 3 진행 (보충 없이 노트 생성)
 
-### Step 3 — 결과 병합 및 노트 구조화
+### Step 3: 결과 병합 및 노트 구조화
 
 Agent A + B 결과를 병합하여 **한국어** 마크다운을 생성한다.
 
@@ -68,19 +68,19 @@ Agent A + B 결과를 병합하여 **한국어** 마크다운을 생성한다.
 (핵심 내용 불릿 요약. 분량에 따라 3~5개 기준이나 내용이 많으면 더 길어도 됨. 짧은 글은 2개도 허용)
 
 ## 핵심 개념
-(Why — 이 주제가 왜 중요한지, 어떤 문제를 해결하는지)
+(Why: 이 주제가 왜 중요한지, 어떤 문제를 해결하는지)
 
 ## [주제별 본문 섹션들]
 (원문 구조 기반, 자유롭게 헤딩 구성)
 
 ## SOCRAAI 환경 적용
-(Agent B SOCRAAI_RELEVANCE 기반 — 관련 없으면 섹션 생략)
+(Agent B SOCRAAI_RELEVANCE 기반: 관련 없으면 섹션 생략)
 
 ## 더 알면 좋은 것들
-(Agent B FURTHER_LEARNING 기반 — 각 항목: 왜 배우면 좋은지 + 리소스 + SOCRAAI 연관성)
+(Agent B FURTHER_LEARNING 기반: 각 항목: 왜 배우면 좋은지 + 리소스 + SOCRAAI 연관성)
 
 ## 인사이트
-(So what? — 이 아티클이 나에게 의미하는 것, 3-5개 불릿)
+(So what? 이 아티클이 나에게 의미하는 것, 3-5개 불릿)
 
 ## 정리
 (핵심 takeaway 3-5개 불릿)
@@ -92,16 +92,16 @@ Agent A + B 결과를 병합하여 **한국어** 마크다운을 생성한다.
 - "무엇을 했는가" + "왜/결과가 무엇인가"를 한 문장에 담는다
 - 숫자/수치가 있으면 반드시 포함한다 (예: "주당 15시간 → 1.5시간으로 90% 절감")
 - 기술 결정/교훈은 별도 불릿으로 뽑는다
-- 과도하게 압축하지 않는다 — 불릿 수를 늘리는 것이 내용 손실보다 낫다
+- 과도하게 압축하지 않는다. 불릿 수를 늘리는 것이 내용 손실보다 낫다
 
 #### 마크다운 생성 규칙
 
 - 출력 언어: **한국어**. 기술 용어는 원문 병기 (예: "스트리밍 멀티프로세서(Streaming Multiprocessor)")
 - 문장 끊기: 한 문장 = 한 사실/행동. 복문은 불릿으로 분리
 - 3가지 이상 나열 → 불릿 목록으로 전환
-- `---` 수평선 금지 — 섹션은 `##` 헤딩으로 구분
-- 헤딩에 `—` em dash 금지
-- 불릿에 `—` em dash 금지 — 부연은 중첩 불릿으로
+- `---` 수평선 금지: 섹션은 `##` 헤딩으로 구분
+- 헤딩에 em dash 금지
+- 불릿에 em dash 금지: 부연은 중첩 불릿으로
 - 다이어그램: Agent A `DIAGRAMS_DETECTED`에 재구성 가능 항목이 있으면 ASCII 다이어그램 생성
 - 표: 비교 데이터는 반드시 마크다운 테이블로 표현
 - Agent B 보충 데이터는 해당 본문 섹션에 자연스럽게 통합 (별도 표시 없이)
@@ -124,7 +124,7 @@ Agent B `DOMAIN_CLASSIFICATION`을 기반으로 `domain/` 태그를 결정한다
 
 사용자가 명시적으로 태그를 지정하면 우선 적용한다.
 
-### Step 4 — Obsidian 저장
+### Step 4: Obsidian 저장
 
 Step 3에서 생성한 마크다운 본문을 heredoc stdin으로 파이프한다:
 
@@ -142,7 +142,7 @@ OBSIDIAN_CONTENT_EOF
 - 제목: Agent A 메타데이터의 페이지 제목 사용 (없으면 URL에서 추론)
 - `success: false`이면 에러 메시지를 사용자에게 전달하고 중단
 
-### Step 5 — 결과 출력
+### Step 5: 결과 출력
 
 저장 완료 메타데이터와 내용 미리보기를 함께 출력한다:
 
@@ -158,7 +158,7 @@ OBSIDIAN_CONTENT_EOF
 ---
 
 **주요 내용**
-- (TL;DR 섹션의 불릿들을 그대로 출력 — 저장된 노트의 핵심 내용 미리보기)
+- (TL;DR 섹션의 불릿들을 그대로 출력: 저장된 노트의 핵심 내용 미리보기)
 ```
 
 **출력 규칙:**

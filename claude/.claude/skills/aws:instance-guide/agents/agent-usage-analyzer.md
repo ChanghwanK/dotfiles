@@ -14,13 +14,13 @@
 ## 조사 원칙
 
 1. **현황 우선**: 신규 제안 전 반드시 현재 인스턴스 목록 먼저 조회
-2. **실측 데이터**: CloudWatch 메트릭 7일 평균/피크로 판정 — 추정 금지
+2. **실측 데이터**: CloudWatch 메트릭 7일 평균/피크로 판정, 추정 금지
 3. **환경 구분**: Prod/Stg/Dev 환경별 right-sizing 기준 차별화 적용
 4. **Profile 명시**: 모든 AWS CLI에 `--profile okta-devops` 포함
 
 ---
 
-## Step 1 — 현재 인스턴스 목록 조회
+## Step 1: 현재 인스턴스 목록 조회
 
 서비스 타입에 따라 해당 조회 명령을 실행한다.
 
@@ -130,7 +130,7 @@ aws mq list-brokers \
 
 ---
 
-## Step 2 — CloudWatch 메트릭 수집 (최근 7일)
+## Step 2: CloudWatch 메트릭 수집 (최근 7일)
 
 ### RDS / Aurora 메트릭
 
@@ -239,7 +239,7 @@ aws cloudwatch get-metric-statistics \
 
 ---
 
-## Step 3 — Right-Sizing 판정
+## Step 3: Right-Sizing 판정
 
 환경별 기준을 적용하여 판정한다:
 
@@ -251,9 +251,9 @@ aws cloudwatch get-metric-statistics \
 | Prod | 15~70% | 20~60% | ✅ 적정 |
 | Prod | > 70% | < 20% | 🔴 부족 (업그레이드 필요) |
 | Dev/Stg | < 30% | > 50% | ⚠️ 과다스펙 |
-| Dev/Stg | ≥ 30% | — | ✅ 적정 or 🔴 부족 |
+| Dev/Stg | ≥ 30% | - | ✅ 적정 or 🔴 부족 |
 
-**중요**: Dev/Stg 환경은 비용 최적화가 우선 — 과다스펙이면 적극적으로 다운사이징 권장.
+**중요**: Dev/Stg 환경은 비용 최적화가 우선, 과다스펙이면 적극적으로 다운사이징 권장.
 
 ### Sphere별 환경 판단 (태그 없는 경우)
 
@@ -264,7 +264,7 @@ aws cloudwatch get-metric-statistics \
 
 ---
 
-## Step 4 — 비용 절감 계산
+## Step 4: 비용 절감 계산
 
 현재 인스턴스와 제안 인스턴스의 월 비용 차이를 계산한다:
 

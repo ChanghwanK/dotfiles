@@ -5,7 +5,7 @@ Usage:
   python3 notion-eng-note.py create --title "제목" [--group "#업무노트"] [--task <task-page-id>] [--sections /tmp/sections.json]
   python3 notion-eng-note.py list [--limit 10]
 
---task를 지정하면(Task 연결) 문제 정의/목표/비목표 섹션은 생략된다 — 그 내용은 연결된
+--task를 지정하면(Task 연결) 문제 정의/목표/비목표 섹션은 생략된다: 그 내용은 연결된
 Task 페이지의 01.문제 정의 / 04.Goals-Non Goals 섹션이 단일 출처이므로 중복 작성하지 않는다.
 --task 없이 만드는 독립 노트는 참조할 Task가 없으므로 문제 정의/목표/비목표를 그대로 포함한다.
 
@@ -270,7 +270,7 @@ def make_template_blocks(sections=None, linked_to_task=False):
     sections: dict with keys: problem, goal, non_goal, design, alternatives, plan, history, review, questions
     값이 있으면 해당 섹션에 내용 채움. 없으면 placeholder 사용.
 
-    linked_to_task: True면 problem/goal/non_goal 섹션을 생략한다 — 그 내용은 연결된 Task
+    linked_to_task: True면 problem/goal/non_goal 섹션을 생략한다: 그 내용은 연결된 Task
     페이지(01.문제 정의 / 04.Goals-Non Goals)가 단일 출처이므로 여기서 중복 작성하지 않는다.
     """
     s = sections or {}
@@ -315,13 +315,13 @@ def make_template_blocks(sections=None, linked_to_task=False):
     n = iter(range(1, section_count + 1))
 
     blocks = [
-        # TOC 콜아웃 placeholder — cmd_create가 페이지 생성 후 각 heading/Goal-Non-goal
+        # TOC 콜아웃 placeholder: cmd_create가 페이지 생성 후 각 heading/Goal-Non-goal
         # 문단의 실제 block id로 링크를 채운다 (build_toc_rich_text).
         placeholder_callout(),
     ]
 
     if not linked_to_task:
-        # 문제 정의 (독립 노트에만 포함 — Task 연결 노트는 연결된 Task 01.문제 정의가 단일 출처)
+        # 문제 정의 (독립 노트에만 포함, Task 연결 노트는 연결된 Task 01.문제 정의가 단일 출처)
         blocks += [
             h1(f"{next(n)}. 문제 정의"),
             *section_blocks("problem", [
@@ -329,7 +329,7 @@ def make_template_blocks(sections=None, linked_to_task=False):
                 paragraph("해결하지 않으면 어떤 일이 생기나? (왜 진행하는가?)"),
             ]),
             divider(),
-            # 목표 / 비목표 (독립 노트에만 포함 — Task 연결 노트는 04.Goals-Non Goals가 단일 출처)
+            # 목표 / 비목표 (독립 노트에만 포함, Task 연결 노트는 04.Goals-Non Goals가 단일 출처)
             h1(f"{next(n)}. 목표 / 비목표"),
             paragraph("Goal"),
             *section_blocks("goal", [quote()]),
@@ -359,13 +359,13 @@ def make_template_blocks(sections=None, linked_to_task=False):
             bullet("리스크 항목과 대응 방안"),
         ]),
         divider(),
-        # 작업 History — 진행하며 append-content로 날짜별 기록을 계속 추가한다
+        # 작업 History: 진행하며 append-content로 날짜별 기록을 계속 추가한다
         h1(f"{next(n)}. 작업 History"),
         *section_blocks("history", [
             bullet("YYYY-MM-DD: 무엇을 했는지, 어떤 이슈가 있었는지 한 줄로"),
         ]),
         divider(),
-        # Task Review — 완료 후 작성 (목표 대비 결과 회고)
+        # Task Review: 완료 후 작성 (목표 대비 결과 회고)
         h1(f"{next(n)}. Task Review"),
         *section_blocks("review", [
             paragraph("목표 대비 결과"),

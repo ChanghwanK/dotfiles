@@ -33,11 +33,11 @@ allowed-tools:
 
 ---
 
-## 워크플로우 — 의도 분기
+## 워크플로우: 의도 분기
 
 요청을 아래 5개 흐름 중 하나로 라우팅한다. 시간 정보가 필요한데 누락됐고 추론도 불가하면 그 항목만 사용자에게 묻는다.
 
-### CREATE — 일정 생성
+### CREATE: 일정 생성
 
 `mcp__claude_ai_Google_Calendar__create_event`
 
@@ -52,7 +52,7 @@ allowed-tools:
 - 참석자 포함 시: "참석자에게 초대 메일이 발송되었습니다." 안내 추가
 - 종일 일정은 `allDay=true` + 날짜만 지정
 
-### READ — 일정 조회
+### READ: 일정 조회
 
 `mcp__claude_ai_Google_Calendar__list_events` / `mcp__claude_ai_Google_Calendar__get_event`
 
@@ -70,7 +70,7 @@ allowed-tools:
 - 결과를 표로 출력: `시각 | 제목 | 장소`
 - 결과 없으면 "해당 기간에 일정이 없습니다." 출력
 
-### UPDATE — 일정 수정
+### UPDATE: 일정 수정
 
 `mcp__claude_ai_Google_Calendar__get_event` → `mcp__claude_ai_Google_Calendar__update_event`
 
@@ -87,7 +87,7 @@ allowed-tools:
 - 참석자 추가: `addedAttendees`(Attendee 객체 배열), 제거: `removedAttendeeEmails`
 - 즉시 실행 → 변경 전/후 비교 출력
 
-### DELETE — 일정 삭제 (확인 필수)
+### DELETE: 일정 삭제 (확인 필수)
 
 `mcp__claude_ai_Google_Calendar__list_events` → 확인 → `mcp__claude_ai_Google_Calendar__delete_event`
 
@@ -98,11 +98,11 @@ allowed-tools:
 4. delete_event(calendarId="changhwan.kim@socra.ai", eventId=<id>)
 ```
 
-- 삭제는 복구 불가 — 반드시 확인 후 실행
+- 삭제는 복구 불가. 반드시 확인 후 실행
 - 후보가 여러 건이면 먼저 선택받고, 그 다음 삭제 확인
 - 반복 일정이면 단일 인스턴스/전체 시리즈 중 어느 범위를 삭제할지 확인
 
-### SUGGEST — 빈 시간 찾기
+### SUGGEST: 빈 시간 찾기
 
 `mcp__claude_ai_Google_Calendar__suggest_time`
 
@@ -135,7 +135,7 @@ suggest_time(
 
 **조회 결과**
 ```
-2026-06-15 (오늘) 일정 — 3건
+2026-06-15 (오늘) 일정: 3건
 
 시각              | 제목         | 장소
 14:00 ~ 15:00     | 스프린트 회의 | 회의실 B
@@ -145,7 +145,7 @@ suggest_time(
 
 **빈 시간 추천**
 ```
-다음 주 빈 시간 (60분, 평일 09:00~18:00) — 추천 3건
+다음 주 빈 시간 (60분, 평일 09:00~18:00): 추천 3건
 1. 2026-06-16 (월) 10:00 ~ 11:00
 2. 2026-06-17 (화) 14:00 ~ 15:00
 3. 2026-06-18 (수) 11:00 ~ 12:00
@@ -157,7 +157,7 @@ suggest_time(
 
 ## 주의사항
 
-- **삭제는 복구 불가** — 항상 확인 후 실행. 생성·수정은 즉시 실행하되 결과를 명확히 보고한다.
+- **삭제는 복구 불가**. 항상 확인 후 실행. 생성·수정은 즉시 실행하되 결과를 명확히 보고한다.
 - **외부 발송**: 참석자 추가·시간 변경은 초대 메일/알림을 발송한다. 테스트 일정에는 참석자를 넣지 않는다.
 - **상대 날짜는 오늘 기준**: 세션 컨텍스트의 현재 날짜를 기준으로 계산하고, timezone은 Asia/Seoul로 고정한다.
 - **권한 오류 대응**: `calendarId="changhwan.kim@socra.ai"` 호출이 권한 오류(403/notFound)로 실패하면, 연결된 Google Calendar MCP가 다른 계정으로 인증되어 있고 해당 캘린더 공유 권한이 없는 상황이다. 이때는 (1) MCP를 changhwan.kim@socra.ai로 재인증하거나 (2) 해당 계정 캘린더를 공유받아야 함을 안내한다. 임의로 `primary`로 폴백해 다른 계정 캘린더를 건드리지 않는다.

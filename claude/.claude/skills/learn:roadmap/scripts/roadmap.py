@@ -326,7 +326,7 @@ def create_roadmap(title: str, tags: list[str], content: str, mode: str = "101")
         related_section = "\n\n## 관련 노트\n\n"
         for note in related:
             tags_str = " ".join(f"#{t}" for t in note["common_tags"])
-            related_section += f"- [[{note['slug']}|{note['title']}]] — {tags_str}\n"
+            related_section += f"- [[{note['slug']}|{note['title']}]]: {tags_str}\n"
         body = body.rstrip() + related_section + "\n"
 
     with open(filepath, "w", encoding="utf-8") as f:

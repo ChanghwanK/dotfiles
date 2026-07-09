@@ -144,13 +144,13 @@ chmod +x ~/.claude/scripts/mcp-<service>.sh
 
 4. **`~/.claude/SECURITY.md` 토큰 목록 업데이트**
 
-### 전체 재동기화 (rotate-all) — 스크립트 사용
+### 전체 재동기화 (rotate-all): 스크립트 사용
 ```bash
 bash /Users/changhwan/.claude/skills/security-manager/scripts/keychain-manager.sh rotate-all
 ```
 
 ## 원칙
-- `-T ""` 필수 — 없으면 매번 GUI 프롬프트 발생
+- `-T ""` 필수: 없으면 매번 GUI 프롬프트 발생
 - `-U` = upsert (없으면 추가, 있으면 덮어씀)
 - 작업 완료 후 변경 내용 한 줄 요약 보고
 

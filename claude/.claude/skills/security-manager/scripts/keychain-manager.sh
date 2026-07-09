@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# keychain-manager.sh — Keychain 전체 재동기화 (rotate-all)
+# keychain-manager.sh: Keychain 전체 재동기화 (rotate-all)
 # Usage: keychain-manager.sh rotate-all
 set -euo pipefail
 

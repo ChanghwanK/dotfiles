@@ -37,7 +37,7 @@ def append_remind(entries, date_str):
         print(json.dumps({"success": False, "error": "## 리마인드 section not found"}))
         sys.exit(1)
 
-    # Build new lines to insert (most recent first — inserted at top of section)
+    # Build new lines to insert (most recent first, inserted at top of section)
     new_lines = []
     for e in entries:
         title = e.get("title", "").strip()

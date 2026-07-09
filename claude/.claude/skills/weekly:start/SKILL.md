@@ -34,11 +34,11 @@ allowed-tools:
 
 ## 워크플로우
 
-### Phase 1 — 데이터 수집 (Sub-Agent 병렬 실행)
+### Phase 1: 데이터 수집 (Sub-Agent 병렬 실행)
 
 3개 Sub-Agent를 **한 번에 동시** 실행한다. 각 Agent는 독립적으로 데이터를 수집하고 요약을 반환한다.
 
-**Agent 1 — 지난 주 리뷰 데이터**
+**Agent 1: 지난 주 리뷰 데이터**
 
 ```
 Agent(description="지난 주 리뷰 데이터 수집", prompt="""
@@ -65,7 +65,7 @@ Agent(description="지난 주 리뷰 데이터 수집", prompt="""
 """)
 ```
 
-**Agent 2 — 이번 주 현황 + 분기 목표**
+**Agent 2: 이번 주 현황 + 분기 목표**
 
 ```
 Agent(description="이번 주 현황 수집", prompt="""
@@ -81,7 +81,7 @@ Agent(description="이번 주 현황 수집", prompt="""
 """)
 ```
 
-**Agent 3 — 이번 주 캘린더 일정**
+**Agent 3: 이번 주 캘린더 일정**
 
 ```
 Agent(description="이번 주 캘린더 조회", prompt="""
@@ -102,7 +102,7 @@ Google Calendar MCP 도구(mcp__claude_ai_Google_Calendar__gcal_list_events)를 
 
 ---
 
-### Phase 2 — 지난 주 리뷰 출력
+### Phase 2: 지난 주 리뷰 출력
 
 Phase 1 JSON을 종합 분석하여 다음 형식으로 출력한다.
 
@@ -134,7 +134,7 @@ Phase 1 JSON을 종합 분석하여 다음 형식으로 출력한다.
 | ...
 
 ⚡ 반복 이월 경고 (해당 시)
-- [Task 이름] — 2주 이상 이월됨. 범위 축소 또는 삭제 검토 필요.
+- [Task 이름]: 2주 이상 이월됨. 범위 축소 또는 삭제 검토 필요.
 ```
 
 **분석 로직:**
@@ -172,7 +172,7 @@ Top 3에 `[실행]`/`[탐색]` 태그가 없는 날이 전부이면 (아직 새 
 
 ---
 
-### Phase 3 — 이번 주 컨텍스트 제시
+### Phase 3: 이번 주 컨텍스트 제시
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -225,7 +225,7 @@ Top 3에 `[실행]`/`[탐색]` 태그가 없는 날이 전부이면 (아직 새 
 
 ---
 
-### Phase 4 — 대화형 주간 목표 수립 (AskUserQuestion)
+### Phase 4: 대화형 주간 목표 수립 (AskUserQuestion)
 
 **Top 5 목표 추천 로직 (가중치 합산):**
 
@@ -248,11 +248,11 @@ Top 3에 `[실행]`/`[탐색]` 태그가 없는 날이 전부이면 (아직 새 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🏆 이번 주 Top 5 추천
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. [Task 이름] (점수: N) — P1, 분기 목표 연계, 이번 주 마감
-2. [Task 이름] (점수: N) — P2, 지난 주 이월
-3. [Task 이름] (점수: N) — P1, 진행 중
-4. [Task 이름] (점수: N) — P2, 분기 목표 연계
-5. [Task 이름] (점수: N) — P2, 이번 주 마감
+1. [Task 이름] (점수: N): P1, 분기 목표 연계, 이번 주 마감
+2. [Task 이름] (점수: N): P2, 지난 주 이월
+3. [Task 이름] (점수: N): P1, 진행 중
+4. [Task 이름] (점수: N): P2, 분기 목표 연계
+5. [Task 이름] (점수: N): P2, 이번 주 마감
 ```
 
 **AskUserQuestion으로 확인:**
@@ -275,7 +275,7 @@ AskUserQuestion:
 
 ---
 
-### Phase 5 — Obsidian Weekly Note 저장
+### Phase 5: Obsidian Weekly Note 저장
 
 **저장 경로:**
 ```
@@ -379,7 +379,7 @@ Write 도구로 파일을 저장한 후 저장 경로를 출력한다.
 ## 주의사항
 
 - `NOTION_TOKEN` 환경변수 필요: `~/.secrets.zsh`에서 로드
-- `quarterly-goals.total == 0`은 정상 케이스 — Tag 미설정 안내만 하고 계속 진행
+- `quarterly-goals.total == 0`은 정상 케이스: Tag 미설정 안내만 하고 계속 진행
 - 이월 감지는 **이름 일치**로 판단 (동일 Task를 동일 이름으로 유지해야 정확)
 - Weekly Note 파일명: ISO week 기준 (`{YYYY}-W{WW}-weekly.md`, WW는 2자리 0패딩)
 

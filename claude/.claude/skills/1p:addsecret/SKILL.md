@@ -27,7 +27,7 @@ allowed-tools:
 
 ## 워크플로우
 
-### Step 1 — 입력 파악
+### Step 1: 입력 파악
 
 대화 맥락에서 다음 정보를 추출한다:
 
@@ -41,7 +41,7 @@ allowed-tools:
 
 값이 누락된 경우에만 사용자에게 질문한다.
 
-### Step 2 — Vault 확인
+### Step 2: Vault 확인
 
 vault 이름이 불확실한 경우:
 
@@ -52,7 +52,7 @@ op vault list
 출력에서 실제 vault 이름(NAME 컬럼)을 확인한다.
 > ⚠️ vault 이름은 대소문자/공백을 정확히 맞춰야 한다 (예: "chapter devops" → `Chapter_DevOps`)
 
-### Step 3 — 항목 생성
+### Step 3: 항목 생성
 
 ```bash
 op item create \
@@ -67,7 +67,7 @@ op item create \
 - `Login` → `username=<id>`, `password=<pw>`
 - `Secure Note` → `notesPlain=<내용>`
 
-### Step 4 — 결과 확인 및 안내
+### Step 4: 결과 확인 및 안내
 
 성공 시 출력:
 ```

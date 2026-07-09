@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-manage_skill.py — Skill lifecycle management CLI
+manage_skill.py: Skill lifecycle management CLI
 Commands: list, show, create, validate, update-frontmatter, delete, restore
 stdlib only: argparse, json, pathlib, shutil, re, os, datetime
 """
@@ -87,7 +87,7 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
         val = m.group(2).strip()
 
         if val == "|":
-            # Block scalar — collect indented lines
+            # Block scalar: collect indented lines
             block_lines = []
             i += 1
             while i < len(lines) and (not lines[i].strip() or lines[i].startswith("  ")):
@@ -325,26 +325,26 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
     if "TODO" in body or "TODO" in str(fm):
         warnings.append("TODO placeholders still present in SKILL.md")
     if len(desc) > 300:
-        warnings.append(f"description is long ({len(desc)} chars) — consider shortening")
+        warnings.append(f"description is long ({len(desc)} chars), consider shortening")
 
-    # Quality warnings (Rule 2, 3, 5 — references/skill-conventions.md Section 5)
+    # Quality warnings (Rule 2, 3, 5: references/skill-conventions.md Section 5)
     body_lines = body.splitlines()
     if len(body_lines) > 500:
         warnings.append(
-            f"body is {len(body_lines)} lines — Rule 3: keep under 500 lines, split details into references/"
+            f"body is {len(body_lines)} lines (Rule 3: keep under 500 lines, split details into references/)"
         )
     trigger_pattern = re.compile(r"이 스킬은.{0,20}(할 때|씁니다|사용합니다)")
     if trigger_pattern.search(body):
         warnings.append(
-            "body may contain trigger description — Rule 2: 'when to use' belongs in description only"
+            "body may contain trigger description (Rule 2: 'when to use' belongs in description only)"
         )
     always_count = len(re.findall(r"\balways\b|\b항상\b", body))
     if always_count > 0:
         warnings.append(
-            f"found {always_count} 'always'/'항상' in body — Rule 5: use 'MUST' or '반드시' instead"
+            f"found {always_count} 'always'/'항상' in body (Rule 5: use 'MUST' or '반드시' instead)"
         )
 
-    # Separation of concerns warnings (Rule 6 — references/skill-conventions.md Section 5.6)
+    # Separation of concerns warnings (Rule 6: references/skill-conventions.md Section 5.6)
     # W1: raw system commands in allowed-tools (should be wrapped in scripts/)
     if isinstance(tools, list):
         SAFE_BASH = [
@@ -362,7 +362,7 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
                 continue
             if not any(p.match(tool) for p in SAFE_BASH):
                 warnings.append(
-                    f"allowed-tools에 raw 시스템 명령 '{tool}' 발견 — scripts/로 래핑 권장"
+                    f"allowed-tools에 raw 시스템 명령 '{tool}' 발견: scripts/로 래핑 권장"
                 )
 
     # W2: large code blocks in body (>= 15 lines should go to assets/ or references/)
@@ -371,7 +371,7 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
         line_count = len(block.splitlines())
         if line_count >= 15:
             warnings.append(
-                f"body에 {line_count}줄짜리 코드 블록 발견 — assets/ 또는 references/로 분리 권장"
+                f"body에 {line_count}줄짜리 코드 블록 발견: assets/ 또는 references/로 분리 권장"
             )
 
     # W3: agents/ directory is empty (no .md files)
@@ -382,26 +382,26 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
         has_agent_files = bool(agent_files)
         if not agent_files:
             warnings.append(
-                "agents/ 디렉토리가 비어 있음 — .md 프롬프트 파일을 추가하거나 디렉토리를 삭제하세요"
+                "agents/ 디렉토리가 비어 있음: .md 프롬프트 파일을 추가하거나 디렉토리를 삭제하세요"
             )
         else:
             # W4: agents/*.md files not referenced in body
             for agent_file in agent_files:
                 if agent_file.name not in body:
                     warnings.append(
-                        f"agents/{agent_file.name}가 body에서 참조되지 않음 — SKILL.md에서 Read로 참조하세요"
+                        f"agents/{agent_file.name}가 body에서 참조되지 않음: SKILL.md에서 Read로 참조하세요"
                     )
 
     # ─── BP semantic checks ──────────────────────────────────────────────
     # BP1: description must include "사용 시점:" + "트리거 키워드:" literals
     if desc and "사용 시점" not in desc:
-        warnings.append("[BP] description에 '사용 시점:' 누락 — 트리거 판단을 위해 필수")
+        warnings.append("[BP] description에 '사용 시점:' 누락 (트리거 판단을 위해 필수)")
     if desc and "트리거 키워드" not in desc and "트리거" not in desc:
-        warnings.append("[BP] description에 '트리거 키워드:' 누락 — 활성화 정확도 저하")
+        warnings.append("[BP] description에 '트리거 키워드:' 누락 (활성화 정확도 저하)")
 
     # BP2: description length cap (Anthropic BP: ≤ 1024 chars)
     if len(desc) > 1024:
-        warnings.append(f"[BP] description {len(desc)}자 — 1024자 초과, 핵심만 남기기")
+        warnings.append(f"[BP] description {len(desc)}자: 1024자 초과, 핵심만 남기기")
 
     # BP3: references one-level deep (no nested subdirs)
     refs_dir = sp / "references"
@@ -410,7 +410,7 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
         if nested:
             sample = ", ".join(str(p.relative_to(sp)) for p in nested[:3])
             warnings.append(
-                f"[BP] references/ 하위 중첩 디렉토리 발견 ({sample}) — one-level deep 권장"
+                f"[BP] references/ 하위 중첩 디렉토리 발견 ({sample}): one-level deep 권장"
             )
 
     # ─── Parallelism (Agent) cross-check ─────────────────────────────────
@@ -418,18 +418,18 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
     has_agent_tool = "Agent" in (tools if isinstance(tools, list) else [tools_str])
     if has_agent_files and not has_agent_tool:
         warnings.append(
-            "[parallelism] agents/ 존재하나 frontmatter allowed-tools에 Agent 없음 — 추가 필요"
+            "[parallelism] agents/ 존재하나 frontmatter allowed-tools에 Agent 없음: 추가 필요"
         )
     if has_agent_tool and not has_agent_files:
         warnings.append(
-            "[parallelism] allowed-tools에 Agent 있으나 agents/*.md 없음 — 인라인 프롬프트는 10줄 이상 시 분리 권장"
+            "[parallelism] allowed-tools에 Agent 있으나 agents/*.md 없음: 인라인 프롬프트는 10줄 이상 시 분리 권장"
         )
 
     # ─── Harness checks (destructive/confirmation/dry-run) ───────────────
     # H1: destructive keywords in body must mention confirmation pattern
     if DESTRUCTIVE_KEYWORDS.search(body) and not CONFIRMATION_KEYWORDS.search(body):
         warnings.append(
-            "[harness] body에 파괴적 작업(delete/drop/삭제 등) 언급 — confirmation/dry-run 패턴 명시 필요"
+            "[harness] body에 파괴적 작업(delete/drop/삭제 등) 언급: confirmation/dry-run 패턴 명시 필요"
         )
 
     # H2: workflow last step should mention validation/verification
@@ -440,7 +440,7 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
         last_step_chunk = body[last_step_start:]
         if not VALIDATION_KEYWORDS.search(last_step_chunk):
             info.append(
-                "[harness] 마지막 Step에 검증/validate 키워드 없음 — Rule 5.5 검증 루프 권장"
+                "[harness] 마지막 Step에 검증/validate 키워드 없음 (Rule 5.5 검증 루프 권장)"
             )
 
     # H3: scripts that mutate state should support --dry-run
@@ -455,7 +455,7 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
             has_dry_run = "dry-run" in src or "dry_run" in src
             if mutates and not has_dry_run:
                 info.append(
-                    f"[harness] scripts/{script.name}가 파일을 변경하나 --dry-run 없음 — 안전성 강화 권장"
+                    f"[harness] scripts/{script.name}가 파일을 변경하나 --dry-run 없음: 안전성 강화 권장"
                 )
 
     return checks, warnings, info
@@ -499,7 +499,7 @@ def _classify_finding(msg: str) -> str:
 def cmd_review(args):
     """Score a skill across BP / parallelism / harness dimensions.
 
-    Read-only — no mutations. Designed to be the structural input for
+    Read-only, no mutations. Designed to be the structural input for
     Claude's parallel-agent qualitative review (see SKILL.md Review workflow).
     """
     name = args.name
@@ -537,7 +537,7 @@ def cmd_review(args):
 
     overall = round(sum(scores.values()) / len(scores))
 
-    # Inventory snapshot — feeds Claude's qualitative review agents
+    # Inventory snapshot: feeds Claude's qualitative review agents
     body_lines = body.splitlines()
     agents_dir = sp / "agents"
     refs_dir = sp / "references"
@@ -636,7 +636,7 @@ TODO: 이 스킬이 무엇을 하는지 한 문장으로 설명하세요.
 
 ## 워크플로우
 
-### Step 1 — TODO: 첫 번째 단계
+### Step 1: TODO: 첫 번째 단계
 
 TODO: 단계 설명
 
@@ -644,7 +644,7 @@ TODO: 단계 설명
 python3 {abs_scripts}/TODO_script.py subcommand --option value
 ```
 
-### Step 2 — TODO: 두 번째 단계
+### Step 2: TODO: 두 번째 단계
 
 TODO: 단계 설명
 
@@ -792,8 +792,8 @@ def cmd_create(args):
             agent_path = sp / "agents" / f"agent-{role}.md"
             agent_path.write_text(
                 f"# {role.replace('-', ' ').title()} 에이전트\n\n"
-                f"**Recommended model**: `{model}` — {model_hints[model]}\n"
-                f"**역할**: TODO — 이 에이전트가 무엇을 책임지는지 한 문장으로 작성.\n\n"
+                f"**Recommended model**: `{model}` ({model_hints[model]})\n"
+                f"**역할**: TODO: 이 에이전트가 무엇을 책임지는지 한 문장으로 작성.\n\n"
                 f"**입력 변수** (SKILL.md에서 치환):\n"
                 f"- `{{TODO_var1}}`: TODO 설명\n"
                 f"- `{{TODO_var2}}`: TODO 설명\n\n"
@@ -925,7 +925,7 @@ def cmd_update_frontmatter(args):
             "changed": changed,
             "frontmatter_before": fm_before,
             "frontmatter_after": fm,
-            "message": "DRY RUN — 변경사항 미리보기. 실제 적용하려면 --dry-run 없이 재실행하세요.",
+            "message": "DRY RUN: 변경사항 미리보기. 실제 적용하려면 --dry-run 없이 재실행하세요.",
         })
         return
 
@@ -960,11 +960,11 @@ def cmd_delete(args):
             "would_delete": str(sp),
             "file_count": len(files),
             "files": files[:20] + (["..."] if len(files) > 20 else []),
-            "message": "DRY RUN — 실제 삭제하려면 --dry-run 없이 재실행하세요.",
+            "message": "DRY RUN: 실제 삭제하려면 --dry-run 없이 재실행하세요.",
         })
         return
 
-    # HARD delete — 복구 불가. 백업 기능은 의도적으로 제공하지 않는다.
+    # HARD delete: 복구 불가. 백업 기능은 의도적으로 제공하지 않는다.
     shutil.rmtree(str(sp))
 
     ok({
@@ -1022,7 +1022,7 @@ def main():
 
     # review
     p_rev = sub.add_parser("review",
-                           help="Score a skill (BP/parallelism/harness) — read-only")
+                           help="Score a skill (BP/parallelism/harness), read-only")
     p_rev.add_argument("name", help="Skill name")
     add_scope(p_rev)
 
@@ -1039,7 +1039,7 @@ def main():
 
     # delete
     p_del = sub.add_parser("delete",
-                           help="Delete a skill (HARD delete — 복구 불가, 백업 없음)")
+                           help="Delete a skill (HARD delete: 복구 불가, 백업 없음)")
     p_del.add_argument("name", help="Skill name")
     p_del.add_argument("--dry-run", action="store_true",
                        help="List files that would be removed without acting")

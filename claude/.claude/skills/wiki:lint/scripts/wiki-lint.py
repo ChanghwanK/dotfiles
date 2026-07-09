@@ -365,7 +365,7 @@ def _rewrite_tags_in_file(filepath: str, old_tags: list, new_tags: list):
 
 def _print_text_report(issues: dict, total: int, auto_fixable: int):
     today = date.today().isoformat()
-    print(f"wiki:lint report — {today}")
+    print(f"wiki:lint report: {today}")
     print("=" * 50)
     print()
 
@@ -398,7 +398,7 @@ def _print_text_report(issues: dict, total: int, auto_fixable: int):
                 print(f"  - {fname} ({item.get('reason', '')})")
             elif target == "metadata":
                 missing = ", ".join(item.get("missing_fields", []))
-                print(f"  - {fname} — {missing} 누락")
+                print(f"  - {fname}: {missing} 누락")
             elif target == "type-invalid":
                 cur = item.get("current_type", "")
                 valid = "|".join(item.get("valid_types", []))

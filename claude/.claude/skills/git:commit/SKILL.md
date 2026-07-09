@@ -17,7 +17,7 @@ Staged 파일을 분석하고 커밋 컨벤션에 맞게 커밋한다.
 
 ## 워크플로우
 
-### Step 1 — Staged 변경사항 수집
+### Step 1: Staged 변경사항 수집
 
 ```bash
 git diff --cached --name-only   # staged 파일 목록 확인
@@ -42,7 +42,7 @@ git status --short   # 전체 변경사항 파악
 
 `git add .` 실행 후 `git diff --cached` 로 staged diff를 수집하고 Step 2로 진행한다.
 
-### Step 2 — 레포 타입 감지
+### Step 2: 레포 타입 감지
 
 staged 파일 경로를 분석해 레포 타입을 결정한다:
 
@@ -52,7 +52,7 @@ staged 파일 경로를 분석해 레포 타입을 결정한다:
 | `.tf` 파일 또는 `terraform/` 경로 존재 | terraform |
 | 그 외 | general |
 
-### Step 3 — Commit Message 생성
+### Step 3: Commit Message 생성
 
 **형식:** `type(scope): subject` + 빈 줄 + body 요약 (Conventional Commits)
 
@@ -63,15 +63,15 @@ staged 파일 경로를 분석해 레포 타입을 결정한다:
 > 따라서 정보 밀도는 subject에 우선 압축하고, body 요약은 feature 브랜치·PR 리뷰·로컬 history 용도다.
 
 **Type 선택:**
-- `chore` — 설정/인프라 변경 (image tag, values, config)
-- `feat` — 새 리소스/기능 추가
-- `fix` — 버그 수정
-- `docs` — 문서만 변경
-- `refactor` — 기능 변경 없는 구조 개선
+- `chore`: 설정/인프라 변경 (image tag, values, config)
+- `feat`: 새 리소스/기능 추가
+- `fix`: 버그 수정
+- `docs`: 문서만 변경
+- `refactor`: 기능 변경 없는 구조 개선
 
 **Subject 규칙 (가장 중요):**
 - `동작 + 대상 + (가능하면) 의도/효과`를 한 줄로 압축한다.
-- 단순 `Update X` / `Change Y` 금지 — diff만 봐도 아는 "무엇"만 적지 말고 "왜/효과"를 한 조각 넣는다.
+- 단순 `Update X` / `Change Y` 금지: diff만 봐도 아는 "무엇"만 적지 말고 "왜/효과"를 한 조각 넣는다.
 - 길이 ~72자 가이드. 넘으면 body로 빼지 말고 subject에서 의도를 압축한다.
 
 | generic (지양) | history-친화 (지향) |
@@ -103,12 +103,12 @@ fix(observability/alloy): set GOMEMLIMIT to prevent OOMKill in prod
 - 이모지 금지, Co-Authored-By 금지
 - subject·body 모두 영어, 명령형 현재형 (Update, Add, Fix, Remove...)
 
-### Step 4 — 민감 파일 체크
+### Step 4: 민감 파일 체크
 
 아래 패턴 파일은 staged에 포함되어 있어도 커밋 전 경고 후 진행 여부를 확인한다:
 - `.env`, `.env.*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`
 
-### Step 5 — Commit 실행
+### Step 5: Commit 실행
 
 ```bash
 git commit -m "$(cat <<'EOF'
@@ -122,7 +122,7 @@ EOF
 
 pre-commit hook 실패 시: 문제를 수정한 후 **새 커밋 생성** (amend 금지).
 
-### Step 6 — 결과 출력
+### Step 6: 결과 출력
 
 `git commit` 출력에서 커밋 해시와 메시지를 직접 표시한다.
 
@@ -144,4 +144,4 @@ chore(santa/authentication): Update image tag in dev
 - push는 실행하지 않는다
 - 이모지를 커밋 메시지에 절대 사용하지 않는다
 - Co-Authored-By 라인을 커밋 메시지에 추가하지 않는다
-- amend 금지 — MUST 새 커밋 생성
+- amend 금지: MUST 새 커밋 생성

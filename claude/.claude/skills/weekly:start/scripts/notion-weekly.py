@@ -326,7 +326,7 @@ def cmd_quarterly_goals(args):
     if not quarter:
         quarter = infer_current_quarter()
 
-    # Tag 필터 — multi_select contains
+    # Tag 필터: multi_select contains
     body = {
         "filter": {
             "property": "Tag",

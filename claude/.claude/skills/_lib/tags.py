@@ -35,7 +35,7 @@ TAG_DOMAIN_MAP = {
     "pki": "security",
 }
 
-# AWS 서비스명 집합 — normalize_tags에서 aws 매핑에 사용
+# AWS 서비스명 집합: normalize_tags에서 aws 매핑에 사용
 AWS_SERVICES = {
     "cloudfront", "route53", "aurora", "rds", "alb", "elb",
     "ecs", "eks", "ec2", "s3", "cloudwatch", "iam", "vpc",

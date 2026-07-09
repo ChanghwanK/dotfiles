@@ -51,7 +51,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/scripts/plan-preview.sh"
+            "command": "$HOME/.claude/scripts/plan-preview.sh",
+            "timeout": 320
           }
         ]
       }

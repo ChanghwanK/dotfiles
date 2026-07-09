@@ -33,7 +33,7 @@ python3 /Users/changhwan/.claude/scripts/plan-todo.py todo
 ```
 [plan-todo] Step 2 marked done.
 
-📋 **plan-name** — 2/6 완료
+📋 **plan-name**: 2/6 완료
   ✅ Step 1: ...
   ✅ Step 2: ...  _(완료: 2026-05-08T10:30)_
   ⬜ Step 3: ...

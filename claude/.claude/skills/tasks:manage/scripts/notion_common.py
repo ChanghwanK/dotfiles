@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Notion 공통 헬퍼 — tasktui(todo_store/todo_sync)와 향후 notion-task.py 공유용.
+Notion 공통 헬퍼: tasktui(todo_store/todo_sync)와 향후 notion-task.py 공유용.
 
 notion-task.py에서 검증된 패턴(notion_request, rich_text_to_plain, _parse_page,
 상수)을 추출했다. 파일명에 하이픈이 있는 notion-task.py는 `import`로 불러올 수
@@ -168,7 +168,7 @@ def parse_page(page):
 # notion-task.py:cmd_create_task가 모든 신규 Task에 prepend하는 boilerplate다.
 _BODY_NOISE_PREFIXES = ("업무 노트 작성하기",)
 
-# 본문 미리보기 캐시 상한 — 캐시 비대화 방지. fzf preview는 스크롤되므로
+# 본문 미리보기 캐시 상한: 캐시 비대화 방지. fzf preview는 스크롤되므로
 # 핵심 도입부만 보여도 충분하고, 전체는 ctrl-o(Notion 열기)로 본다.
 _BODY_PREVIEW_CAP = 2000
 
@@ -220,14 +220,14 @@ def blocks_to_preview_text(blocks):
 
     body = "\n".join(lines).strip()
     if len(body) > _BODY_PREVIEW_CAP:
-        body = body[:_BODY_PREVIEW_CAP].rstrip() + "\n… (생략 — ctrl-o로 Notion에서 전체 보기)"
+        body = body[:_BODY_PREVIEW_CAP].rstrip() + "\n… (생략, ctrl-o로 Notion에서 전체 보기)"
     return body
 
 
 # ── 조회 ──────────────────────────────────────────────────────
 
 def query_active_tasks(token):
-    """완료 제외 모든 활성 Task 조회 — notion-task.py와 동일 필터/정렬."""
+    """완료 제외 모든 활성 Task 조회: notion-task.py와 동일 필터/정렬."""
     body = {
         "filter": {"property": "상태", "status": {"does_not_equal": "완료"}},
         "sorts": [{"property": "Priority", "direction": "ascending"}],
@@ -247,7 +247,7 @@ COMPLETED_WINDOW_DAYS = 14
 
 
 def query_recent_completed_tasks(token, days=COMPLETED_WINDOW_DAYS):
-    """완료 상태 + Due Date가 최근 N일 내인 Task만 조회 — Tasks 탭 ALL 뷰 노출용.
+    """완료 상태 + Due Date가 최근 N일 내인 Task만 조회: Tasks 탭 ALL 뷰 노출용.
 
     query_active_tasks와 달리 양방향 sync 대상이 아니다(읽기 전용 캐시).
     완료본을 push/충돌 로직에 끌어들이면 의도치 않은 status 되돌림이 생길 수 있어

@@ -37,7 +37,7 @@ Notion Task 링크 하나로 "지금까지 뭘 했는지"와 "지금 상태"를 
 
 ## 워크플로우
 
-### Step 1 — 링크 파싱 + Task 속성 조회
+### Step 1: 링크 파싱 + Task 속성 조회
 
 ```bash
 python3 /Users/changhwan/.claude/skills/task:resume/scripts/resolve_task.py resolve --url "<사용자가 준 노션 링크 또는 page_id>"
@@ -49,10 +49,10 @@ python3 /Users/changhwan/.claude/skills/task:resume/scripts/resolve_task.py reso
 - `success: false` → 에러 메시지를 그대로 사용자에게 보여주고 종료.
 - `is_task_db: false` → Task DB 페이지가 아닌 것으로 보인다는 점을 한 줄
   경고하고 계속 진행한다(본문 읽기는 여전히 유효하나, 상태 값이 없거나
-  의미가 다를 수 있음 — Step 2의 상태 전환은 `status` 값 자체가 없으면
+  의미가 다를 수 있음: Step 2의 상태 전환은 `status` 값 자체가 없으면
   자연히 스킵된다).
 
-### Step 2 — 상태 전환 ('시작 전' -> '진행 중', 조건부)
+### Step 2: 상태 전환 ('시작 전' -> '진행 중', 조건부)
 
 Step 1에서 얻은 `status` 값으로 분기한다:
 
@@ -76,7 +76,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
 확인한다. 실패(에러 응답)면 Step 4 출력에 "상태 전환 실패, 수동 확인 필요"를
 덧붙인다.
 
-### Step 3 — 본문 읽기
+### Step 3: 본문 읽기
 
 ```
 mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
@@ -87,7 +87,7 @@ mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
 - 아직 안 된 것(미완료 체크박스, "다음 단계" 류 섹션)
 - 막혔던 지점이나 의사결정이 필요했던 부분
 
-### Step 4 — 컨텍스트 요약 출력
+### Step 4: 컨텍스트 요약 출력
 
 아래 형식으로 정리해 응답한다(짧고 핵심만, 표 대신 목록):
 
@@ -116,7 +116,7 @@ mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
 - `resolve_task.py`는 제목 슬러그가 붙은 URL, 대시 없는/있는 UUID, 순수
   page_id 문자열을 모두 처리한다. 파싱 실패 시(`success: false`) 링크가
   잘렸거나 잘못 복사됐을 가능성을 안내한다.
-- `NOTION_TOKEN` 환경변수가 없으면 `resolve_task.py`가 즉시 에러를 낸다 —
+- `NOTION_TOKEN` 환경변수가 없으면 `resolve_task.py`가 즉시 에러를 낸다.
   `tasks:manage`의 다른 스크립트들과 동일한 토큰을 공유한다.
 - 이 스킬은 Task 속성(상태) 변경만 하며, 본문 콘텐츠는 수정하지 않는다.
   본문에 진행 로그를 추가하려면 `tasks:manage/scripts/notion-task.py

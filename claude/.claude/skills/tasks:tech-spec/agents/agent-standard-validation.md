@@ -14,7 +14,7 @@ SOCRAAI 표준 초기 검증 4개 항목을 조사하고 결과를 반환한다.
 
 ## 검증 항목
 
-### 1. 우선순위 검증 — 생산성 > 비용 > 안정성
+### 1. 우선순위 검증: 생산성 > 비용 > 안정성
 
 주제({topic})와 목표({goal_summary})를 분석:
 - **생산성 영향**: 이 변경이 제품팀/DevOps팀의 병목을 해소하는가? Self-service를 향상시키는가?
@@ -23,7 +23,7 @@ SOCRAAI 표준 초기 검증 4개 항목을 조사하고 결과를 반환한다.
 
 판정: ✅ (가중치에 부합) / ⚠️ (재검토 필요) / ❌ (가중치 위반)
 
-### 2. 네트워크 검증 — Cross-zone 지양, VPC Endpoint, NAT GW 회피
+### 2. 네트워크 검증: Cross-zone 지양, VPC Endpoint, NAT GW 회피
 
 주제를 분석하여:
 - **Cross-zone 트래픽**: 이 변경이 Cross-zone 통신을 증가시키는가?
@@ -34,7 +34,7 @@ SOCRAAI 표준 초기 검증 4개 항목을 조사하고 결과를 반환한다.
 
 판정: ✅ (영향 없음 또는 최적화됨) / ⚠️ (영향 있으나 정당화 가능) / ❌ (비용 증가 위험)
 
-### 3. 비용 검증 — 오픈소스 우선, Managed Service 비용 비교
+### 3. 비용 검증: 오픈소스 우선, Managed Service 비용 비교
 
 - **Managed Service 도입 여부**: 새로운 Managed Service를 도입하는가?
 - **오픈소스 대안**: 동일 기능을 오픈소스로 구현 가능한가?
@@ -43,7 +43,7 @@ SOCRAAI 표준 초기 검증 4개 항목을 조사하고 결과를 반환한다.
 
 판정: ✅ (오픈소스 또는 기존 스택 활용) / ⚠️ (Managed Service 사용하되 ROI 명확) / ❌ (불필요한 Managed Service)
 
-### 4. Dev/Stg 적정성 검증 — 비용 최적화, Single AZ 선호
+### 4. Dev/Stg 적정성 검증: 비용 최적화, Single AZ 선호
 
 목표({goal_summary})가 Dev/Stg 환경에도 적용되는 경우:
 - **Single AZ**: Dev/Stg에서 Multi-AZ 사용이 필요한가? Single AZ로 충분한가?

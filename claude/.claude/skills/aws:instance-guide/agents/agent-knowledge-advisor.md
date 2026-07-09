@@ -14,13 +14,13 @@ AWS 공식 문서와 최신 정보를 조사하여 워크로드별 최적 인스
 ## 조사 원칙
 
 1. **공식 문서 우선**: AWS 공식 문서, AWS Blog, AWS re:Invent 발표 기반 정보 수집
-2. **최신성 검증**: 2024년 이후 정보 우선 — 구세대 권장사항 지양
+2. **최신성 검증**: 2024년 이후 정보 우선, 구세대 권장사항 지양
 3. **컨텍스트 반영**: SOCRA AI 인프라 특성(EKS, Aurora PostgreSQL, ElastiCache, Graviton 친화) 적용
 4. **구체성**: "권장한다"가 아닌 "왜 권장하는지"까지 설명
 
 ---
 
-## Step 1 — AWS 공식 문서 조사
+## Step 1: AWS 공식 문서 조사
 
 서비스 타입별 공식 인스턴스 선택 가이드를 WebSearch로 수집한다.
 
@@ -56,7 +56,7 @@ AWS 공식 문서와 최신 정보를 조사하여 워크로드별 최적 인스
 
 ---
 
-## Step 2 — 워크로드별 권장 인스턴리 패밀리 정리
+## Step 2: 워크로드별 권장 인스턴리 패밀리 정리
 
 수집된 정보를 기반으로 서비스 타입별 권장사항을 정리한다.
 
@@ -68,7 +68,7 @@ AWS 공식 문서와 최신 정보를 조사하여 워크로드별 최적 인스
 | 메모리 집약 (ML, 캐시) | r7g / r8g (Graviton) | r7i | GB당 비용 최적 |
 | 컴퓨팅 집약 (batch, 인코딩) | c7g / c8g (Graviton) | c7i | vCPU 집중도 최고 |
 | 버스터블 (dev/stg) | t4g | t3a | ARM64 + 20% 절감 |
-| GPU (ML 추론) | g5 / g6 | — | NVIDIA GPU |
+| GPU (ML 추론) | g5 / g6 | - | NVIDIA GPU |
 
 ### RDS / Aurora PostgreSQL 권장
 
@@ -93,7 +93,7 @@ AWS 공식 문서와 최신 정보를 조사하여 워크로드별 최적 인스
 
 ---
 
-## Step 3 — SOCRA AI 인프라 특성 반영 분석
+## Step 3: SOCRA AI 인프라 특성 반영 분석
 
 다음 맥락을 반영하여 권장사항을 구체화한다:
 
@@ -126,7 +126,7 @@ Graviton(ARM64) 인스턴스 권장 시 반드시 다음 항목 안내:
 
 ---
 
-## Step 4 — RI/Savings Plans 고려사항
+## Step 4: RI/Savings Plans 고려사항
 
 워크로드 안정성에 따라 비용 최적화 옵션을 안내한다:
 
@@ -161,14 +161,14 @@ purpose: {purpose}
 best_practices:
   - category: "{Graviton|세대별|비용최적화|안정성|마이그레이션}"
     recommendation: "{구체적 권장사항}"
-    reasoning: "{이유 — 성능 수치 또는 공식 문서 근거}"
+    reasoning: "{이유, 성능 수치 또는 공식 문서 근거}"
     source: "{AWS 공식 문서 URL 또는 출처}"
   - category: ...
 family_guide:
   - family: "{인스턴스 패밀리}"
     use_case: "{적합한 워크로드}"
     processor: "{Graviton3/Graviton4/Intel Sapphire Rapids/AMD EPYC}"
-    cost_efficiency: "{On-Demand 대비 상대 비용 — 예: r7g.large = $0.1512/h}"
+    cost_efficiency: "{On-Demand 대비 상대 비용, 예: r7g.large = $0.1512/h}"
     recommended_for: "{SOCRA AI 인프라에서 어떤 용도에 추천}"
   - family: ...
 graviton_migration:

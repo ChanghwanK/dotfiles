@@ -376,7 +376,7 @@ def parse_obsidian_daily(file_path):
         if todo and not line.startswith("\t"):
             top3.append(todo)
 
-    # Todos 파싱 — 최상위 항목 + 서브 체크박스 포함
+    # Todos 파싱: 최상위 항목 + 서브 체크박스 포함
     # todos: 브리핑 표시용 (최상위만), sub_checkboxes: 진행률 계산용 추가분
     todos = []
     sub_done_count = 0
@@ -424,7 +424,7 @@ def parse_obsidian_daily(file_path):
 
 
 def cmd_today(args):
-    """오늘 기준 경량 브리핑 — Obsidian daily note에서 데이터를 가져온다."""
+    """오늘 기준 경량 브리핑: Obsidian daily note에서 데이터를 가져온다."""
     today_str = date.today().isoformat()
     daily_file = os.path.join(OBSIDIAN_DAILY_DIR, f"{today_str}.md")
 
@@ -456,7 +456,7 @@ def cmd_daily_progress(args):
 
 
 # ─────────────────────────────────────────────
-# reconcile-progress — Daily Note ↔ Notion 진행률 보정 (진실 소스)
+# reconcile-progress: Daily Note ↔ Notion 진행률 보정 (진실 소스)
 # ─────────────────────────────────────────────
 #
 # 배경: Daily Note 체크박스(`today`)는 Notion status보다 갱신이 지연될 수 있다.
@@ -480,7 +480,7 @@ def _normalize_title(s):
 
 
 def _tokenize_title(s):
-    """토큰 집합 — prefix 제거 후 한글/영숫자 토큰."""
+    """토큰 집합: prefix 제거 후 한글/영숫자 토큰."""
     import re
     s = re.sub(r"^\s*(\[[^\]]*\]\s*)+", "", s or "").lower()
     return set(re.findall(r"[0-9a-z가-힣]+", s))
@@ -502,7 +502,7 @@ def match_daily_to_task(daily_text, task_name, token_threshold=0.6):
 
 
 def query_tasks_by_status(token, status_equals=None, status_not=None):
-    """상태 필터 기반 Task 조회 (name/status만 추출). 단일 페이지(최대 100건) —
+    """상태 필터 기반 Task 조회 (name/status만 추출). 단일 페이지(최대 100건).
     기존 조회 함수들과 동일하게 페이지네이션은 하지 않는다."""
     if status_equals is not None:
         flt = {"property": "상태", "status": {"equals": status_equals}}
@@ -567,7 +567,7 @@ def cmd_reconcile_progress(args):
 
     parsed = parse_obsidian_daily(daily_file)
 
-    # top3 + todos 합집합 (정규화 텍스트 기준 dedup) — SKILL check (C) "top3·todos 각 항목"
+    # top3 + todos 합집합 (정규화 텍스트 기준 dedup): SKILL check (C) "top3·todos 각 항목"
     seen = set()
     daily_items = []
     for it in parsed["top3"] + parsed["todos"]:
@@ -578,7 +578,7 @@ def cmd_reconcile_progress(args):
         daily_items.append(it)
 
     token = get_token()
-    # 활성(비-완료) + 최근 완료 100건 — 오늘 항목 매칭에 충분하도록 양쪽 모두 수집
+    # 활성(비-완료) + 최근 완료 100건: 오늘 항목 매칭에 충분하도록 양쪽 모두 수집
     active = query_tasks_by_status(token, status_not="완료")
     completed = query_tasks_by_status(token, status_equals="완료")
     notion_tasks = active + completed

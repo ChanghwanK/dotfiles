@@ -20,7 +20,7 @@
 | 도메인 구분 | colon (`:`) |
 | Regex | `^[a-z][a-z0-9]*([:-][a-z0-9]+)*$` |
 | 최대 길이 | 64자 |
-| 최대 깊이 | colon 2개 (3 segment) — 예외적 상황에서만 |
+| 최대 깊이 | colon 2개 (3 segment), 예외적 상황에서만 |
 
 ### 네임스페이스 원칙
 
@@ -33,11 +33,11 @@
 | 워크플로우 단계 | `workflow:phase` | `daily:start`, `daily:review` |
 
 **네임스페이스 = 대상 플랫폼/도메인**:
-- `notion:` — Notion에 쓰는 모든 스킬
-- `obsidian:` — Obsidian vault에 쓰는 모든 스킬
-- `slack:` — Slack 관련 모든 스킬
-- `devops:` — DevOps 운영 워크플로우
-- `daily:` — 일과 워크플로우 (워크플로우 성격이 강해 별도 유지)
+- `notion:`: Notion에 쓰는 모든 스킬
+- `obsidian:`: Obsidian vault에 쓰는 모든 스킬
+- `slack:`: Slack 관련 모든 스킬
+- `devops:`: DevOps 운영 워크플로우
+- `daily:`: 일과 워크플로우 (워크플로우 성격이 강해 별도 유지)
 
 ### Action Part 패턴
 
@@ -87,7 +87,7 @@ description: |
   한국어로 작성된 설명.
   사용 시점: (1) 상황 1, (2) 상황 2.
   트리거 키워드: "키워드1", "키워드2", "/skill-name".
-model: sonnet          # 선택사항 — haiku | sonnet | opus
+model: sonnet          # 선택사항: haiku | sonnet | opus
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/<name>/scripts/<script>.py *)
   - Read
@@ -97,7 +97,7 @@ allowed-tools:
 ```
 
 **규칙:**
-- `name`: 디렉토리명과 반드시 일치 (`^[a-z][a-z0-9]*([:-][a-z0-9]+)*$`, max 64자) — 콜론(`:`)으로 네임스페이스 구분 가능 (예: `notion:eng`, `slack:send`)
+- `name`: 디렉토리명과 반드시 일치 (`^[a-z][a-z0-9]*([:-][a-z0-9]+)*$`, max 64자). 콜론(`:`)으로 네임스페이스 구분 가능 (예: `notion:eng`, `slack:send`)
 - `description`: 한국어, 블록 스칼라(`|`), 사용 시점과 트리거 키워드 포함
 - `model`: 복잡한 워크플로우 → `sonnet`, 단순 작업 → `haiku`, 지정 없으면 기본값 사용
 - `allowed-tools`: 스크립트는 **절대 경로** 필수 (`/Users/changhwan/...`)
@@ -117,7 +117,7 @@ allowed-tools:
 │   └── <template>.md
 ├── references/        # 보조 문서 (상세 가이드)
 │   └── <doc>.md
-└── agents/            # (선택) Sub-Agent 프롬프트 — Claude가 필요 시 생성
+└── agents/            # (선택) Sub-Agent 프롬프트: Claude가 필요 시 생성
     └── agent-<역할>.md
 ```
 
@@ -216,14 +216,14 @@ Claude Code는 스킬을 3단계로 로드한다:
 - Description = **언제 사용할지** (트리거만)
 - Body = **무엇을/어떻게 할지** (절차만)
 
-나쁜 예 — Body에 트리거 설명 중복:
+나쁜 예: Body에 트리거 설명 중복:
 ```
 # My Skill
 
 이 스킬은 Notion 업무 일지를 작성할 때 사용합니다.
 ```
 
-좋은 예 — Body는 절차/결과만:
+좋은 예: Body는 절차/결과만:
 ```
 # My Skill
 
@@ -257,7 +257,7 @@ Claude가 이미 아는 개념(JSON, REST API, kubectl, Docker 등)은 설명하
 워크플로우 마지막에 검증 Step을 MUST 포함. 구체적인 에러 메시지와 수정 방법 제시:
 
 ```
-### Step N — 검증
+### Step N: 검증
 
 실패 시:
 - `error: missing field` → 필드 추가 후 재실행
@@ -284,17 +284,17 @@ Claude가 이미 아는 개념(JSON, REST API, kubectl, Docker 등)은 설명하
 - 10줄 이상의 Agent 인라인 프롬프트 → `agents/agent-<역할>.md`로 분리
 
 **agents/ 디렉토리 규칙**:
-- 파일 명명: `agent-{역할}.md` (lowercase, hyphen-case) — 예: `agent-notion-reader.md`, `agent-transcript-parser.md`
-- 프롬프트 내 동적 값: `{변수명}` placeholder 사용 — 예: `{date}`, `{yesterday_note_path}`
+- 파일 명명: `agent-{역할}.md` (lowercase, hyphen-case), 예: `agent-notion-reader.md`, `agent-transcript-parser.md`
+- 프롬프트 내 동적 값: `{변수명}` placeholder 사용, 예: `{date}`, `{yesterday_note_path}`
 - SKILL.md body에서 Read로 참조 후 변수 치환 지시 작성
 - `allowed-tools` frontmatter에 `- Agent` 추가
 - Claude가 Step 1 요구사항 분석에서 병렬 Sub-Agent 필요 여부를 판단하여 생성 (자동 스캐폴딩 없음)
 
 **허용 패턴** (allowed-tools):
-- `Bash(python3 /abs/path/scripts/*.py *)` — Python 스크립트 호출
-- `Bash(bash /abs/path/scripts/*.sh *)` — Shell 스크립트 호출
-- `Bash(kubectl *)` — kubectl은 예외적으로 직접 허용
-- `Read`, `Write`, `Edit`, `Glob`, `Grep` — 비-Bash 도구
+- `Bash(python3 /abs/path/scripts/*.py *)`: Python 스크립트 호출
+- `Bash(bash /abs/path/scripts/*.sh *)`: Shell 스크립트 호출
+- `Bash(kubectl *)`: kubectl은 예외적으로 직접 허용
+- `Read`, `Write`, `Edit`, `Glob`, `Grep`: 비-Bash 도구
 
 ---
 
@@ -317,7 +317,7 @@ Claude가 이미 아는 개념(JSON, REST API, kubectl, Docker 등)은 설명하
 
 ## 워크플로우
 
-### Step 1 — 단계명
+### Step 1: 단계명
 
 설명
 
@@ -325,7 +325,7 @@ Claude가 이미 아는 개념(JSON, REST API, kubectl, Docker 등)은 설명하
 python3 /abs/path/to/script.py subcommand --option value
 ```
 
-### Step 2 — ...
+### Step 2: ...
 
 ---
 
@@ -387,7 +387,7 @@ python3 /abs/path/to/script.py subcommand --option value
 - **Description, 워크플로우 설명, 주의사항**: 한국어
 - **코드, 명령, JSON 키, 변수명**: 영어
 - **섹션 헤더**: 한국어 (예: `## 핵심 원칙`, `## 주의사항`)
-- **Step 이름**: `### Step N — 한국어 설명`
+- **Step 이름**: `### Step N: 한국어 설명`
 
 ---
 

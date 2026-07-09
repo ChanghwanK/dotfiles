@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# env-init.sh — 환경 초기화 (멱등)
+# env-init.sh: 환경 초기화 (멱등)
 # Usage:
-#   env-init.sh brew    — brew upgrade (하루 한 번)
-#   env-init.sh gimme   — gimme-aws-creds (하루 한 번)
+#   env-init.sh brew: brew upgrade (하루 한 번)
+#   env-init.sh gimme: gimme-aws-creds (하루 한 번)
 set -euo pipefail
 
 SUBCOMMAND="${1:-}"
@@ -19,7 +19,7 @@ case "$SUBCOMMAND" in
       exit 0
     fi
     if ! brew upgrade 2>&1; then
-      echo "brew upgrade failed (exit $?). Marker not created — will retry next run." >&2
+      echo "brew upgrade failed (exit $?). Marker not created. Will retry next run." >&2
       exit 1
     fi
     touch "$MARKER"
@@ -35,7 +35,7 @@ case "$SUBCOMMAND" in
       exit 1
     fi
     if ! gimme-aws-creds 2>&1; then
-      echo "gimme-aws-creds failed (exit $?). Marker not created — will retry next run." >&2
+      echo "gimme-aws-creds failed (exit $?). Marker not created. Will retry next run." >&2
       exit 1
     fi
     touch "$MARKER"

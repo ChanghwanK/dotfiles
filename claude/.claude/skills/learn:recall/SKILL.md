@@ -30,7 +30,7 @@ allowed-tools:
 
 ## 실행 절차
 
-### Step 0 — 노트 목록 (인자 없음)
+### Step 0: 노트 목록 (인자 없음)
 
 `04. Wiki/ignorance-notes/` 디렉토리의 `.md` 파일을 읽고 frontmatter에서 title, date, expires, status를 추출하여 표로 출력한다.
 
@@ -47,7 +47,7 @@ allowed-tools:
 
 만료된 노트(expires < 오늘)는 취소선으로 표시한다.
 
-### Step 1 — 노트 탐색
+### Step 1: 노트 탐색
 
 `topic` 인자를 파일명 및 title 필드에서 퍼지 매칭으로 찾는다.
 
@@ -58,7 +58,7 @@ find "/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_hom
 매칭 결과가 여러 개면 목록을 보여주고 선택하게 한다.
 매칭 결과가 없으면 유사한 파일명을 제안하거나 새 학습 세션을 권유한다.
 
-### Step 2 — 노트 로드 및 상태 확인
+### Step 2: 노트 로드 및 상태 확인
 
 노트 frontmatter에서 아래 필드를 확인한다.
 
@@ -72,7 +72,7 @@ find "/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_hom
 
 - `## 이해 점검 질문` 섹션을 파싱하여 질문 목록을 추출한다.
 
-### Step 3 — 재인터뷰 진행
+### Step 3: 재인터뷰 진행
 
 **오프닝 (상태에 따라):**
 
@@ -101,7 +101,7 @@ find "/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_hom
 **실무 연계 확장 (선택):**
 - 기본 질문 통과 후 "실무에 연결해보겠습니다" 한 마디 후 실무 연계 질문 1개 추가 가능.
 
-### Step 4 — 결과 및 status 갱신 제안
+### Step 4: 결과 및 status 갱신 제안
 
 **모든 질문 통과 시:**
 ```

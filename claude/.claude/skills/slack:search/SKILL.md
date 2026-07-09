@@ -8,7 +8,7 @@ This skill provides guidance for effectively searching Slack to find messages, f
 
 ## When to Use
 
-Apply this skill whenever you need to find information in Slack — including when a user asks you to locate messages, conversations, files, or people, or when you need to gather context before answering a question about what's happening in Slack.
+Apply this skill whenever you need to find information in Slack, including when a user asks you to locate messages, conversations, files, or people, or when you need to gather context before answering a question about what's happening in Slack.
 
 ## Search Tools Overview
 
@@ -29,8 +29,8 @@ Apply this skill whenever you need to find information in Slack — including wh
 
 ### Choose the Right Search Mode
 
-- **Natural language questions** (e.g., "What is the deadline for project X?") — Best for fuzzy, conceptual searches where you don't know exact keywords.
-- **Keyword search** (e.g., `project X deadline`) — Best for finding specific, exact content.
+- **Natural language questions** (e.g., "What is the deadline for project X?"): Best for fuzzy, conceptual searches where you don't know exact keywords.
+- **Keyword search** (e.g., `project X deadline`): Best for finding specific, exact content.
 
 ### Use Multiple Searches
 
@@ -42,42 +42,42 @@ Don't rely on a single search. Break complex questions into smaller searches:
 ## Search Modifiers Reference
 
 ### Location Filters
-- `in:channel-name` — Search within a specific channel
-- `in:<#C123456>` — Search in channel by ID
-- `-in:channel-name` — Exclude a channel
-- `in:<@U123456>` — Search in DMs with a user
+- `in:channel-name`: Search within a specific channel
+- `in:<#C123456>`: Search in channel by ID
+- `-in:channel-name`: Exclude a channel
+- `in:<@U123456>`: Search in DMs with a user
 
 ### User Filters
-- `from:<@U123456>` — Messages from a specific user (by ID)
-- `from:username` — Messages from a user (by Slack username)
-- `to:me` — Messages sent directly to you
+- `from:<@U123456>`: Messages from a specific user (by ID)
+- `from:username`: Messages from a user (by Slack username)
+- `to:me`: Messages sent directly to you
 
 ### Content Filters
-- `is:thread` — Only threaded messages
-- `has:pin` — Pinned messages
-- `has:link` — Messages containing links
-- `has:file` — Messages with file attachments
-- `has::emoji:` — Messages with a specific reaction
+- `is:thread`: Only threaded messages
+- `has:pin`: Pinned messages
+- `has:link`: Messages containing links
+- `has:file`: Messages with file attachments
+- `has::emoji:`: Messages with a specific reaction
 
 ### Date Filters
-- `before:YYYY-MM-DD` — Messages before a date
-- `after:YYYY-MM-DD` — Messages after a date
-- `on:YYYY-MM-DD` — Messages on a specific date
-- `during:month` — Messages during a specific month (e.g., `during:january`)
+- `before:YYYY-MM-DD`: Messages before a date
+- `after:YYYY-MM-DD`: Messages after a date
+- `on:YYYY-MM-DD`: Messages on a specific date
+- `during:month`: Messages during a specific month (e.g., `during:january`)
 
 ### Text Matching
-- `"exact phrase"` — Match an exact phrase
-- `-word` — Exclude messages containing a word
-- `wild*` — Wildcard matching (minimum 3 characters before `*`)
+- `"exact phrase"`: Match an exact phrase
+- `-word`: Exclude messages containing a word
+- `wild*`: Wildcard matching (minimum 3 characters before `*`)
 
 ## File Search
 
 To search for files, use the `content_types="files"` parameter with type filters:
-- `type:images` — Image files
-- `type:documents` — Document files
-- `type:pdfs` — PDF files
-- `type:spreadsheets` — Spreadsheet files
-- `type:canvases` — Slack Canvases
+- `type:images`: Image files
+- `type:documents`: Document files
+- `type:pdfs`: PDF files
+- `type:spreadsheets`: Spreadsheet files
+- `type:canvases`: Slack Canvases
 
 Example: `content_types="files" type:pdfs budget after:2025-01-01`
 

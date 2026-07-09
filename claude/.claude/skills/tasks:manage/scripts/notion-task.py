@@ -2,19 +2,19 @@
 """
 Notion Task CLI (Write + Query)
 
-공유 라이브러리 스크립트 — tasks:capture, tasks:status, tasks:carry-over,
+공유 라이브러리 스크립트: tasks:capture, tasks:status, tasks:carry-over,
 daily:start, daily:review 스킬에서 참조한다.
 
 Usage:
   # 조회
   python3 notion-task.py search-tasks [--status all|active]
   python3 notion-task.py tasks [--week current|previous|next] [--month YYYY-MM] [--status in-progress|upcoming|all]
-  python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료 — 캘린더 동기화 대상
+  python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료: 캘린더 동기화 대상
 
   # 생성
   python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"] [--body "Markdown" | --body-file PATH]
 
-  # ROI 설정 (Alfred groom — 사용자 승인 후)
+  # ROI 설정 (Alfred groom, 사용자 승인 후)
   python3 notion-task.py set-roi --page-id <id> --roi High|Medium|Low
 
   # 상태 변경
@@ -245,7 +245,7 @@ def query_calendar_pending(token):
 
 
 def cmd_calendar_pending(args):
-    """캘린더 동기화 desired set 출력 — Alfred calendar 모드가 reconcile 입력으로 사용."""
+    """캘린더 동기화 desired set 출력: Alfred calendar 모드가 reconcile 입력으로 사용."""
     token = get_token()
     results = query_calendar_pending(token)
     print(json.dumps({
@@ -469,7 +469,7 @@ def cmd_create_task(args):
 
 
 # ─────────────────────────────────────────────
-# ROI 설정 (Alfred groom 모드 — 게이트된 자율성: 사용자 승인 후 호출)
+# ROI 설정 (Alfred groom 모드, 게이트된 자율성: 사용자 승인 후 호출)
 # ─────────────────────────────────────────────
 
 def cmd_set_roi(args):
@@ -536,7 +536,7 @@ def cmd_update_status(args):
     # Alfred resume loader의 '시작 전' → '진행 중' 전이가 이 명령을 타므로 착수일이 자동 기록된다.
     # '시작 전' → '완료' 직행(진행 중 생략)도 backfill 대상이다: 착수일이 비면 완료 Task의
     # 리드타임 계산에서 통째로 누락되므로, 이 경우 완료일(오늘) = 착수일로 함께 박는다.
-    # 이미 started_at이 있으면 최초 착수 시점을 보존한다(재개해도 덮어쓰지 않는다 — 멱등).
+    # 이미 started_at이 있으면 최초 착수 시점을 보존한다(재개해도 덮어쓰지 않는다, 멱등).
     backfilled_started_at = None
     if is_starting or is_done:
         existing_started = existing_props.get("started_at", {}).get("date") or {}
@@ -665,7 +665,7 @@ def cmd_carry_over(args):
 
 
 # ─────────────────────────────────────────────
-# 본문 추가 (append-content) — Markdown → Notion blocks
+# 본문 추가 (append-content): Markdown → Notion blocks
 # task:review 결과를 Task 페이지 본문에 누적할 때 사용.
 # ─────────────────────────────────────────────
 
@@ -839,8 +839,8 @@ def markdown_to_blocks(md):
 # ─────────────────────────────────────────────
 
 _EMDASH_CHARS = {
-    "—": "em dash (—)",
-    "―": "horizontal bar (―)",
+    "—": "em dash (U+2014)",
+    "―": "horizontal bar (U+2015)",
 }
 # 이모지: astral plane(U+1F000~) 전반 + 흔한 BMP 픽토그램.
 # ✓(U+2713) ✗(U+2717) →(U+2192) ·(U+00B7) ═(U+2550) 등 서식 글리프는 의도적으로 제외한다.
@@ -907,7 +907,7 @@ def cmd_append_content(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Notion Task CLI (Write + Query) — tasks:manage 공유 스크립트"
+        description="Notion Task CLI (Write + Query): tasks:manage 공유 스크립트"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -941,7 +941,7 @@ def main():
     ct.add_argument("--description", default=None, help="부연 설명 (Description 속성)")
     ct.add_argument("--body", dest="body", default=None,
                     help="본문 템플릿 Markdown 문자열 (Summary/Why/기대효과/Non-Goals). "
-                         "본격 Task에만 사용 — 페이지 본문 최상단에 렌더링")
+                         "본격 Task에만 사용: 페이지 본문 최상단에 렌더링")
     ct.add_argument("--body-file", dest="body_file", default=None,
                     help="본문 템플릿 Markdown 파일 경로 (--body 대신 파일로 전달). 파일 우선")
     ct.add_argument("--image", dest="images", action="append", default=None,

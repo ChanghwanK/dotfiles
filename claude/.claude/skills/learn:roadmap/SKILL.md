@@ -33,13 +33,13 @@ allowed-tools:
 
 **트리거**: "101", "처음부터", "입문", "0부터"
 
-### Step 1 — 도메인 확인
+### Step 1: 도메인 확인
 
 사용자로부터 확인:
 - 학습 주제 (예: Kubernetes, Istio, VictoriaMetrics)
 - 학습 목적 (운영/트러블슈팅/설계/인터뷰 준비 중 선택)
 
-### Step 1.5 — Socratic Pre-Design (로드맵 설계 전 사고 유도)
+### Step 1.5: Socratic Pre-Design (로드맵 설계 전 사고 유도)
 
 기존 노트 탐색 전에, 사용자가 스스로 학습 우선순위를 먼저 생각하게 한다:
 
@@ -54,7 +54,7 @@ allowed-tools:
 
 사용자 답변을 로드맵 설계 시 반영한다. "바로 설계해줘" 시 즉시 Step 2로 진행한다.
 
-### Step 2 — 기존 노트 탐색
+### Step 2: 기존 노트 탐색
 
 ```bash
 python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py search-notes --domain "{domain}"
@@ -62,7 +62,7 @@ python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py search-
 
 결과를 보고 이미 학습한 항목을 `[x]`로 표시할 준비를 한다.
 
-### Step 3 — 커리큘럼 설계
+### Step 3: 커리큘럼 설계
 
 아래 **Level 0~10 체계**에 따라 각 레벨에 2~4개 구체적 항목 배치:
 
@@ -84,13 +84,13 @@ python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py search-
 
 **이미 학습한 항목**: Step 2 결과를 참조하여 `- [x]` 로 표시
 
-### Step 4 — Obsidian 저장
+### Step 4: Obsidian 저장
 
 **문서 형식** (`/tmp/roadmap-content.json` 에 JSON 작성):
 
 ```json
 {
-  "blocks": "## 로드맵 개요\n\n| 도메인 | 모드 | 총 항목 | 예상 기간 | SOCRAAI 연결 |\n...\n\n## Level 0 — 왜 존재하는가\n\n> 목표: 이 기술이 해결하는 문제를 설명할 수 있다\n\n- [ ] 0.1 {주제} → `/learn {topic}`\n  - SOCRAAI: {환경 연결점}\n..."
+  "blocks": "## 로드맵 개요\n\n| 도메인 | 모드 | 총 항목 | 예상 기간 | SOCRAAI 연결 |\n...\n\n## Level 0: 왜 존재하는가\n\n> 목표: 이 기술이 해결하는 문제를 설명할 수 있다\n\n- [ ] 0.1 {주제} → `/learn {topic}`\n  - SOCRAAI: {환경 연결점}\n..."
 }
 ```
 
@@ -115,7 +115,7 @@ python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py create 
 
 **트리거**: 101 키워드 없이 도메인 + "로드맵", "약점", "부족한 것" 언급
 
-### Step 1 — 도메인 + 자가 진단
+### Step 1: 도메인 + 자가 진단
 
 사용자에게 5개 영역 1~5점 자가 평가 요청:
 
@@ -128,20 +128,20 @@ python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py create 
 5. 설계/아키텍처 판단:
 ```
 
-### Step 2 — 기존 노트 탐색
+### Step 2: 기존 노트 탐색
 
 ```bash
 python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py search-notes --domain "{domain}"
 ```
 
-### Step 3 — 약점 분석 + 맞춤 로드맵
+### Step 3: 약점 분석 + 맞춤 로드맵
 
 점수 기반 항목 배정:
 - **1~2점** (집중): 2~4개 항목, 기초→원리 순서
 - **3점** (보완): 1~2개 항목, 실무/심화
 - **4~5점** (생략 또는 심화 1개만)
 
-### Step 4 — Obsidian 저장
+### Step 4: Obsidian 저장
 
 101 모드와 동일한 저장 과정. `--mode gap` 지정:
 
@@ -159,13 +159,13 @@ python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py create 
 
 **트리거**: "로드맵 업데이트", "진행 상황", "완료 표시", "체크"
 
-### Step 1 — 기존 로드맵 목록 조회
+### Step 1: 기존 로드맵 목록 조회
 
 ```bash
 python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py list
 ```
 
-### Step 2 — 진행률 확인
+### Step 2: 진행률 확인
 
 ```bash
 python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py show-progress \
@@ -174,7 +174,7 @@ python3 /Users/changhwan/.claude/skills/learn:roadmap/scripts/roadmap.py show-pr
 
 결과 출력 후 다음 추천 항목 3개 표시.
 
-### Step 3 — 완료 항목 업데이트
+### Step 3: 완료 항목 업데이트
 
 사용자로부터 완료 항목 번호 수집 후:
 
@@ -217,7 +217,7 @@ aliases:
 |--------|------|---------|----------|--------------|
 | Kubernetes | 101 | 32개 | 8~12주 | Karpenter, KEDA, Istio |
 
-## Level 0 — 왜 존재하는가
+## Level 0: 왜 존재하는가
 
 > 목표: 이 기술이 해결하는 문제를 설명할 수 있다
 
@@ -225,7 +225,7 @@ aliases:
   - SOCRAAI: Dev/Stg/Prod 환경의 50+ Pod 관리 복잡성
 - [ ] 0.2 VM vs Container vs K8s 트레이드오프 → `/learn VM Container K8s 비교`
 
-## Level 1 — 첫 경험
+## Level 1: 첫 경험
 
 ...
 
@@ -260,5 +260,5 @@ aliases:
 ## 주의사항
 
 - 항목 번호는 `{level}.{순서}` 형식 (0.1, 1.2, 10.3 등)으로 일관되게 작성해야 `update-progress`가 정상 동작
-- 저장 경로는 항상 `02. Notes/engineering/` — 타입이 roadmap이면 resource 디렉토리 불사용
+- 저장 경로는 항상 `02. Notes/engineering/`: 타입이 roadmap이면 resource 디렉토리 불사용
 - 기존 로드맵이 있으면 새로 생성하기 전에 기존 로드맵 업데이트를 먼저 제안

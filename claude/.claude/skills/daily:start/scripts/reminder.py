@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-reminder.py — Summarize recent Obsidian notes for daily reminder
+reminder.py: Summarize recent Obsidian notes for daily reminder
 
 Scans 02. Notes/ and 03. Resources/ for notes created in the last N days.
 Returns title + first meaningful bullet as a 1-2 line summary.

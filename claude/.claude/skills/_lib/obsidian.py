@@ -21,7 +21,7 @@ SCAN_DIRS = {
     "resources": "03. Resources",
     "daily":     "01. Daily",
     "inbox":     "00. Inbox",
-    # 레거시 (디렉터리 미존재 — 하위 호환용)
+    # 레거시 (디렉터리 미존재, 하위 호환용)
     "notes":     "02. Notes",
     "moc":       "04. MOC",
 }

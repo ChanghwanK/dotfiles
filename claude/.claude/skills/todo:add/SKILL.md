@@ -14,7 +14,7 @@ allowed-tools:
 # todo:add
 
 로컬 Todo 시스템에 항목을 **최소 인터랙션**으로 추가한다.
-`tasks:capture`(Notion Task DB 신규 생성)와 다르다 — 이 스킬은 기존 시스템의 Todo 항목 추가 전용이다.
+`tasks:capture`(Notion Task DB 신규 생성)와 다르다. 이 스킬은 기존 시스템의 Todo 항목 추가 전용이다.
 
 ---
 
@@ -31,7 +31,7 @@ allowed-tools:
 
 | 속성 | 추출 방법 | 기본값 |
 |------|-----------|--------|
-| **title** (필수) | 메타 키워드 제거 후 핵심 동작/목표 추출 | — |
+| **title** (필수) | 메타 키워드 제거 후 핵심 동작/목표 추출 | 없음 |
 | **description** | 배경·문제·이유 등 자유 텍스트 (멀티라인 가능) | 없음 |
 | **due** | "내일"/"이번주 금요일"/YYYY-MM-DD → 절대 날짜 변환 (KST) | 없음 |
 | **status** | "시작전"/"진행중"/"완료" 명시 시 그대로 사용 | `시작전` |
@@ -70,14 +70,14 @@ CWD: /Users/changhwan/workspace/riiid/kubernetes-charts → repo: "kubernetes-ch
 
 ## 워크플로우
 
-### Step 1 — 입력 파싱
+### Step 1: 입력 파싱
 
 사용자 입력에서 title, due, task 이름, repo를 추출한다.
 - 추출 과정은 내부 처리만. 사용자에게 중간 출력 없음.
 - due는 KST 기준 절대 날짜(YYYY-MM-DD)로 변환.
 - task가 명시되지 않으면 `target_task = "__backlog__"` 확정 → Step 3으로 즉시 진행.
 
-### Step 2 — Task 매칭 (task가 명시된 경우만)
+### Step 2: Task 매칭 (task가 명시된 경우만)
 
 `todo_store.py list-tasks` 출력에서 사용자가 언급한 task 이름과 fuzzy 매칭한다.
 
@@ -92,7 +92,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-
 2. 복수 후보 → 첫 번째 채택 (가장 최근 Task).
 3. 매칭 실패 → `__backlog__`로 fallback, 완료 메시지에 `(Backlog로 대체)` 표시.
 
-### Step 3 — todo_store.py add 실행
+### Step 3: todo_store.py add 실행
 
 확정된 속성으로 add 커맨드를 실행한다.
 
@@ -135,7 +135,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
 `--due`는 파싱된 경우만 포함. `--repo`는 감지된 경우만 포함.
 `--description`은 사용자가 배경·문제·이유를 언급한 경우에만 포함. 단순 제목만 있으면 생략.
 
-### Step 4 — 완료 출력
+### Step 4: 완료 출력
 
 JSON 출력의 `success` 필드로 성공 여부를 판단한다.
 
@@ -171,4 +171,4 @@ JSON 출력의 `success` 필드로 성공 여부를 판단한다.
 - TUI에서 즉시 반영된다 (로컬 write). Notion sync는 별도로 `ctrl-r` 또는 `/todo-sync`.
 - Task-scoped todo는 해당 Notion Task 페이지의 to_do 블록으로 sync된다.
 - Backlog todo는 Notion 미동기화 (로컬 전용).
-- 동일 제목 중복 추가 허용 (GTD 원칙 — 정리는 TUI에서).
+- 동일 제목 중복 추가 허용 (GTD 원칙: 정리는 TUI에서).

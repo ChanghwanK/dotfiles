@@ -100,7 +100,7 @@ def parse_todos_from_rich_text(rich_text_list):
     for segment in rich_text_list:
         text = segment.get("plain_text", "")
         done = segment.get("annotations", {}).get("strikethrough", False)
-        # Split by newline — each non-empty line is a todo item
+        # Split by newline: each non-empty line is a todo item
         lines = text.split("\n")
         for line in lines:
             if line.strip():

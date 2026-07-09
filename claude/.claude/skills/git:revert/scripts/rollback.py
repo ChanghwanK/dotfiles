@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GitOps rollback helper — commit search & impact analysis."""
+"""GitOps rollback helper: commit search & impact analysis."""
 
 import argparse
 import json

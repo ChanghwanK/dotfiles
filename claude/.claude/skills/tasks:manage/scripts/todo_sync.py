@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-양방향 Sync 엔진 — 로컬 Todo ↔ Notion Task 페이지의 to_do 블록.
+양방향 Sync 엔진: 로컬 Todo ↔ Notion Task 페이지의 to_do 블록.
 
 데이터 모델:
   Notion Task DB의 각 페이지 = Project(=Task). 그 페이지 본문의 to_do 체크박스
@@ -50,7 +50,7 @@ CONFLICT_LOG_CAP = 50  # 무한 성장 방지
 # ── sync 상태 ─────────────────────────────────────────────────
 
 def load_sync_state():
-    # 손상 시 .corrupt 격리 후 기본값 복구 — 충돌 로그가 든 이 파일이 깨져도
+    # 손상 시 .corrupt 격리 후 기본값 복구: 충돌 로그가 든 이 파일이 깨져도
     # sync 전체가 크래시하지 않게 한다(store._load와 동일한 방어 정책 재사용).
     return store._load(
         SYNC_STATE_FILE,
@@ -89,7 +89,7 @@ def build_todo_block(title, done):
 def _resolve_matched(local, remote, conflicts):
     """
     block_id로 매칭된 (로컬 todo, 원격 블록) 한 쌍을 reconcile한다.
-    pull 단계에서 호출 — 결과적으로 로컬을 원격값으로 덮거나(dirty=False),
+    pull 단계에서 호출: 결과적으로 로컬을 원격값으로 덮거나(dirty=False),
     로컬 변경을 보존(dirty 유지 → push가 처리)한다.
     """
     remote_edited = nc.to_utc(remote["last_edited"])
@@ -153,7 +153,7 @@ def _conflict_entry(local, remote, winner):
 def pull_meta(token, conflicts, dry_run):
     """Notion → 로컬, Task 메타만. tasks.json 재구성 + 완료 캐시 갱신.
 
-    본문(to_do 블록)은 건드리지 않는다 — get_all_children을 호출하지 않으므로
+    본문(to_do 블록)은 건드리지 않는다: get_all_children을 호출하지 않으므로
     Task 수와 무관하게 1~2회 API 호출로 끝난다(빠름). 본문 reconcile은
     pull_task_bodies가 담당한다.
 
@@ -194,7 +194,7 @@ def pull_meta(token, conflicts, dry_run):
     if not dry_run:
         store.save_tasks({"version": 1, "synced_at": nc.now_kst(), "tasks": new_tasks})
 
-        # 최근 완료 Task 캐시 갱신 — Tasks 탭 ALL 뷰 노출용 읽기 전용 캐시.
+        # 최근 완료 Task 캐시 갱신: Tasks 탭 ALL 뷰 노출용 읽기 전용 캐시.
         # 활성 Task와 분리되어 to_do reconcile/push/충돌 대상이 아니다(매번 통째로 교체).
         completed = nc.query_recent_completed_tasks(token)
         store.save_completed_tasks({"version": 1, "synced_at": nc.now_kst(),
@@ -237,7 +237,7 @@ def pull_task_bodies(token, doc, conflicts, dry_run, tasks_list, page_ids=None):
         local_by_block = {t["notion_block_id"]: t
                           for t in local_todos if t.get("notion_block_id")}
 
-        # 삭제 대기(tombstone)된 todo가 가리키는 블록 — pull이 새 todo로 부활시키면
+        # 삭제 대기(tombstone)된 todo가 가리키는 블록: pull이 새 todo로 부활시키면
         # 안 된다. run()이 pull→push 순서라 push가 블록을 삭제하기 전에 이 블록이
         # 아직 Notion에 살아 있어, 매칭되는 로컬이 없다고 판정되면(tombstone은
         # local_todos에서 제외됨) 재생성되어 삭제가 무효화된다. push가 이 블록들을
@@ -249,7 +249,7 @@ def pull_task_bodies(token, doc, conflicts, dry_run, tasks_list, page_ids=None):
 
         for rb in remote_blocks:
             if rb["block_id"] in tombstoned_blocks:
-                continue  # 삭제 예정 블록 — 부활 금지 (push가 처리)
+                continue  # 삭제 예정 블록: 부활 금지 (push가 처리)
             local = local_by_block.get(rb["block_id"])
             if local is None:
                 stats["created"] += 1
@@ -329,7 +329,7 @@ def push(token, doc, dry_run):
         if not t.get("dirty"):
             continue
         if t.get("task_page_id") == store.BACKLOG_ID:
-            continue  # Backlog은 로컬 전용 — Notion에 보내지 않는다
+            continue  # Backlog은 로컬 전용: Notion에 보내지 않는다
         bid = t.get("notion_block_id")
         page_id = t["task_page_id"]
 

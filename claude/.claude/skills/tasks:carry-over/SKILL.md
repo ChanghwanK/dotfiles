@@ -41,9 +41,9 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carr
 이월 대상 N개 → 이번 주 월요일(MM/DD)로 업데이트 예정
 
 🔄 진행 중
-  - [P1] Task이름 — 기존 due: MM/DD
+  - [P1] Task이름 (기존 due: MM/DD)
 ⏳ 시작 전
-  - [P2] Task이름 — 기존 due: MM/DD
+  - [P2] Task이름 (기존 due: MM/DD)
 ```
 
 미완료 0개이면 "지난 주 미완료 항목이 없습니다." 출력 후 종료.

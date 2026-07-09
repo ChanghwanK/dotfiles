@@ -45,7 +45,7 @@ def build_toc_rich_text(created_blocks, page_url):
     created_blocks: POST/PATCH 응답의 children 블록 리스트 또는 GET children 결과.
     각 항목은 최소 "id"/"type"/{type}.rich_text 를 가져야 한다.
 
-    반환: (callout_block_id, rich_text) — 콜아웃을 못 찾거나 목차 항목이 하나도 없으면
+    반환: (callout_block_id, rich_text), 콜아웃을 못 찾거나 목차 항목이 하나도 없으면
     (None, None). 콜아웃이 없으면 애초에 채울 대상이 없고, 항목이 없으면(제목 없는
     본문 등) 목차 자체가 의미 없으므로 둘 다 스킵 조건으로 다룬다.
     """

@@ -15,12 +15,12 @@ Gmail MCP 도구를 사용하여 미읽음 메일을 수집하고 분석한다.
 
 ### 1단계: 2가지 쿼리로 메일 수집
 
-**Query 1 — Primary 미읽음** (최대 20개):
+**Query 1: Primary 미읽음** (최대 20개):
 ```
 in:inbox is:unread -category:promotions -category:social -category:updates -category:forums
 ```
 
-**Query 2 — 인프라 알림** (최대 10개):
+**Query 2: 인프라 알림** (최대 10개):
 ```
 in:inbox is:unread category:updates (from:notifications@github.com OR from:noreply@github.com OR from:hub@artifacthub.io OR from:googleaistudio-noreply@google.com)
 ```
@@ -35,13 +35,13 @@ in:inbox is:unread category:updates (from:notifications@github.com OR from:norep
 
 각 메일을 아래 기준으로 분류한다:
 
-**`infra_actionable`** — 다음 중 하나라도 해당:
+**`infra_actionable`**: 다음 중 하나라도 해당:
 - Release / New Version / v[0-9] 포함
 - CVE / 보안 취약점 / Security Advisory
 - Deprecation / Breaking Change / Action Required / Migration
 - 인프라 컴포넌트 언급: Karpenter, Istio, ArgoCD, cert-manager, external-secrets, KEDA, VictoriaMetrics, Loki, Alloy, Grafana, Harbor, CNPG, Rook Ceph, Cluster API, Proxmox, GPU Operator
 
-**`general`** — 그 외 전부
+**`general`**: 그 외 전부
 
 ### 4단계: 인프라 적용 가이드 생성
 

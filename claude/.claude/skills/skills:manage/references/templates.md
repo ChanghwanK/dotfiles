@@ -24,7 +24,7 @@ allowed-tools:
 
 # My Workflow Skill
 
-TODO: 핵심 동작 한 문장 (트리거 설명 X — description과 중복 금지)
+TODO: 핵심 동작 한 문장 (트리거 설명 X, description과 중복 금지)
 
 ---
 
@@ -39,13 +39,13 @@ TODO: 핵심 동작 한 문장 (트리거 설명 X — description과 중복 금
 
 ## 워크플로우
 
-### Step 1 — 입력 수집
+### Step 1: 입력 수집
 
 사용자에게 필요한 정보를 확인한다 (대화에서 이미 명확하면 생략):
 - **제목** (필수)
-- **카테고리** — 기본값: `default`
+- **카테고리** (기본값: `default`)
 
-### Step 2 — 데이터 준비
+### Step 2: 데이터 준비
 
 ```bash
 # /tmp/my-workflow-data.json 작성 (Write 도구 사용)
@@ -55,7 +55,7 @@ TODO: 핵심 동작 한 문장 (트리거 설명 X — description과 중복 금
 }
 ```
 
-### Step 3 — 스크립트 실행
+### Step 3: 스크립트 실행
 
 ```bash
 TOKEN=$(op read "op://Employee/vault/item/field") \
@@ -64,7 +64,7 @@ python3 /Users/changhwan/.claude/skills/my-workflow/scripts/main.py create \
   --data /tmp/my-workflow-data.json
 ```
 
-### Step 4 — 결과 출력
+### Step 4: 결과 출력
 
 ```
 작업 완료.
@@ -124,7 +124,7 @@ allowed-tools:
 
 ## 분석 워크플로우
 
-### Step 1 — 현황 데이터 수집 (병렬 실행)
+### Step 1: 현황 데이터 수집 (병렬 실행)
 
 ```bash
 # 명령 1
@@ -134,13 +134,13 @@ kubectl get nodes -o wide
 python3 /Users/changhwan/.claude/skills/my-reference/scripts/query.py metrics
 ```
 
-### Step 2 — 데이터 해석
+### Step 2: 데이터 해석
 
 수집된 데이터를 기반으로 다음을 분석한다:
 1. 항목 A 상태
 2. 항목 B 이상 여부
 
-### Step 3 — 권고 사항 도출
+### Step 3: 권고 사항 도출
 
 분석 결과에 따른 조치 권고:
 - 정상: "현재 상태 양호"
@@ -287,15 +287,15 @@ allowed-tools:
 ### agents/ 파일 참조 패턴 (SKILL.md body)
 
 ```markdown
-### Step 2 — 병렬 데이터 수집
+### Step 2: 병렬 데이터 수집
 
 아래 두 Agent를 **동시에** 실행한다:
 
-**Agent A — Notion 데이터 수집**
+**Agent A: Notion 데이터 수집**
 Read `/Users/changhwan/.claude/skills/my-workflow/agents/agent-notion-reader.md`
 변수 치환: `{date}` → 오늘 날짜 (YYYY-MM-DD 형식)
 
-**Agent B — Obsidian 노트 파싱**
+**Agent B: Obsidian 노트 파싱**
 Read `/Users/changhwan/.claude/skills/my-workflow/agents/agent-obsidian-parser.md`
 변수 치환: `{note_path}` → 어제 Daily Note 경로
 ```

@@ -18,7 +18,7 @@
 
 ## `create` 커맨드
 
-- 해당 날짜에 이미 페이지가 있으면 `created: false` + 기존 `page_id` 반환 (멱등 — 중복 방지)
+- 해당 날짜에 이미 페이지가 있으면 `created: false` + 기존 `page_id` 반환 (멱등, 중복 방지)
 - 없으면 DB에 새 페이지 생성: `이름`(title) + `Due Date`(date) 프로퍼티 설정
 - `--title` 미지정 시 기본값: `@YYYY-MM-DD 업무 일지`
 
@@ -26,4 +26,4 @@
 
 - 각각 `Todo's` / `내일 할 것들` / `KPT` rich_text 프로퍼티를 **교체** (PATCH `/pages/{page_id}`)
 - 각 줄이 별도 rich_text 세그먼트로 저장됨 (strikethrough=false)
-- **파괴적 연산** — 기존 내용을 덮어쓴다. `--dry-run` 플래그로 변경 미리보기 가능.
+- **파괴적 연산**: 기존 내용을 덮어쓴다. `--dry-run` 플래그로 변경 미리보기 가능.

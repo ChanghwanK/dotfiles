@@ -23,10 +23,10 @@ allowed-tools:
 
 ## 핵심 원칙
 
-- **코드 수정/terraform 실행 금지** — 이 스킬은 교육과 요청 구조화만 수행
-- **개발자의 언어로 설명** — AWS 전문 용어 대신 백엔드/프론트엔드 맥락의 비유와 매핑 사용
-- **Progressive Disclosure** — 처음부터 모든 옵션을 나열하지 않고 필요한 만큼만 점진적으로 설명
-- **개념 설명은 references에서 로드** — `references/concepts-{service}.md` 조건부 로드, 전체 로드 금지
+- **코드 수정/terraform 실행 금지**: 이 스킬은 교육과 요청 구조화만 수행
+- **개발자의 언어로 설명**: AWS 전문 용어 대신 백엔드/프론트엔드 맥락의 비유와 매핑 사용
+- **Progressive Disclosure**: 처음부터 모든 옵션을 나열하지 않고 필요한 만큼만 점진적으로 설명
+- **개념 설명은 references에서 로드**: `references/concepts-{service}.md` 조건부 로드, 전체 로드 금지
 
 ---
 
@@ -56,7 +56,7 @@ allowed-tools:
 
 ---
 
-## Step 1 — 니즈 파악 (컨설팅 모드)
+## Step 1: 니즈 파악 (컨설팅 모드)
 
 ### 1-1. 요구사항 추출
 
@@ -88,7 +88,7 @@ allowed-tools:
 
 ---
 
-## Step 2 — 개념 설명
+## Step 2: 개념 설명
 
 ### 2-1. 리소스 매핑
 
@@ -104,10 +104,10 @@ Read /Users/changhwan/.claude/skills/tf:consult/references/concepts-{service}.md
 
 설명 포맷 (모든 서비스 공통):
 
-1. **한줄 요약** — 개발자에게 익숙한 비유로 시작
-2. **핵심 개념** — AWS 용어를 개발자 언어로 풀어서 설명
-3. **Riiid에서 어떻게 쓰는지** — 실제 sphere/circle 예시
-4. **결정해야 할 사항** — 사용자가 답해야 할 체크리스트
+1. **한줄 요약**: 개발자에게 익숙한 비유로 시작
+2. **핵심 개념**: AWS 용어를 개발자 언어로 풀어서 설명
+3. **Riiid에서 어떻게 쓰는지**: 실제 sphere/circle 예시
+4. **결정해야 할 사항**: 사용자가 답해야 할 체크리스트
 
 ### 2-3. 추가 정보 수집
 
@@ -115,7 +115,7 @@ Read /Users/changhwan/.claude/skills/tf:consult/references/concepts-{service}.md
 
 ---
 
-## Step 3 — 우리 팀 패턴 안내
+## Step 3: 우리 팀 패턴 안내
 
 ### 3-1. 디렉토리 구조
 
@@ -147,7 +147,7 @@ src/{sphere}/{circle}/{environment}/{resource}/
 
 ---
 
-## Step 4 — 인프라 요청서 생성 + tf:iac 핸드오프
+## Step 4: 인프라 요청서 생성 + tf:iac 핸드오프
 
 ### 4-1. 요청서 생성
 

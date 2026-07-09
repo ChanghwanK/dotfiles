@@ -17,7 +17,7 @@ allowed-tools:
 
 ## Resume 워크플로우
 
-### Step 1 — Handoff 로드
+### Step 1: Handoff 로드
 
 ```bash
 python3 /Users/changhwan/.claude/skills/handoff:pause/scripts/handoff.py load
@@ -26,12 +26,12 @@ python3 /Users/changhwan/.claude/skills/handoff:pause/scripts/handoff.py load
 - `ok: true` → Step 2로 진행
 - `ok: false` → "저장된 handoff가 없습니다." 안내 후 종료
 
-### Step 2 — 컨텍스트 출력
+### Step 2: 컨텍스트 출력
 
 `assets/resume-output.md`의 출력 형식으로 결과를 출력한다.
 `elapsed` 필드를 활용해 경과 시간을 표시한다.
 
-### Step 3 — 소비하지 않음 (중요)
+### Step 3: 소비하지 않음 (중요)
 
 resume은 handoff를 **consume하지 않는다.** pending 상태를 유지해야 하는 이유:
 

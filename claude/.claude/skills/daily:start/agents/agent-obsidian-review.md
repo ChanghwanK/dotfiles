@@ -55,7 +55,7 @@ allowed-tools:
 ---
 completed: [항목1 (Obsidian Top 3), 항목2 (transcript)]
 incomplete: [항목3]
-tomorrow_tasks: ["kyverno 업데이트", "operator 학습", "k6 stg 배포 체크 — 배포 에러 발생하면 abort...", ...]
+tomorrow_tasks: ["kyverno 업데이트", "operator 학습", "k6 stg 배포 체크: 배포 에러 발생하면 abort...", ...]
 notes: "Notes 섹션 내용 (없으면 빈 문자열)"
 retrospective: "회고 내용 (없으면 빈 문자열)"
 obsidian_found: true/false

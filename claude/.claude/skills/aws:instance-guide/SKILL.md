@@ -31,7 +31,7 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 
 ## 핵심 원칙
 
-- **Data-Driven**: 추정치 금지 — AWS API/Pricing API로 실제 스펙/가격을 런타임 조회
+- **Data-Driven**: 추정치 금지, AWS API/Pricing API로 실제 스펙/가격을 런타임 조회
 - **Context First**: 현재 사용 중인 리소스를 먼저 확인한 뒤 권장사항 제시
 - **Trade-off Explicit**: 생산성 > 비용 > 안정성 가중치 명시적 반영 (CLAUDE.md 준수)
 - **Parallel Investigation**: 3 Agent 병렬 실행으로 빠른 결과 도출
@@ -56,7 +56,7 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 
 ## 워크플로우
 
-### Step 1 — 요청 파싱 및 정보 수집
+### Step 1: 요청 파싱 및 정보 수집
 
 사용자 입력에서 아래 정보를 추출한다. 부족한 항목은 `AskUserQuestion`으로 질문한다.
 
@@ -75,9 +75,9 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 ```
 다음 정보가 필요합니다:
 
-1. **서비스 타입** — EC2/RDS/ElastiCache/MQ 중 어떤 서비스인가요?
-2. **목적** — 신규 인스턴스 선정인가요, 기존 인스턴스 최적화인가요?
-3. **대상 Sphere** — socraai/santa/tech 등 어떤 서비스의 인스턴스인가요?
+1. **서비스 타입**: EC2/RDS/ElastiCache/MQ 중 어떤 서비스인가요?
+2. **목적**: 신규 인스턴스 선정인가요, 기존 인스턴스 최적화인가요?
+3. **대상 Sphere**: socraai/santa/tech 등 어떤 서비스의 인스턴스인가요?
 
 현재 사용 중인 타입을 모르면 아래 명령으로 확인할 수 있습니다:
 - RDS: `aws rds describe-db-instances --query 'DBInstances[*].[DBInstanceIdentifier,DBInstanceClass]' --profile okta-devops --region ap-northeast-1`
@@ -86,7 +86,7 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 
 ---
 
-### Step 2 — Agent 병렬 디스패치
+### Step 2: Agent 병렬 디스패치
 
 카테고리에 따라 Agent를 선택하고 **단일 메시지에서 병렬 실행**한다.
 
@@ -113,13 +113,13 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 |---------|:---:|:---:|:---:|
 | `ec2`, `rds`, `cache` | ✅ | ✅ | ✅ |
 | `rightsizing` | ✅ | ✅ | ✅ |
-| `mq`, `compare`, `graviton` | ✅ | — | ✅ |
+| `mq`, `compare`, `graviton` | ✅ | - | ✅ |
 
 **2~3개 Agent를 실행하는 경우 반드시 단일 메시지에서 병렬로 Agent tool call 실행.**
 
 ---
 
-### Step 3 — 결과 파싱
+### Step 3: 결과 파싱
 
 각 Agent는 `INSTANCE_GUIDE_RESULT_START` ~ `INSTANCE_GUIDE_RESULT_END` 블록으로 결과를 반환한다.
 
@@ -127,7 +127,7 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 
 ---
 
-### Step 4 — 결과 종합 및 추천
+### Step 4: 결과 종합 및 추천
 
 아래 형식으로 종합 리포트를 출력한다:
 
@@ -178,7 +178,7 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 
 ---
 
-### Step 5 — 추천 인스턴스 가용성 확인
+### Step 5: 추천 인스턴스 가용성 확인
 
 추천 인스턴스가 해당 리전에서 실제로 사용 가능한지 확인한다.
 
@@ -210,9 +210,9 @@ aws rds describe-orderable-db-instance-options \
 
 ## 주의사항
 
-- 가격 정보는 **AWS Pricing API 런타임 조회** — 하드코딩 금지 (spec-explorer agent 담당)
+- 가격 정보는 **AWS Pricing API 런타임 조회**. 하드코딩 금지 (spec-explorer agent 담당)
 - Dev/Stg 환경은 Single AZ, Prod 환경은 Multi-AZ 구성 권장 (CLAUDE.md 원칙 준수)
 - Graviton(ARM64) 권장 시 반드시 컨테이너 이미지 ARM64 호환 여부 확인 안내
 - Terraform 변경이 필요한 경우 파일 경로 안내: `terraform/src/{sphere}/domain/{env}/rds/` 또는 `ec2/`
-- `kubectl edit/delete` 금지 — GitOps 워크플로우 보호
+- `kubectl edit/delete` 금지: GitOps 워크플로우 보호
 - AWS profile: `okta-devops` (모든 CLI 명령에 `--profile okta-devops` 포함)

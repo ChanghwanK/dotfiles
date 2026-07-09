@@ -22,13 +22,13 @@ YouTube 영상의 자막을 추출하여 구조화된 요약 + 심층 분석을 
 
 ## 워크플로우
 
-### Step 1 — URL 확인
+### Step 1: URL 확인
 
 - 사용자로부터 YouTube URL 수신
 - URL 형식 검증 (`youtube.com/watch?v=` 또는 `youtu.be/`)
 - 유효하지 않으면 `유효한 YouTube URL을 입력해주세요 (예: https://youtu.be/XXX)` 메시지로 재입력 요청 후 중단
 
-### Step 2 — 자막 + 메타데이터 추출
+### Step 2: 자막 + 메타데이터 추출
 
 ```bash
 python3 /Users/changhwan/.claude/skills/youtube:summary/scripts/yt-extract.py extract "<URL>"
@@ -39,7 +39,7 @@ python3 /Users/changhwan/.claude/skills/youtube:summary/scripts/yt-extract.py ex
 - `metadata_warning` 필드가 있으면 사용자에게 경고 표시 후 진행 (yt-dlp 미설치 → 메타데이터 제한)
 - 자막 우선순위: `ko` → `en` → `ko(auto)` → `en(auto)`
 
-### Step 3 — 요약 및 분석 생성
+### Step 3: 요약 및 분석 생성
 
 자막 텍스트(`transcript` 필드)를 기반으로 **반드시 한국어**로 분석을 생성한다.
 
@@ -50,14 +50,14 @@ python3 /Users/changhwan/.claude/skills/youtube:summary/scripts/yt-extract.py ex
 - 기술 용어는 원문을 병기 (예: "서비스 메시(Service Mesh)")
 - `실무 적용점` 섹션은 DevOps/인프라 관련 내용일 때만 포함, 아니면 생략
 - `인상적인 인용/구절`은 자막에서 직접 발췌 (번역 시 원문 병기)
-- `인사이트`는 영상의 정보를 내재화한 해석 — 시청자(DevOps Engineer) 관점에서 "So what?"에 답하는 내용
+- `인사이트`는 영상의 정보를 내재화한 해석: 시청자(DevOps Engineer) 관점에서 "So what?"에 답하는 내용
 - `추천 Action Items`는 당장 실행 가능한 수준의 구체적 행동. 추상적 목표("더 공부하자") 금지, 구체적 행동("X 문서를 읽고 Y를 시도해보기")으로 작성
 - `인사이트`와 `추천 Action Items`는 영상 주제와 무관하게 **반드시 포함** (DevOps 비관련 영상이라도 개인 성장/사고방식 관점에서 작성)
 
-### Step 4 — Obsidian 노트 저장
+### Step 4: Obsidian 노트 저장
 
 1. Step 3에서 생성한 마크다운 본문(제목 `#` 헤딩 제외)을 **순수 텍스트**로 `/tmp/obsidian-content.txt`에 Write:
-   - JSON 인코딩 절대 금지 — 마크다운을 그대로 저장 (따옴표, 역슬래시 이스케이프 없이)
+   - JSON 인코딩 절대 금지: 마크다운을 그대로 저장 (따옴표, 역슬래시 이스케이프 없이)
    - `{`, `}`, `"blocks"` 등 JSON 구조 포함 금지
    - 메타정보 blockquote(`> **채널**:...`)부터 관련 키워드 섹션까지 완성된 마크다운
 
@@ -74,7 +74,7 @@ python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py creat
 - 영상 주제에 맞는 태그를 obsidian:note의 태그 목록에서 선택
 - 영상에 등장하는 구체적 기술 키워드도 태그로 추가
 
-### Step 5 — 결과 검증 및 출력
+### Step 5: 결과 검증 및 출력
 
 obsidian-note.py 응답의 `success` 필드를 **반드시 확인**한다.
 

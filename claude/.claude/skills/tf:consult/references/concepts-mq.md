@@ -1,4 +1,4 @@
-# Amazon SQS / Amazon MQ — 개발자를 위한 개념 가이드
+# Amazon SQS / Amazon MQ: 개발자를 위한 개념 가이드
 
 ## 한줄 요약
 

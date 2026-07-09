@@ -8,7 +8,7 @@ This skill provides guidance for composing well-formatted, effective Slack messa
 
 ## When to Use
 
-Apply this skill whenever composing, drafting, or helping the user write a Slack message — including when using `slack_send_message`, `slack_send_message_draft`, or `slack_create_canvas`.
+Apply this skill whenever composing, drafting, or helping the user write a Slack message, including when using `slack_send_message`, `slack_send_message_draft`, or `slack_create_canvas`.
 
 ## Slack Formatting (mrkdwn)
 
@@ -30,10 +30,10 @@ Slack uses its own markup syntax called **mrkdwn**, which differs from standard 
 
 ### Common Mistakes to Avoid
 
-- Do NOT use `**bold**` (double asterisks) — Slack uses `*bold*` (single asterisks)
-- Do NOT use `## headers` — Slack does not support Markdown headers. Use `*bold text*` on its own line instead.
-- Do NOT use `[text](url)` for links — Slack uses `<url|text>` format
-- Do NOT use `---` for horizontal rules — Slack does not render these
+- Do NOT use `**bold**` (double asterisks): Slack uses `*bold*` (single asterisks)
+- Do NOT use `## headers`: Slack does not support Markdown headers. Use `*bold text*` on its own line instead.
+- Do NOT use `[text](url)` for links: Slack uses `<url|text>` format
+- Do NOT use `---` for horizontal rules: Slack does not render these
 
 ## Message Structure Guidelines
 
@@ -48,10 +48,10 @@ Slack uses its own markup syntax called **mrkdwn**, which differs from standard 
 - **Reply in threads** when responding to a specific message to keep the main channel clean.
 - **Use `reply_broadcast`** (also post to channel) only when the reply contains information everyone needs to see.
 - **Post in the channel** (not a thread) when starting a new topic, making an announcement, or asking a question to the whole group.
-- **Don't start a new thread** to continue an existing conversation — find and reply to the original message.
+- **Don't start a new thread** to continue an existing conversation. Find and reply to the original message.
 
 ## Tone and Audience
 
-- Match the tone to the channel — `#general` is usually more formal than `#random`.
+- Match the tone to the channel: `#general` is usually more formal than `#random`.
 - Use emoji reactions instead of reply messages for simple acknowledgments (though note: the MCP tools can't add reactions, so suggest the user do this manually if appropriate).
 - When writing announcements, use a clear structure: context, key info, call to action.

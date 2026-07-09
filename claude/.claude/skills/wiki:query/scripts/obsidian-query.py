@@ -21,7 +21,7 @@ from obsidian import VaultScanner, parse_frontmatter, VAULT_BASE, SCAN_DIRS
 
 
 def cmd_search(args):
-    """alias/title 인덱스 기반 검색 — body full scan 없음."""
+    """alias/title 인덱스 기반 검색: body full scan 없음."""
     scanner = VaultScanner()
     scopes = _parse_scope(args.scope)
     scanner.scan_all(scopes=scopes)
@@ -89,7 +89,7 @@ def cmd_search(args):
 
 
 def cmd_related(args):
-    """wikilink를 따라 연관 노트를 탐색 — 링크 그래프 기반, full scan 없음."""
+    """wikilink를 따라 연관 노트를 탐색: 링크 그래프 기반, full scan 없음."""
     scanner = VaultScanner()
     notes = scanner.scan_all(scopes=("notes", "resources"))
     note_map = {n.filename: n for n in notes}

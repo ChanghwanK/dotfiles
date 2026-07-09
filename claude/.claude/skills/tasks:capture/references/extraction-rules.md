@@ -1,7 +1,7 @@
-# tasks:capture — 추출 규칙 참조
+# tasks:capture: 추출 규칙 참조
 
 제목 합성 + Description 추출의 예시 및 엣지 케이스 참조 문서.
-실행 시 매번 로드하지 않음 — 판단이 애매한 경우에만 참조한다.
+실행 시 매번 로드하지 않음. 판단이 애매한 경우에만 참조한다.
 
 ---
 
@@ -10,12 +10,12 @@
 | 입력 | 제목 (합성) | Description | 질문 케이스 |
 |------|------------|-------------|-----------|
 | `CI 파이프라인 캐시 최적화` | CI 파이프라인 캐시 최적화 | 없음 (추가 정보 없음) | Case C |
-| `P1 긴급 프로덕션 OOM 이슈 분석` | 프로덕션 OOM 이슈 분석 | 없음 (추가 정보 없음) | Case D — 즉시 |
-| `내일까지 독서 50페이지 개인` | 독서 50페이지 | 없음 | Case A — priority만 |
-| `나중에 Karpenter 튜닝 실험` | Karpenter 튜닝 실험 | 없음 | Case D — P4 즉시 |
+| `P1 긴급 프로덕션 OOM 이슈 분석` | 프로덕션 OOM 이슈 분석 | 없음 (추가 정보 없음) | Case D: 즉시 |
+| `내일까지 독서 50페이지 개인` | 독서 50페이지 | 없음 | Case A: priority만 |
+| `나중에 Karpenter 튜닝 실험` | Karpenter 튜닝 실험 | 없음 | Case D: P4 즉시 |
 | `[알람 생성] Pod cpu 및 memory 리소스가 request 대비 사용량이 낮은 경우 (window는 7일) 알람` | [알람 생성] Pod 리소스 Request 대비 사용량 알람 | Pod cpu/memory request 대비 사용량 낮을 때 알람. window 7일 기준. 리소스 낭비 감지용. | Case D (P3) |
-| `P2 코드 리뷰` | 코드 리뷰 | 없음 | Case B — due date 추천 |
-| `slack app 통합, devops/ArgoCD 등 다양하게 사용 중인 app을 통일하는 것이 목표 why? 접근 권한이 없음 유지보수 안됨` | Slack App 통합 및 중앙화 | devops, ArgoCD 등 app을 통일하는 것이 목표. 접근 권한 없음, 유지보수 안됨. | Case C — 1회 |
+| `P2 코드 리뷰` | 코드 리뷰 | 없음 | Case B: due date 추천 |
+| `slack app 통합, devops/ArgoCD 등 다양하게 사용 중인 app을 통일하는 것이 목표 why? 접근 권한이 없음 유지보수 안됨` | Slack App 통합 및 중앙화 | devops, ArgoCD 등 app을 통일하는 것이 목표. 접근 권한 없음, 유지보수 안됨. | Case C: 1회 |
 | `MY 주간 독서 목표 설정` | 주간 독서 목표 설정 | 없음 | Case C (MY) |
 
 ---

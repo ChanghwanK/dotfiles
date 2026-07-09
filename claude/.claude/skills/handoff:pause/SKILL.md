@@ -18,7 +18,7 @@ allowed-tools:
 
 ## Pause 워크플로우
 
-### Step 1 — 컨텍스트 수집 (병렬)
+### Step 1: 컨텍스트 수집 (병렬)
 
 세 소스를 **동시에** 처리한다:
 
@@ -51,7 +51,7 @@ python3 /Users/changhwan/.claude/skills/handoff:pause/scripts/handoff.py load
 이 병합으로 handoff는 항상 "현재 열려 있는 모든 작업"의 단일 뷰가 된다.
 서로 다른 시점에 pause한 작업들이 덮어쓰기로 유실되는 것을 막는 핵심 규칙이다.
 
-### Step 2 — Handoff 저장
+### Step 2: Handoff 저장
 
 사유(`reason`)는 사용자 메시지에서 추출한다 (예: "점심", "외출", "미팅").
 명시되지 않으면 "자리 비움"을 기본값으로 사용한다.
@@ -71,7 +71,7 @@ python3 /Users/changhwan/.claude/skills/handoff:pause/scripts/handoff.py load
 python3 /Users/changhwan/.claude/skills/handoff:pause/scripts/handoff.py save --reason "사유" --data /Users/changhwan/.claude/tmp/handoff-payload.json
 ```
 
-### Step 3 — 확인 출력
+### Step 3: 확인 출력
 
 `assets/pause-output.md`의 출력 형식으로 결과를 출력한다.
 항목이 없는 섹션은 생략한다.

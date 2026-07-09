@@ -58,7 +58,7 @@ wiki/
 
 ## 워크플로우
 
-### Step 1 — raw 파일 목록 조회
+### Step 1: raw 파일 목록 조회
 
 ```
 04. Wiki/personal/raw/ 안의 모든 .md 파일을 Glob으로 조회
@@ -68,7 +68,7 @@ wiki/
 - 파일 수와 날짜 범위 확인
 - 이미 처리된 raw 파일은 `_log.md`에서 확인 (중복 ingest 방지)
 
-### Step 2 — 신규/미처리 raw 파일 읽기
+### Step 2: 신규/미처리 raw 파일 읽기
 
 `_log.md`에 기록된 날짜 이후 파일만 처리 (첫 실행 시 전체 처리).
 
@@ -79,12 +79,12 @@ wiki/
 - **주요 작업**: 완료한 일
 - **오늘의 상태**: 에너지·집중도 / 인상 깊었던 것 / 머릿속에 남는 생각
 
-### Step 3 — 기존 wiki/ 현황 파악
+### Step 3: 기존 wiki/ 현황 파악
 
 `wiki/_index.md`를 읽어 현재 존재하는 페이지 목록 확인.
 없으면 `_index.md`와 `_log.md`를 빈 템플릿으로 생성.
 
-### Step 4 — 패턴 합성 및 wiki 페이지 생성/업데이트
+### Step 4: 패턴 합성 및 wiki 페이지 생성/업데이트
 
 **4-1. patterns/ 업데이트**
 
@@ -136,7 +136,7 @@ tags: [domain/self, topic/habit]
 중요한 통찰이나 인사이트를 발견하면 `reflections/`에 단독 페이지 생성.
 기준: 동일 인사이트가 2회 이상 언급되거나, 행동 변화를 이끈 통찰.
 
-### Step 5 — _index.md 업데이트
+### Step 5: _index.md 업데이트
 
 새로 생성/업데이트된 페이지를 `_index.md`에 반영.
 
@@ -151,19 +151,19 @@ last_updated: YYYY-MM-DD
 # Personal Wiki (Second Self)
 
 ## Patterns
-- [[patterns/패턴명]] — 한줄 설명 (N회 관찰, 상태)
+- [[patterns/패턴명]]: 한줄 설명 (N회 관찰, 상태)
 
 ## Values
-- [[values/원칙명]] — 한줄 설명
+- [[values/원칙명]]: 한줄 설명
 
 ## Growth
-- [[growth/페이지명]] — 한줄 설명
+- [[growth/페이지명]]: 한줄 설명
 
 ## Reflections
-- [[reflections/통찰명]] — 한줄 설명
+- [[reflections/통찰명]]: 한줄 설명
 ```
 
-### Step 6 — _log.md에 ingest 이력 append
+### Step 6: _log.md에 ingest 이력 append
 
 ```markdown
 ## [YYYY-MM-DD] ingest | raw YYYY-MM-DD ~ YYYY-MM-DD (N개 파일)
@@ -194,8 +194,8 @@ last_updated: YYYY-MM-DD
 - 없음 (첫 ingest)
 
 ### 탐지된 패턴
-1. **분석 완료 후 실행 미착수**: youtube:summary 리팩토링 분석 후 실행 연결 끊김 — 반복 관찰
-2. **이월 반복 태스크**: clickhouse 모니터링 3일 이월 — 우선순위 vs 관성 충돌
+1. **분석 완료 후 실행 미착수**: youtube:summary 리팩토링 분석 후 실행 연결 끊김, 반복 관찰
+2. **이월 반복 태스크**: clickhouse 모니터링 3일 이월, 우선순위 vs 관성 충돌
 
 ### 다음 ingest 권고
 - daily:review Step 4가 raw/에 매일 추가 → 주 1회 /personal:ingest 실행 권고
@@ -206,6 +206,6 @@ last_updated: YYYY-MM-DD
 ## 주의사항
 
 - `raw/*.md` 파일은 절대 수정하지 않는다 (불변 소스)
-- 페이지 내용은 raw 데이터에서 직접 인용하거나 LLM이 합성 — 사실 왜곡 금지
+- 페이지 내용은 raw 데이터에서 직접 인용하거나 LLM이 합성: 사실 왜곡 금지
 - 아직 raw 데이터가 적으면 (1~7일) 패턴 합성보다 기록 정리에 집중
-- 시간이 쌓일수록 패턴 분석의 정확도가 높아진다 — 데이터 복리 효과
+- 시간이 쌓일수록 패턴 분석의 정확도가 높아진다 (데이터 복리 효과)

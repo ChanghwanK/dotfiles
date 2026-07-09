@@ -4,8 +4,8 @@ Recommended model: sonnet
 
 You are a quality reviewer for an Obsidian note that was just created.
 Check two dimensions: content structure and knowledge connections.
-Aliases were already validated before file creation — do NOT review them.
-Do NOT rewrite or critique the content itself — that is the author's job.
+Aliases were already validated before file creation. Do NOT review them.
+Do NOT rewrite or critique the content itself: that is the author's job.
 
 ## Input Variables
 
@@ -23,8 +23,8 @@ Check:
 1. `## Summary` section exists with 5-7 bullet points (not more, not fewer)
 2. No `---` horizontal rules used as section dividers (allowed only inside code blocks)
 3. Heading hierarchy: no H1 (`#`) after frontmatter, no skipped levels (H2 → H4)
-4. Code blocks have language tags (` ```bash `, ` ```yaml `, ` ```python ` — not bare ` ``` `)
-5. No em dash (`—`) used in headings
+4. Code blocks have language tags (` ```bash `, ` ```yaml `, ` ```python `, not bare ` ``` `)
+5. No em dash (U+2014) used in headings
 
 Output:
 ```json
@@ -46,7 +46,7 @@ Step 1: Build a lookup table from the vault.
 - Scan: `/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/04. Wiki/engineering/`
 - For each `.md` file, read frontmatter only (stop at closing `---`), extract `title` and `aliases` list.
 - Build: `{term → slug}` map (include title + each alias as keys, lowercase for matching).
-- **CRITICAL — Skip the note being reviewed**: Exclude any file whose path matches `{filepath}` or whose basename (without `.md`) matches `{slug}`. Also remove `{title}` and all aliases in `{aliases}` from the lookup table keys. A note MUST NOT suggest a wikilink that points back to itself.
+- **CRITICAL (Skip the note being reviewed)**: Exclude any file whose path matches `{filepath}` or whose basename (without `.md`) matches `{slug}`. Also remove `{title}` and all aliases in `{aliases}` from the lookup table keys. A note MUST NOT suggest a wikilink that points back to itself.
 
 Step 2: Scan the note body for unlinked term mentions.
 - Find terms from the lookup table that appear in the body as plain text (not already inside `[[...]]`).

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-로컬 Todo Store — tasktui의 오프라인 1차 저장소(CRUD).
+로컬 Todo Store: tasktui의 오프라인 1차 저장소(CRUD).
 
 설계 원칙:
   - Todo는 Notion Task(=Project) 페이지 본문의 to_do 블록에 대응하지만,
@@ -8,7 +8,7 @@
   - 따라서 모든 쓰기는 로컬 JSON에만 일어나고 dirty 플래그를 세운다.
     실제 Notion 반영은 todo_sync.py가 별도로 수행한다(관심사 분리).
   - Task당 Todo 진행률(done/total)은 저장하지 않고 todos.json에서 매번
-    계산한다 — 캐시 이중화로 인한 불일치(stale count)를 원천 차단한다.
+    계산한다. 캐시 이중화로 인한 불일치(stale count)를 원천 차단한다.
 
 저장 경로: ~/.claude/tasktui/  (Claude Code 네이티브가 점유한 ~/.claude/tasks/ 회피)
   tasks.json   Notion Task 메타 캐시 (sync가 채움)
@@ -48,13 +48,13 @@ except (AttributeError, ValueError):
 DATA_DIR = Path.home() / ".claude" / "tasktui"
 TODOS_FILE = DATA_DIR / "todos.json"
 TASKS_FILE = DATA_DIR / "tasks.json"
-# 최근 완료 Task 읽기 전용 캐시 — Tasks 탭 ALL 뷰에서만 노출. 활성 Task(TASKS_FILE)와
+# 최근 완료 Task 읽기 전용 캐시: Tasks 탭 ALL 뷰에서만 노출. 활성 Task(TASKS_FILE)와
 # 분리해 양방향 sync(push/충돌) 대상에서 제외한다(sync가 채우기만 함).
 TASKS_COMPLETED_FILE = DATA_DIR / "tasks_completed.json"
 
 # Todo는 Task 하위뿐 아니라 독립(backlog/리마인드)으로도 존재한다.
 # 독립 Todo는 이 sentinel page_id를 갖는 가상 버킷에 모이며, 실제 Notion 페이지가
-# 없으므로 sync(pull/push) 대상에서 제외된다 — 로컬 전용이다.
+# 없으므로 sync(pull/push) 대상에서 제외된다. 로컬 전용이다.
 BACKLOG_ID = "__backlog__"
 BACKLOG_LABEL = "📥 Todos"
 
@@ -66,7 +66,7 @@ TODO_PRIORITY_VALUES = ("P1", "P2", "P3", "")
 # P1: 오늘/내일 처리 필요, P2: 이번 주 내, P3: 언젠가/여유 있을 때
 TODO_ROI_VALUES = ("high", "medium", "low", "")
 
-# ANSI 색상 — fzf --ansi 플래그 전제
+# ANSI 색상: fzf --ansi 플래그 전제
 _STATUS_COLOR = {"시작전": "", "진행중": "\033[1;33m", "완료": "\033[2;32m"}
 _RESET = "\033[0m"
 
@@ -78,7 +78,7 @@ def _colored_icon(status):
 
 
 def _status_badge(status):
-    """[시작전] / [진행중](노랑) / [완료](녹색) — 괄호 포함 8 display cols 고정."""
+    """[시작전] / [진행중](노랑) / [완료](녹색): 괄호 포함 8 display cols 고정."""
     label = _fit(status, 6)  # 시작전·진행중 = 6cols, 완료 = 4cols → 패딩
     c = _STATUS_COLOR.get(status, "")
     inner = f"{c}{label}{_RESET}" if c else label
@@ -89,15 +89,15 @@ def _status_badge(status):
 # '진행 중'·'시작 전', Todo에 없는 '대기' 존재) Todo용 _status_badge를 재사용하지
 # 않고 별도로 둔다. 정렬을 위해 공백을 제거(진행 중→진행중)해 6 display cols로 맞춘다.
 _TASK_STATUS_COLOR = {
-    "진행 중": "\033[1;33m",  # 노랑 — 진행 중 강조
+    "진행 중": "\033[1;33m",  # 노랑, 진행 중 강조
     "완료":    "\033[2;32m",  # 흐린 녹색
-    "대기":    "\033[2;36m",  # 흐린 청록 — 보류 구분
+    "대기":    "\033[2;36m",  # 흐린 청록, 보류 구분
     "시작 전": "",
 }
 
 
 def _task_status_badge(status):
-    """[진행중](노랑)·[완료](녹색)·[대기]·[시작전] — 괄호 포함 8 display cols 고정.
+    """[진행중](노랑)·[완료](녹색)·[대기]·[시작전]: 괄호 포함 8 display cols 고정.
     빈 상태(Backlog 등)는 같은 폭의 공백을 반환해 목록 정렬을 유지한다."""
     if not status:
         return " " * 8
@@ -106,7 +106,7 @@ def _task_status_badge(status):
     inner = f"{c}{label}{_RESET}" if c else label
     return f"[{inner}]"
 
-# memory import 대상 — 파일명 prefix로 선별한다.
+# memory import 대상: 파일명 prefix로 선별한다.
 # 기본은 actionable한 reminder_/task_만. project_*는 진행상황·지식 노트가 대부분
 # 섞여 backlog를 희석하므로 --include-projects 옵션일 때만 포함한다.
 PROJECTS_DIR = Path.home() / ".claude" / "projects"
@@ -133,7 +133,7 @@ def _load(path, default):
 
 
 def _atomic_write(path, data):
-    """temp 파일에 쓰고 rename — 쓰기 중 중단 시 원본 보존(부분 쓰기 방지)."""
+    """temp 파일에 쓰고 rename: 쓰기 중 중단 시 원본 보존(부분 쓰기 방지)."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
@@ -200,7 +200,7 @@ def _visible_todos(doc, page_id=None, include_done=True):
 
 
 def _counts_for(doc, page_id):
-    """Task의 (완료, 전체) Todo 수 — 표시 시점에 라이브 계산.
+    """Task의 (완료, 전체) Todo 수: 표시 시점에 라이브 계산.
 
     단발 조회용. 여러 Task의 카운트를 한 화면에서 모두 필요로 할 때는
     Task마다 전체 todos를 재스캔하지 않도록 _counts_map(doc)을 1회 쓴다.
@@ -215,7 +215,7 @@ def _counts_map(doc):
 
     Task 목록 렌더처럼 다수 Task의 카운트가 한 번에 필요한 경로에서, Task당
     todos 전체를 재스캔하던 O(Task×Todo)를 O(Todo) 단일 패스로 줄인다.
-    조회는 dict.get(pid, (0, 0))로 한다 — 미등록 page_id도 (0,0)으로 안전.
+    조회는 dict.get(pid, (0, 0))로 한다: 미등록 page_id도 (0,0)으로 안전.
     """
     done = defaultdict(int)
     total = defaultdict(int)
@@ -240,7 +240,7 @@ def _priority_short(priority):
 
 
 def _eaw(c: str) -> int:
-    """East Asian Width — CJK 문자는 터미널에서 2칸 차지."""
+    """East Asian Width: CJK 문자는 터미널에서 2칸 차지."""
     return 2 if unicodedata.east_asian_width(c) in ('W', 'F') else 1
 
 
@@ -306,7 +306,7 @@ def _parse_plan_light(plan_id: str):
 
 
 def _category_tag(task):
-    """회사/개인 구분 태그 — Tasks 탭 가독성용. Group=MY→개인, WORK→회사.
+    """회사/개인 구분 태그: Tasks 탭 가독성용. Group=MY→개인, WORK→회사.
 
     미분류(빈 값)는 2칸 공백으로 두어 열 정렬을 유지한다.
     """
@@ -355,7 +355,7 @@ def _roi_short(roi):
 
 
 def _todo_display(todo):
-    """Level 2 및 preview용 — 통일 행 문법: icon pri [상태] 제목  due roi."""
+    """Level 2 및 preview용, 통일 행 문법: icon pri [상태] 제목  due roi."""
     status = _get_status(todo)
     glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
     pri = _priority_badge(todo.get("priority", ""))
@@ -381,7 +381,7 @@ def cmd_list_tasks(args):
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
     prio = getattr(args, "priority", "") or ""  # "P1"|"P2"|"P3"|"" (전체)
-    # 마감 필터(Tasks 탭 '오늘' 칩) — 켜지면 due_date ≤ 오늘(지남 포함)인 Task만.
+    # 마감 필터(Tasks 탭 '오늘' 칩): 켜지면 due_date ≤ 오늘(지남 포함)인 Task만.
     due_today = getattr(args, "due_today", False)
     _today = nc.now_kst()[:10]
     def _due_ok(task):
@@ -408,7 +408,7 @@ def cmd_list_tasks(args):
                 enriched.append({**task, "todo_done": done, "todo_count": total})
         print(json.dumps({"tasks": enriched}, ensure_ascii=False, indent=2))
         return
-    # fzf: "<page_id>\t<표시줄>". Backlog 버킷을 최상단에 노출한다(마감 필터 시 제외 — due 없음).
+    # fzf: "<page_id>\t<표시줄>". Backlog 버킷을 최상단에 노출한다(마감 필터 시 제외, due 없음).
     if not due_today:
         backlog_name = _fit(BACKLOG_LABEL, 40)
         backlog_todo = f"({bdone}/{btotal})".rjust(7)
@@ -479,7 +479,7 @@ def _repo_from_memory_path(path_str):
 
 
 def cmd_list_all_todos(args):
-    """모든 Todo를 평면 목록으로 — Todos 탭용. 각 Todo에 소속 컨텍스트(Task명/Todos)
+    """모든 Todo를 평면 목록으로: Todos 탭용. 각 Todo에 소속 컨텍스트(Task명/Todos)
     와 repo 라벨을 함께 표기해 어디에 속한 할 일인지 한눈에 보이게 한다.
     --repo 지정 시 해당 repo만 필터링한다."""
     doc = load_todos()
@@ -495,7 +495,7 @@ def cmd_list_all_todos(args):
     repo_filter = getattr(args, "repo", None)
     if repo_filter:
         todos = [t for t in todos if repo_of(t) == repo_filter]
-    # 렌즈(Todos 탭) — active(남은것)/today(지남·오늘 마감)/done(완료)/all.
+    # 렌즈(Todos 탭): active(남은것)/today(지남·오늘 마감)/done(완료)/all.
     # lens가 있으면 우선하고, 없으면 기존 --status-filter로 하위호환(다른 호출자용).
     #   active = 완료 제외 · done = 완료만 · today = active 중 마감 ≤ 오늘 · all = 전체
     lens = getattr(args, "lens", None)
@@ -528,7 +528,7 @@ def cmd_list_all_todos(args):
     title_width = max(28, int(_term_cols * 0.65) - 26)
 
     # fzf: "{glyph} {pri} {badge} {title:dynamic} {due:5} {roi}{dirty}  [· {task명}]  [{repo}]"
-    # priority를 제목 왼쪽에 배치 — 제목 잘림 시에도 우선순위가 항상 보임.
+    # priority를 제목 왼쪽에 배치: 제목 잘림 시에도 우선순위가 항상 보임.
     # Todos 버킷 소속은 ctx 생략 (자명하므로), Task 연결 시만 Task명 표시
     for t in todos:
         status = _get_status(t)
@@ -552,7 +552,7 @@ def cmd_list_all_todos(args):
 
 
 def cmd_get(args):
-    """단일 Todo의 전체 JSON을 반환 — Enter 키로 Claude Code 세션 열 때 사용.
+    """단일 Todo의 전체 JSON을 반환: Enter 키로 Claude Code 세션 열 때 사용.
 
     --field <key> 지정 시 해당 필드 값만 평문 한 줄로 출력한다. 셸에서 단일 필드를
     뽑으려고 `get | python3 -c "...json..."`로 python을 2번 띄우던 패턴을 1번으로 줄인다.
@@ -562,7 +562,7 @@ def cmd_get(args):
     todo = next((t for t in doc["todos"] if t["id"] == args.id and not t.get("deleted")), None)
     if todo is None:
         if field:
-            print("")  # 미존재 필드 조회는 빈 값으로 — 셸 분기가 [ -z ]로 판정
+            print("")  # 미존재 필드 조회는 빈 값으로: 셸 분기가 [ -z ]로 판정
             return
         print(json.dumps({"error": "not_found"}))
         return
@@ -685,7 +685,7 @@ def cmd_edit(args):
 
 
 def cmd_delete(args):
-    """Task-scoped는 soft delete(tombstone) — 즉시 제거하면 다음 pull에서 Notion
+    """Task-scoped는 soft delete(tombstone): 즉시 제거하면 다음 pull에서 Notion
     블록이 부활하므로, sync가 블록을 아카이브할 때까지 표식을 유지한다.
     Backlog(로컬 전용)는 원격 블록이 없어 부활 위험이 없으므로 즉시 제거한다."""
     doc = load_todos()
@@ -707,7 +707,7 @@ def cmd_delete(args):
 
 
 def cmd_preview_task(args):
-    """fzf preview window용 — 선택 Task의 메타 + Todo 체크리스트(평문)."""
+    """fzf preview window용: 선택 Task의 메타 + Todo 체크리스트(평문)."""
     page_id = args.page_id
     tdoc = load_todos()
     if page_id == BACKLOG_ID:
@@ -748,7 +748,7 @@ def cmd_preview_task(args):
             for ln in body.splitlines():
                 print(f"  {ln}")
     elif page_id != BACKLOG_ID:
-        print("  (동기화 전 — sync 후 메타 표시)")
+        print("  (동기화 전, sync 후 메타 표시)")
     print()
     todos = _visible_todos(tdoc, page_id)
     if not todos:
@@ -767,7 +767,7 @@ def cmd_preview_task(args):
 
 
 def cmd_preview_todo(args):
-    """fzf preview window용 — 선택 Todo의 상세 정보."""
+    """fzf preview window용: 선택 Todo의 상세 정보."""
     doc = load_todos()
     todo = _find_todo(doc, args.todo_id)
     if not todo or todo.get("deleted"):
@@ -833,7 +833,7 @@ def cmd_preview_todo(args):
 
 
 # ── Today 뷰 ──────────────────────────────────────────────────
-# "오늘 처리할 것"의 정의 — Todoist/Things의 Today 스마트 리스트와 동일하게
+# "오늘 처리할 것"의 정의: Todoist/Things의 Today 스마트 리스트와 동일하게
 # (1) 마감 지남(overdue) (2) 오늘 마감(today) (3) 진행 중(doing) 을 모은다.
 # 완료 항목은 제외한다. 진행 중은 마감이 없거나 미래여도 "지금 붙잡고 있는 일"
 # 이므로 today 대상에 포함한다.
@@ -858,7 +858,7 @@ def _today_urgency(due, is_done, is_doing, today):
 
 
 def _today_badge(urgency):
-    """[지남](빨강) / [오늘](노랑) / [진행](파랑) — fzf --ansi 전제, 괄호 포함 6 cols."""
+    """[지남](빨강) / [오늘](노랑) / [진행](파랑): fzf --ansi 전제, 괄호 포함 6 cols."""
     return f"[{_TODAY_COLOR[urgency]}{_TODAY_LABEL[urgency]}{_RESET}]"
 
 
@@ -868,7 +868,7 @@ def _collect_today(today, include_overdue=True):
     정렬: urgency(지남>오늘>진행) → 마감일 → 제목. Task와 Todo를 한 리스트에 섞되
     kind로 구분해 셸이 enter 동작(Task=드릴인 / Todo=세션 오픈)을 분기할 수 있게 한다.
 
-    include_overdue=False면 지남(overdue)을 제외한다 — "오늘 할 일"에 집중하기 위함.
+    include_overdue=False면 지남(overdue)을 제외한다: "오늘 할 일"에 집중하기 위함.
     누적된 carry-over 지남이 많을 때 오늘/진행 항목이 묻히는 것을 막는다.
     """
     def _keep(u):
@@ -906,7 +906,7 @@ def _collect_today(today, include_overdue=True):
 
 
 def cmd_today(args):
-    """오늘 처리할 Task/Todo 통합 뷰 — Today 탭(fzf) · /task(text) · 자동화(json).
+    """오늘 처리할 Task/Todo 통합 뷰: Today 탭(fzf) · /task(text) · 자동화(json).
 
     기본은 지남(overdue) 제외(오늘 할 일 집중). --include-overdue로 지남까지 포함.
     """
@@ -954,7 +954,7 @@ def cmd_today(args):
             else:
                 print(f"  {_colored_icon(_get_status(o))} {o.get('title', '')}{due}  · {i['context']}")
         if overdue_hidden:
-            print(f"\n(지남 {overdue_hidden}건 숨김 — 전체 보기: todo today --include-overdue)")
+            print(f"\n(지남 {overdue_hidden}건 숨김, 전체 보기: todo today --include-overdue)")
         return
 
     # fzf: "<id>\t<표시줄>". Task는 page_id, Todo는 td_ 접두사 id → 셸이 enter 분기.
@@ -989,17 +989,17 @@ def cmd_today(args):
             repo_tag = f"  [{repo}]" if repo else ""
             print(f"{o['id']}\t{glyph_col} {badge} {title_col}  {due_str}{ctx_part}{repo_tag}")
     if overdue_hidden:
-        print(f"__info__\t   ⋯ 지남 {overdue_hidden}건 숨김 — ctrl-o로 표시")
+        print(f"__info__\t   ⋯ 지남 {overdue_hidden}건 숨김, ctrl-o로 표시")
 
 
 def cmd_preview_today(args):
-    """Today/Doing 뷰 preview — id 접두사로 Task(page_id) / Todo(td_)를 자동 분기."""
+    """Today/Doing 뷰 preview: id 접두사로 Task(page_id) / Todo(td_)를 자동 분기."""
     tid = args.id
     if tid == "__none__":
         print("  오늘 처리할 항목이 없습니다.")
         return
     if tid.startswith("__"):
-        return  # __info__ 등 정보 행 — preview 대상 아님
+        return  # __info__ 등 정보 행: preview 대상 아님
     if tid.startswith("td_"):
         cmd_preview_todo(argparse.Namespace(todo_id=tid))
     else:
@@ -1007,7 +1007,7 @@ def cmd_preview_today(args):
 
 
 # ── Doing 뷰 ──────────────────────────────────────────────────
-# "지금 붙잡고 있는 일"만 모은다 — 진행 중 Task(상태='진행 중') + 진행중 Todo(상태='진행중').
+# "지금 붙잡고 있는 일"만 모은다: 진행 중 Task(상태='진행 중') + 진행중 Todo(상태='진행중').
 # Today 뷰가 마감(지남/오늘)까지 섞는 것과 달리, 순수하게 in-progress 상태만 본다.
 # 동시 진행(WIP)이 과한지 한눈에 점검하는 용도.
 
@@ -1044,17 +1044,17 @@ def _collect_doing():
 
 
 def _now_entity_badge(kind):
-    """Now 탭 전용 — 이 뷰는 전부 '진행중'이라 상태 badge가 무의미하다.
+    """Now 탭 전용: 이 뷰는 전부 '진행중'이라 상태 badge가 무의미하다.
     그 자리에 엔티티(Task/Todo)를 색을 달리한 badge로 표시해 혼합 목록에서
     Task와 Todo를 한눈에 구분하게 한다. 폭은 상태 badge(8 cols)와 동일.
     """
     if kind == "task":
-        return f"[\033[1;36m{_fit('Task', 6)}{_RESET}]"   # 청록 — 프로젝트
-    return f"[\033[1;32m{_fit('Todo', 6)}{_RESET}]"       # 초록 — 실행 항목
+        return f"[\033[1;36m{_fit('Task', 6)}{_RESET}]"   # 청록, 프로젝트
+    return f"[\033[1;32m{_fit('Todo', 6)}{_RESET}]"       # 초록, 실행 항목
 
 
 def cmd_doing(args):
-    """진행 중 Task/Todo 통합 뷰 — Now 탭(fzf) · 자동화(json) · 비인터랙티브(text)."""
+    """진행 중 Task/Todo 통합 뷰: Now 탭(fzf) · 자동화(json) · 비인터랙티브(text)."""
     items = _collect_doing()
 
     if args.format == "json":
@@ -1263,7 +1263,7 @@ def cmd_link_plan(args):
 
 
 def cmd_summary(args):
-    """비인터랙티브 요약 — /task 커맨드와 statusline 노출에 공용."""
+    """비인터랙티브 요약: /task 커맨드와 statusline 노출에 공용."""
     tdoc = load_todos()
     tasks_doc = load_tasks()  # synced_at을 json 분기에서 재조회하지 않도록 한 번만 읽는다
     in_progress = [t for t in tasks_doc["tasks"] if t.get("status") == "진행 중"]
@@ -1299,7 +1299,7 @@ def main():
     lt.add_argument("--format", choices=["fzf", "json"], default="fzf")
     lt.add_argument("--priority", default="", help="우선순위 필터 (P1|P2|P3|P4, 빈값=전체)")
     lt.add_argument("--due-today", dest="due_today", action="store_true",
-                    help="마감 ≤ 오늘(지남 포함)인 Task만 — Tasks 탭 '오늘' 칩")
+                    help="마감 ≤ 오늘(지남 포함)인 Task만: Tasks 탭 '오늘' 칩")
 
     ld = sub.add_parser("list-todos")
     ld.add_argument("--task", required=True)
@@ -1313,7 +1313,7 @@ def main():
                     choices=["active", "done", "all"], default="all",
                     help="active=미완료만, done=완료만, all=전체(기본). 하위호환용")
     la.add_argument("--lens", choices=["active", "today", "done", "all"], default=None,
-                    help="Todos 탭 렌즈 — active/today(지남·오늘)/done/all. 있으면 status-filter보다 우선")
+                    help="Todos 탭 렌즈: active/today(지남·오늘)/done/all. 있으면 status-filter보다 우선")
 
     gt = sub.add_parser("get")
     gt.add_argument("--id", required=True)

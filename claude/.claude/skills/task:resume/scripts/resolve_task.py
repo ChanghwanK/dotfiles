@@ -5,7 +5,7 @@ Notion Task 링크 -> page_id 파싱 + Task DB 속성 조회.
 task:resume 스킬 전용. Task DB(2da64745-3170-8072-80bd-fb05cf592929) 페이지의
 이름/상태/우선순위/마감일을 조회해 작업 재개 컨텍스트를 만든다.
 상태 변경(update-status)은 tasks:manage/scripts/notion-task.py를 그대로 호출한다
-(같은 로직을 여기서 다시 구현하지 않는다 — Done 체크박스 동기화, started_at
+(같은 로직을 여기서 다시 구현하지 않는다: Done 체크박스 동기화, started_at
 backfill 등 update-status 안 로직이 이미 있음).
 
 Usage:
