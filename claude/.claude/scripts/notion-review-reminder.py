@@ -53,26 +53,39 @@ def find_ref(o):
     return ""
 
 
-def text_blob(o):
-    """Flatten hook input so relevance checks tolerate schema changes."""
-    if isinstance(o, dict):
-        return "\n".join(text_blob(v) for v in o.values())
-    if isinstance(o, list):
-        return "\n".join(text_blob(v) for v in o)
-    if isinstance(o, str):
-        return o
-    return ""
-
-
 def is_notion_create_pages(data):
     tool_name = str(data.get("tool_name", ""))
     return "notion-create-pages" in tool_name or "create-pages" in tool_name
 
 
+_INVOKE_RE = re.compile(r'^\s*(?:sudo\s+)?(?:[\w./~-]*/)?python3?\b')
+
+
 def is_task_create(data):
-    tool_input = data.get("tool_input", {})
-    blob = text_blob(tool_input)
-    return "notion-task.py" in blob and "create-task" in blob
+    """True only if the Bash `command` itself executes notion-task.py create-task.
+
+    Checking only the `command` field (not `description` or other tool_input
+    text) and requiring the segment to actually start with a python
+    invocation avoids false positives from commands that merely mention the
+    strings, e.g. `grep -n "notion-task.py create-task" file.py` or a
+    `description` that describes searching for create-task call sites.
+    """
+    command = data.get("tool_input", {}).get("command", "")
+    if not isinstance(command, str) or not command:
+        return False
+
+    # Join backslash line-continuations first: the real call sites in this
+    # repo format the invocation across several lines (`notion-task.py \` /
+    # `  create-task ... \`), and splitting on bare `\n` before joining would
+    # scatter that single invocation across fragments that individually fail
+    # the checks below.
+    joined = re.sub(r'\\\s*\n', ' ', command)
+    segments = re.split(r'&&|\|\||[;\n|]', joined)
+
+    return any(
+        _INVOKE_RE.match(seg) and "notion-task.py" in seg and re.search(r'\bcreate-task\b', seg)
+        for seg in segments
+    )
 
 
 def main():

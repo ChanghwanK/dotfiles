@@ -145,6 +145,18 @@ and stop.
      restatement is handled above (mechanical); this covers only:
      - Multi-message sentences: one sentence chaining several messages
        (`~때문에 ~되어 ~됐고 ~였습니다`). Suggest splitting into short sentences.
+     - Choppy adjacent sentences (the mirror-image problem): two or more
+       consecutive short "~다."/"~습니다." sentences in the same
+       bullet/paragraph that actually state one tightly related thought
+       (cause+effect, comparison/parallel, conclusion+its immediate reason)
+       instead of independent facts. Per
+       `~/.claude/docs/notion-writing-style.md` §문장, these should read as
+       one sentence joined with a connector (~이며, ~고, ~는데, ~므로), not as
+       separate "~다." sentences. A quick signal: 3+ consecutive "~다."
+       sentences in one bullet/paragraph is worth checking. Do not flag
+       sentences that state genuinely unrelated facts just because they sit
+       next to each other; only flag when merging would read as one coherent
+       thought. Suggest the merged sentence.
      - Filler words that add no information ("실제로는", "기본적으로" 등).
    - **Code block misuse** (ref: `~/.claude/docs/notion-writing-style.md` §코드 블록 사용 기준):
      - Inline code wrapping general Korean nouns that are not identifiers/values/paths

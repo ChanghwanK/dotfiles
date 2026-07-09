@@ -121,10 +121,11 @@ DevOps 팀의 ROI 계산에서는 **"되게 하는 것"보다 "내재화"가 더
 
 ## Notion 문서 작성 스타일
 
-Notion 문서(업무 노트, 개인 노트, plan 공유, 의사결정 기록 등) 작성 전에 반드시
+Notion 문서(업무 노트, 개인 노트, plan 공유, 의사결정 기록, Task DB 5-필드 본문 등) 작성 전에 반드시
 `~/.claude/docs/notion-writing-style.md`를 Read로 읽고 그 기준(문장 톤·문법, 시각적 포맷·구조)을 따른다.
-Notion 스킬(notion:add-*, notion:send-task-plan)의 SKILL.md가 같은 문서를 참조하며,
-작성 직후 `notion-review` 에이전트가 이 기준에 따라 점검·수정한다.
+Notion 스킬(notion:add-*, notion:send-task-plan)과 Task DB 본문을 생성하는 alfred(gate·task·week 모드)·
+tasks:capture의 SKILL.md가 같은 문서를 참조하며, 작성 직후 `notion-review` 에이전트가 이 기준에 따라
+점검·수정한다.
 (상시 import 아님: Notion 작성 시점에만 로드하여 세션 컨텍스트를 절약한다)
 
 ## Plan 모드 출력 형식
