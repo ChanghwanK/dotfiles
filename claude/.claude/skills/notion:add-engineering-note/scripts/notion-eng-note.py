@@ -18,7 +18,7 @@ sections.json 형식 (--task 지정 시, problem/goal/non_goal 생략 가능):
   "alternatives": "대안 검토 (마크다운)",
   "plan":     "작업 계획 (마크다운)",
   "history":  "작업 History (마크다운, 날짜별 진행 기록. append-content로 계속 추가 권장)",
-  "review":   "Task Review (마크다운, 완료 후 회고)",
+  "review":   "Task Review (마크다운, task:review 구조: 성과 측정/PAR/성장 회고. 상위 heading 없이 하위 섹션만)",
   "questions": "미결 질문 (마크다운)"
 }
 """
@@ -347,16 +347,11 @@ def make_template_blocks(sections=None, linked_to_task=False):
         h1(f"{next(n)}. 대안 검토"),
         *section_blocks("alternatives", [paragraph("")]),
         divider(),
-        # 작업 계획
+        # 작업 계획: 더미 to_do("작업 1")는 미기입 상태인데 깨진 본문처럼 보여
+        # 안내 문구형 placeholder로 교체 (2026-07-15)
         h1(f"{next(n)}. 작업 계획"),
         *section_blocks("plan", [
-            paragraph("Phase 1 (이번 스프린트)"),
-            todo("작업 1"),
-            todo("작업 2"),
-            paragraph("Phase 2 (추후)"),
-            todo("나중에 할 것"),
-            paragraph("예상 리스크"),
-            bullet("리스크 항목과 대응 방안"),
+            quote("미기입: 실행 단계를 체크리스트(- [ ])로 작성. Phase 구분과 예상 리스크 포함 권장"),
         ]),
         divider(),
         # 작업 History: 진행하며 append-content로 날짜별 기록을 계속 추가한다
@@ -365,14 +360,15 @@ def make_template_blocks(sections=None, linked_to_task=False):
             bullet("YYYY-MM-DD: 무엇을 했는지, 어떤 이슈가 있었는지 한 줄로"),
         ]),
         divider(),
-        # Task Review: 완료 후 작성 (목표 대비 결과 회고)
+        # Task Review: 완료 후 작성. task:review 출력 구조(성과 측정/PAR/성장 회고)와
+        # 포맷을 통일한다 (2026-07-15: 템플릿과 gate가 쓰는 포맷이 달라 중복 섹션 발생)
         h1(f"{next(n)}. Task Review"),
         *section_blocks("review", [
-            paragraph("목표 대비 결과"),
+            paragraph("성과 측정"),
             quote(""),
-            paragraph("잘된 점 / 아쉬운 점"),
+            paragraph("성과 문장 (PAR)"),
             quote(""),
-            paragraph("다음에 다르게 할 것"),
+            paragraph("성장 회고 (Keep / Try)"),
             quote(""),
         ]),
         divider(),
