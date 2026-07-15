@@ -852,8 +852,9 @@ relation)다. Task 페이지는 "무엇을 하려 했는가"(00.Summary~04.Goals
 Engineering Note로 이전).
 
 > task:review(성과측정·성장회고)와 역할이 다르다. 작업 내용 기록은 **항상**(확인 후) 남기고,
-> task:review는 6단계에서 **자율 실행**한다(확인 없이 진행). 둘 다 같은 Engineering Note에
-> 쌓인다(전자는 "작업 History" 섹션, 후자는 "Task Review" 섹션).
+> task:review는 6단계에서 **항상 자율 실행**한다(확인 없이 진행, 완료/마일스톤 여부와 무관하게 건너뛰기 금지). 신규 생성 노트는 두 결과가
+> "작업 History" / "Task Review" 섹션에 제자리로 들어가고(6단계에서 create 1회),
+> 기존 노트는 Notion append 제약상 페이지 맨 끝에 누적된다(섹션 내 삽입 불가).
 
 **(1) 기존 Engineering Note 확인**: Task에 이미 연결된 노트가 있는지 확인한다(중복 노트 생성 방지).
 
@@ -878,6 +879,12 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 - 날짜 접두(`YYYY-MM-DD:`)를 반드시 붙인다. Engineering Note "작업 History" 섹션은 날짜별
   누적 기록이 표준 형식이다.
 - PR·참고 링크는 있을 때만 포함한다(없는 링크를 만들지 않는다).
+- **신규 생성 경로((1)에서 노트 없음)면 추가로**: 세션 대화에서 `design`(선택한 구조/방식),
+  `alternatives`(검토 후 기각한 옵션), `plan`(실행한 단계), `questions`(미결 사항)를
+  추출해 sections 초안에 함께 담는다(notion:add-engineering-note의 섹션 매핑 표와 동일 기준).
+  세션에 근거가 없는 키는 생략한다(placeholder를 억지로 채우지 않는다). history만 넣고
+  나머지를 전부 placeholder로 두는 것은 금지한다(2026-07-15 개선: 대화에 설계·대안 검토가
+  있었는데도 버려져 빈 노트가 생성되던 문제).
 
 **(3) 1회 확인**: 합성한 초안을 보여주고 한 번만 확인받는다(gate 자율 모드와 일관):
 
@@ -892,9 +899,12 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 0. 생략
 ```
 
-- "1. 저장" → 합성 초안 그대로 기록.
+- "1. 저장" → 합성 초안 그대로 기록(신규 생성 경로는 초안 확정만, 실제 생성은 6단계 create 1회).
 - "2. 수정" → 사용자 입력 반영 후 기록.
-- "0. 생략" → 건너뛴다(잔소리 방지, 재촉 없음).
+- "0. 생략" → history 기록을 건너뛴다(잔소리 방지, 재촉 없음). 신규 생성 경로면 6단계에서
+  review만 담아 생성한다(review 저장은 자율 실행 정책이므로 생략 대상이 아님).
+- 신규 생성 경로면 확인 화면에 "함께 채울 섹션: {추출된 키 목록}" 요약 1줄을 병기한다
+  (본문 전체를 덤프하지 않는다).
 
 **(4) 기록 실행**:
 
@@ -904,26 +914,22 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
     --page-id <note_page_id> \
     --content "- YYYY-MM-DD: {작업 내용 요약}"
   ```
-- **기존 노트가 없는 경우** (신규 생성 + 자동 양방향 연결):
-  ```bash
-  cat > /tmp/eng-note-sections-{slug}.json << 'EOF'
-  {"history": "- YYYY-MM-DD: {작업 내용 요약}\n  - PR: {repo}#{번호} ({제목})"}
-  EOF
-
-  python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
-    --title "{Task명}" --task <page_id> --sections /tmp/eng-note-sections-{slug}.json
-  ```
-  - 응답의 `task_linked` 필드를 확인한다. `false`면 "Engineering Note는 생성됐으나 Task 연결
-    실패, 수동 연결 필요: {url}" 1줄 보고.
-  - 응답의 `page_id`를 `note_page_id`로 기억해 6단계(task:review)에서 재사용한다.
+- **기존 노트가 없는 경우 (생성 보류)**: 여기서 생성하지 않는다. 확인받은 sections 초안
+  (history + 추출한 design/alternatives/plan/questions)을 보관한 채 6단계로 넘어가,
+  task:review 결과(`review`)까지 합쳐 **create 1회**로 생성한다. history만 넣어 먼저
+  생성하면 append가 페이지 맨 끝에만 붙는 제약 때문에 템플릿 "Task Review" 섹션이 빈
+  placeholder로 남고 페이지 끝에 중복 heading이 생긴다(2026-07-15 개선).
 
 - `{slug}` = Task명을 소문자·하이픈으로 변환. heredoc(`<< 'EOF'`)을 쓰면 본문 내 작은따옴표·특수문자가 안전하다.
-- 저장 후 1줄 보고: "→ 작업 내용을 Engineering Note에 기록했습니다 (신규 생성 / 기존 노트에 추가)."
+- 저장 후 1줄 보고(append 경로만): "→ 작업 내용을 Engineering Note에 기록했습니다 (기존 노트에 추가)."
 - 실패 시: "작업 내용 기록 실패, 수동 기록 필요" 1줄 후 계속(5.5단계로).
 
 ### 5.5단계: 문서 스타일 패스 (Engineering Note 전체 간결화, 제안 + 1회 확인)
 
 작업 내용 기록(5단계)까지 본문이 채워진 뒤, **Engineering Note(`note_page_id`) 본문 전체**를 `~/.claude/docs/notion-writing-style.md` 기준으로 한 번 훑어 간결성을 교정한다. 목적은 트러블슈팅 기록이 깔끔한 표준 형태로 남게 하는 것이다.
+
+> 신규 생성 경로(5단계에서 생성 보류)는 아직 페이지가 없으므로, 같은 3종 탐지·diff 확인을
+> **sections 초안 텍스트에 적용**한다. 6단계 create에는 교정된 초안이 들어간다.
 
 > **안전 경계: 의미 불변, confirm 필수**: 이 패스는 prose 재작성(섹션 중복 제거·문장 분리)이므로 기술적 사실을 바꿀 수 있다. **silent 자동 반영 금지.** 반드시 diff를 보여주고 1회 확인을 받은 뒤에만 적용한다. 사실·수치·PR 번호·결정 내용은 절대 바꾸지 않는다. 스타일만 정리한다.
 
@@ -955,17 +961,47 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 - "0. 생략" → 건너뛴다(재촉 없음).
 - 실패 시: "스타일 교정 실패, 수동 정리 권합니다" 1줄 후 계속(6단계로).
 
-### 6단계: task:review → Engineering Note (자율 실행)
+### 6단계: task:review → Engineering Note (필수·자동·병렬, 건너뛰기 금지)
 
-작업 내용 기록(5단계) 직후 **확인 없이 바로 진행**한다. gate는 이미 자율 쓰기 모드이므로 task:review 저장 여부를 묻지 않는다(잔소리 방지 및 흐름 유지).
+작업 내용 기록(5단계) 직후 **확인 없이 자동으로 실행**한다. gate는 이미 자율 쓰기 모드이므로 task:review 저장 여부를 묻지 않는다(잔소리 방지 및 흐름 유지).
 
-> **저장 위치 정책**: task:review 결과는 **5단계에서 확보한 `note_page_id`**(Task에 연결된 Engineering Note)에 누적한다(Task 페이지도 개인 Obsidian도 아니다). 성과·회고가 해당 노트에 묶여 나중에 그 Task의 Engineering 링크를 열면 바로 보이게 하기 위함이다.
+> **건너뛰기 금지 (하드룰)**: task:review는 **완료/마일스톤/설계 산출물 여부와 무관하게 gate가 열릴 때마다 항상 실행**한다. "이번은 완료가 아니라 마일스톤이라 회고 대상이 아니다" 같은 자의적 판단으로 생략하지 않는다(2026-07-15 설계 gate에서 task:review를 자의적으로 skip한 재발 방지). Task가 완료로 닫히지 않고 진행 중이어도, 이번 세션에서 한 작업을 PAR + 이력서 bullet로 남기는 것이 목적이므로 항상 수행한다.
+>
+> **병렬 실행**: task:review 합성은 세션 컨텍스트가 필요하므로 Alfred가 인라인으로 하되(step 1), 그 결과의 **저장(append)과 notion-review 교정(step 4)은 background agent로 띄워 7단계(후속 등록)와 병렬로 진행**한다. 리뷰 저장·교정이 끝날 때까지 gate 흐름을 막지 않으며, 완료 알림이 오면 결과만 1줄 보고한다.
+>
+> **저장 위치 정책**: task:review 결과는 Task에 연결된 Engineering Note에 누적한다(Task 페이지도 개인 Obsidian도 아니다). `note_page_id`는 기존 노트 경로면 5단계에서 확보한 값, 신규 생성 경로면 아래 2-(a)의 create 응답으로 확보한다. 성과·회고가 해당 노트에 묶여 나중에 그 Task의 Engineering 링크를 열면 바로 보이게 하기 위함이다.
 
 **실행 절차:**
 
 1. 현재 대화 컨텍스트를 기반으로 `task:review/SKILL.md`의 Step 0~9 절차를 인라인으로 수행한다 (별도 스킬 호출 없이 Alfred 내에서 실행).
 
-2. review 결과를 임시 파일에 저장 후 Engineering Note 본문에 append한다:
+2. review 결과를 Engineering Note에 저장한다. 5단계 경로에 따라 분기한다:
+
+   **(a) 신규 생성 경로 (5단계에서 생성 보류)**: 5단계 sections 초안에 `review`를 합쳐
+   create 1회로 생성한다. `review` 값에는 상위 "Task Review" heading·구분선을 넣지 않는다
+   (템플릿에 "N. Task Review" 섹션 heading이 이미 있음). `### 성과 측정` 이하 하위 섹션만 담는다.
+   ```bash
+   # 세션 근거가 없는 키(design/alternatives/plan/questions)는 생략한다 (placeholder 유지)
+   cat > /tmp/eng-note-sections-{slug}.json << 'EOF'
+   {"history": "- YYYY-MM-DD: {작업 내용 요약}\n  - PR: {repo}#{번호} ({제목})",
+    "design": "{추출한 설계}",
+    "alternatives": "{추출한 대안 검토}",
+    "plan": "{실행한 단계}",
+    "questions": "{미결 사항}",
+    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ..."}
+   EOF
+
+   python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
+     --title "{Task명}" --task <page_id> --sections /tmp/eng-note-sections-{slug}.json
+   ```
+   - 5단계에서 "0. 생략"을 선택했더라도 review 저장은 자율 실행이므로 history 없이 review만 담아 생성한다.
+   - 응답의 `task_linked`를 확인한다. `false`면 "Engineering Note는 생성됐으나 Task 연결
+     실패, 수동 연결 필요: {url}" 1줄 보고.
+   - 응답의 `page_id`를 `note_page_id`로 기억하고(4의 notion-review에서 사용) "→ 작업 내용·리뷰를
+     Engineering Note에 기록했습니다 (신규 생성)" 1줄 보고.
+
+   **(b) 기존 노트 경로 (5단계에서 append 완료)**: review 텍스트를 임시 파일로 저장 후
+   페이지 끝에 append한다 (섹션 내 삽입은 Notion API 제약상 불가):
    ```bash
    # review 텍스트(Markdown)를 임시 파일에 저장: 맨 앞에 구분선(---) + 제목 헤딩 포함
    cat > /tmp/task-review-{slug}.md << 'EOF'
@@ -978,21 +1014,21 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
      --page-id <note_page_id> \
      --content-file /tmp/task-review-{slug}.md
    ```
-   - `append-content`는 heading(#~####)·bullet·numbered·quote·divider·code fence·인라인 bold/code를 Notion 블록으로 변환한다. **마크다운 표는 미지원**. review 본문은 표 대신 bullet로 작성한다.
+   - 두 경로 공통: heading(#~####)·bullet·numbered·quote·divider·code fence·인라인 bold/code는 Notion 블록으로 변환된다. **마크다운 표는 미지원**. review 본문은 표 대신 bullet로 작성한다.
    - `{slug}` = Task명을 소문자·하이픈으로 변환
 
 3. 저장 완료 보고:
    ```
-   → 리뷰가 Engineering Note에 저장됐습니다 (blocks_appended: {N}).
+   → 리뷰가 Engineering Note에 저장됐습니다 (신규 생성 경로: create 완료 / append 경로: blocks_appended {N}).
    → 파생 액션 (즉시): {Step 8 결과 중 즉시 항목 1~2건}
    ```
 
-4. **notion-review 에이전트 실행 (자동)**:
-   저장 성공 시 즉시 `notion-review` 에이전트를 `note_page_id`에 실행해 문서 스타일을 자동 교정한다.
+4. **notion-review 에이전트 실행 (자동·background 병렬)**:
+   저장 성공 시 즉시 `notion-review` 에이전트를 `note_page_id`에 **background로 띄운다**. 완료를 기다리지 않고 곧바로 7단계로 넘어가, 교정이 gate 흐름과 병렬로 진행되게 한다.
 
-   - `Agent(subagent_type="notion-review", prompt="{note_page_id}")` 로 페이지 교정.
+   - `Agent(subagent_type="notion-review", prompt="{note_page_id}")` 로 페이지 교정 (`run_in_background`는 기본값 유지 = background).
    - em dash(U+2014), 이모지, 문장 스타일 위반을 자동 감지·수정한다.
-   - 완료 후 수정 건수를 Alfred 톤으로 1줄 보고한다.
+   - **완료를 blocking으로 대기하지 않는다.** 완료 알림(task-notification)이 도착하면 그때 수정 건수를 Alfred 톤으로 1줄 보고한다.
      ```
      → notion-review: {N}건 교정 완료.
      ```
