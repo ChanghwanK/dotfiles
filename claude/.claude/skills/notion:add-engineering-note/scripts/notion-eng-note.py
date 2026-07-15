@@ -366,7 +366,7 @@ def make_template_blocks(sections=None, linked_to_task=False):
         *section_blocks("review", [
             paragraph("성과 측정"),
             quote(""),
-            paragraph("성과 문장 (PAR)"),
+            paragraph("성과 문장 (PAR: 대표 PAR / 이력서 bullet / 확장형)"),
             quote(""),
             paragraph("성장 회고 (Keep / Try)"),
             quote(""),

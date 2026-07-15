@@ -43,8 +43,8 @@
 - **Result:**
     - {측정된 결과. 수치 우선, 없으면 검증된 정성 결과}
 
-**이력서 bullet**
-- {상황에서 발생한 문제/위험/목표}를 해결하기 위해 {핵심 Action}을 수행하여 {측정된 Result}를 달성했습니다.
+**이력서 bullet** (표준: `~/.claude/docs/resume-format-convention.md`)
+- {Situation/원인}(으)로 {Before 수치가 있으면 포함} {현상}을/를, {핵심 Action: 구체적 방법·기술}(으)로 {Result: 대괄호 또는 화살표 표기} {명사형 종결}
 
 **성과평가용 확장형**
 - {Situation과 Pain/Risk/Goal}. 이를 해결하기 위해 {판단 기준과 실행 내용}. 그 결과 {측정된 효과와 팀/운영 관점의 의미}.

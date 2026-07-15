@@ -974,6 +974,11 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 **실행 절차:**
 
 1. 현재 대화 컨텍스트를 기반으로 `task:review/SKILL.md`의 Step 0~9 절차를 인라인으로 수행한다 (별도 스킬 호출 없이 Alfred 내에서 실행).
+   - **출력 포맷 자유 요약 금지**: 인라인 수행이어도 `task:review/assets/output-template.md`를 Read해
+     그 구조를 기준으로 산출한다. Engineering Note에 압축본을 담더라도 **Part A.5의 3종 산출물
+     (대표 PAR / 이력서 bullet / 성과평가용 확장형)은 생략하지 않는다.** 이력서 bullet은
+     `~/.claude/docs/resume-format-convention.md` 포맷(명사형 종결)을 따른다(2026-07-15: 인라인
+     수행이 출력을 자유 요약하면서 이력서 bullet이 통째로 탈락한 재발 방지).
 
 2. review 결과를 Engineering Note에 저장한다. 5단계 경로에 따라 분기한다:
 
@@ -988,7 +993,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
     "alternatives": "{추출한 대안 검토}",
     "plan": "{실행한 단계}",
     "questions": "{미결 사항}",
-    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ..."}
+    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- **Problem:** ...\n- **Action:** ...\n- **Result:** ...\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ..."}
    EOF
 
    python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
