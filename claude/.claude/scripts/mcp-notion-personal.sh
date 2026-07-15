@@ -12,4 +12,4 @@ NOTION_TOKEN=$(
 export OPENAPI_MCP_HEADERS="{\"Authorization\": \"Bearer ${NOTION_TOKEN}\", \"Notion-Version\": \"2025-09-03\"}"
 
 # 버전 핀: 토큰을 다루는 컴포넌트이므로 latest 자동 유입(공급망/재현성 위험)을 막고 명시적 업데이트만 허용.
-exec npx -y @notionhq/notion-mcp-server@2.4.0
+exec npx -y @notionhq/notion-mcp-server@2.4.1
