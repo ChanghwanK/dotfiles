@@ -979,6 +979,11 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
      (대표 PAR / 이력서 bullet / 성과평가용 확장형)은 생략하지 않는다.** 이력서 bullet은
      `~/.claude/docs/resume-format-convention.md` 포맷(명사형 종결)을 따른다(2026-07-15: 인라인
      수행이 출력을 자유 요약하면서 이력서 bullet이 통째로 탈락한 재발 방지).
+   - **Action/Result 그룹핑 필수**: 대표 PAR의 Action과 Result은 평평한 불릿 나열이 아니라
+     **볼드 그룹 헤드라인 + 들여쓴 세부 항목** 3단 구조(레이블 → 그룹 → 세부)로 쓴다. Action은
+     판단 단위로 3~5개 그룹, Result은 효과 성격(즉시 복구 / 리스크 해소 / 재발 방지 산출물)으로
+     2~4개 그룹. 상세 기준은 `task:review/SKILL.md` Step 4.5 "Action / Result 그룹핑" 참조
+     (2026-07-20: 평평하게 쓰면 판단이 작업 나열에 묻혀 "왜 그렇게 했는가"가 사라지는 문제 대응).
 
 2. review 결과를 Engineering Note에 저장한다. 5단계 경로에 따라 분기한다:
 
@@ -993,7 +998,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
     "alternatives": "{추출한 대안 검토}",
     "plan": "{실행한 단계}",
     "questions": "{미결 사항}",
-    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- **Problem:** ...\n- **Action:** ...\n- **Result:** ...\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ..."}
+    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- **Problem:**\n\t- ...\n- **Action:**\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n\t\t- {세부 실행}\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n- **Result:**\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ..."}
    EOF
 
    python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
