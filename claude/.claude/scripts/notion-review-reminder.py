@@ -3,12 +3,17 @@
 
 After a Notion page is created, inject context reminding the main agent to
 run the `notion-review` subagent on the new page (enforces the no-em-dash /
-no-emoji hard rules: auto-fix mechanical violations, report the rest).
+no-emoji hard rules: auto-fix mechanical violations, report the rest), then
+chain the `notion-refactoring` subagent when the review reports subjective
+findings (Refactor handoff block). The two agents form a sequential
+pipeline (review writes first, refactoring after); the pipeline runs in the
+background, parallel to the main flow.
 
 Loop safety:
 - Notion MCP create-pages matches this hook directly.
 - Bash matches are filtered to notion-task.py create-task only.
-- notion-review applies fixes via update-page, which does not match this hook.
+- notion-review and notion-refactoring apply fixes via update-page, which
+  does not match this hook.
 """
 import sys
 import json
@@ -109,8 +114,17 @@ def main():
         f"A {source} was just created{ref_txt}. Per the no-em-dash / "
         "no-emoji hard rules, spawn the `notion-review` subagent on this page "
         'now (Agent tool, subagent_type: "notion-review", pass the page '
-        "url/id). It auto-fixes mechanical violations and reports the rest. "
-        "Skip ONLY if this write was itself a notion-review fix."
+        "url/id, run in background). It auto-fixes mechanical violations and "
+        "reports the rest as a 'Refactor handoff' block. When its completion "
+        "notification arrives with findings >= 1 in that block, chain the "
+        '`notion-refactoring` subagent (subagent_type: "notion-refactoring", '
+        "prompt = the Refactor handoff block verbatim, run in background) to "
+        "apply those findings. HARD RULE: never run the two subagents "
+        "concurrently on one page; both replace the full page markdown, so "
+        "always wait for notion-review to finish before spawning "
+        "notion-refactoring (the pipeline itself runs parallel to your main "
+        "flow). Skip ONLY if this write was itself a notion-review or "
+        "notion-refactoring fix."
     )
 
     print(json.dumps({

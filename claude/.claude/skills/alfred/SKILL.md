@@ -967,7 +967,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 
 > **건너뛰기 금지 (하드룰)**: task:review는 **완료/마일스톤/설계 산출물 여부와 무관하게 gate가 열릴 때마다 항상 실행**한다. "이번은 완료가 아니라 마일스톤이라 회고 대상이 아니다" 같은 자의적 판단으로 생략하지 않는다(2026-07-15 설계 gate에서 task:review를 자의적으로 skip한 재발 방지). Task가 완료로 닫히지 않고 진행 중이어도, 이번 세션에서 한 작업을 PAR + 이력서 bullet로 남기는 것이 목적이므로 항상 수행한다.
 >
-> **병렬 실행**: task:review 합성은 세션 컨텍스트가 필요하므로 Alfred가 인라인으로 하되(step 1), 그 결과의 **저장(append)과 notion-review 교정(step 4)은 background agent로 띄워 7단계(후속 등록)와 병렬로 진행**한다. 리뷰 저장·교정이 끝날 때까지 gate 흐름을 막지 않으며, 완료 알림이 오면 결과만 1줄 보고한다.
+> **병렬 실행**: task:review 합성은 세션 컨텍스트가 필요하므로 Alfred가 인라인으로 하되(step 1), 그 결과의 **저장(append)과 notion-review → notion-refactoring 교정 파이프라인(step 4)은 background agent로 띄워 7단계(후속 등록)와 병렬로 진행**한다. 리뷰 저장·교정이 끝날 때까지 gate 흐름을 막지 않으며, 완료 알림이 오면 결과만 1줄 보고한다.
 >
 > **저장 위치 정책**: task:review 결과는 Task에 연결된 Engineering Note에 누적한다(Task 페이지도 개인 Obsidian도 아니다). `note_page_id`는 기존 노트 경로면 5단계에서 확보한 값, 신규 생성 경로면 아래 2-(a)의 create 응답으로 확보한다. 성과·회고가 해당 노트에 묶여 나중에 그 Task의 Engineering 링크를 열면 바로 보이게 하기 위함이다.
 
@@ -1028,8 +1028,8 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
    → 파생 액션 (즉시): {Step 8 결과 중 즉시 항목 1~2건}
    ```
 
-4. **notion-review 에이전트 실행 (자동·background 병렬)**:
-   저장 성공 시 즉시 `notion-review` 에이전트를 `note_page_id`에 **background로 띄운다**. 완료를 기다리지 않고 곧바로 7단계로 넘어가, 교정이 gate 흐름과 병렬로 진행되게 한다.
+4. **notion-review → notion-refactoring 교정 파이프라인 실행 (자동·background 병렬)**:
+   저장 성공 시 즉시 `notion-review` 에이전트를 `note_page_id`에 **background로 띄운다**. 완료를 기다리지 않고 곧바로 7단계로 넘어가, 교정 파이프라인이 gate 흐름과 병렬로 진행되게 한다.
 
    - `Agent(subagent_type="notion-review", prompt="{note_page_id}")` 로 페이지 교정 (`run_in_background`는 기본값 유지 = background).
    - em dash(U+2014), 이모지, 문장 스타일 위반을 자동 감지·수정한다.
@@ -1038,7 +1038,15 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
      → notion-review: {N}건 교정 완료.
      ```
    - 교정이 없으면: "→ notion-review: 교정 불필요 (문서 스타일 적합)."
-   - 실패 시: "→ notion-review 실패: Notion 페이지에서 수동 검토를 권합니다." 1줄 후 계속.
+   - 실패 시: "→ notion-review 실패: Notion 페이지에서 수동 검토를 권합니다." 1줄 후 계속. (refactoring 체이닝도 생략한다.)
+   - **notion-refactoring 체이닝 (자동)**: notion-review 완료 알림의 리포트에서 `### Refactor handoff` 블록을 확인한다.
+     - `findings`가 1건 이상이면 즉시 `notion-refactoring` 에이전트를 background로 띄운다. prompt에는 handoff 블록 원문을 그대로 전달한다:
+       `Agent(subagent_type="notion-refactoring", prompt="{Refactor handoff 블록 원문}")`
+     - 이 에이전트는 리뷰가 보고만 하고 고치지 못한 주관적 지적(문장 분리·병합, 군더더기, 코드 블록 오용, 구조·톤)을 의미 보존 범위에서 반영한다.
+     - 완료 알림 도착 시 1줄 보고: "→ notion-refactoring: {M}건 반영, {K}건 보류."
+     - `findings: 0`이면 띄우지 않는다 (보고 생략, 잔소리 방지).
+     - 실패 시: "→ notion-refactoring 실패: 리뷰 지적사항은 Notion 페이지에서 수동 반영을 권합니다." 1줄 후 계속.
+   - **동시 실행 금지 (하드룰)**: notion-review와 notion-refactoring은 같은 페이지의 전체 markdown을 교체하므로 **절대 동시에 띄우지 않는다** (동시 쓰기는 last-write-wins로 한쪽 수정이 유실됨). 반드시 review 완료 알림 수신 → refactoring 순서의 파이프라인으로 실행하며, 파이프라인 전체가 gate 흐름과 병렬(background)로 도는 구조다.
 
 ### 7단계: 후속 액션 등록 (자율 실행)
 
