@@ -5,47 +5,99 @@ import re
 import os
 
 CSS = """
+:root {
+  --ink: #171A21;
+  --paper: #F6F7F9;
+  --surface: #FFFFFF;
+  --line: #E1E4E9;
+  --muted: #5B6472;
+  --accent: #3A55A6;
+  --risk: #B3261E;
+  --risk-bg: #FBEAEA;
+  --callout: #9A6700;
+  --callout-bg: #FFF6E5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #E7E9EE;
+    --paper: #14161B;
+    --surface: #1C1F26;
+    --line: #2B2F38;
+    --muted: #8A93A3;
+    --accent: #8DA0EE;
+    --risk: #F2938D;
+    --risk-bg: #3A1F20;
+    --callout: #FFD98A;
+    --callout-bg: #3A2E12;
+  }
+}
+* { box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
-  max-width: 720px;
+  max-width: 68ch;
   margin: 60px auto;
   padding: 0 24px 80px;
-  color: #1a1a1a;
+  color: var(--ink);
+  background: var(--paper);
   line-height: 1.65;
   font-size: 15px;
-  background: #fff;
 }
-h1 { font-size: 1.45rem; font-weight: 700; margin: 0 0 12px 0; }
+h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 12px 0; }
 .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-.tag { background: #f0f0f0; border-radius: 999px; padding: 2px 10px;
-       font-size: 0.78rem; color: #555; font-family: 'SF Mono', 'Consolas', monospace; }
-.title-hr { border: none; border-top: 1px solid #e0e0e0; margin: 0 0 28px 0; }
-h2 { font-size: 1rem; font-weight: 700; margin: 32px 0 4px 0; }
-h3 { font-size: 0.95rem; font-weight: 700; margin: 24px 0 8px 0; }
-.section-hr { border: none; border-top: 1px solid #e0e0e0; margin: 0 0 14px 0; }
+.tag { background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+       padding: 2px 10px; font-size: 0.78rem; color: var(--muted);
+       font-family: 'SF Mono', 'Consolas', monospace; font-variant-numeric: tabular-nums; }
+.title-hr { border: none; border-top: 1px solid var(--line); margin: 0 0 28px 0; }
+h2 { font-size: 1.02rem; font-weight: 700; margin: 32px 0 4px 0; }
+h3 { font-size: 0.96rem; font-weight: 700; margin: 24px 0 8px 0; }
+.section-hr { border: none; border-top: 1px solid var(--line); margin: 0 0 14px 0; }
 p { margin: 0 0 12px 0; }
 code { font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
-       background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
-pre { background: #f5f5f5; padding: 12px 16px; border-radius: 6px;
-      overflow-x: auto; font-size: 0.85em; margin: 12px 0; }
-pre code { background: none; padding: 0; }
-blockquote { background: #fffbeb; border-left: 3px solid #d97706;
-  padding: 12px 16px; margin: 14px 0; border-radius: 0 4px 4px 0; font-size: 0.93em; }
+       background: var(--surface); border: 1px solid var(--line);
+       padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+pre { background: var(--surface); border: 1px solid var(--line); padding: 12px 16px;
+      border-radius: 6px; overflow-x: auto; font-size: 0.85em; margin: 12px 0; }
+pre code { background: none; border: none; padding: 0; }
+blockquote { background: var(--callout-bg); border-left: 3px solid var(--callout);
+  color: var(--ink); padding: 12px 16px; margin: 14px 0; border-radius: 0 4px 4px 0; font-size: 0.93em; }
+blockquote.risk { background: var(--risk-bg); border-left-color: var(--risk); }
 blockquote p { margin: 0 0 6px 0; }
 blockquote ul { margin: 6px 0 0 0; padding-left: 18px; }
 ol, ul { padding-left: 22px; margin: 0 0 12px 0; }
 li { margin-bottom: 5px; }
 .dod-list { list-style: none; padding-left: 0; }
 .dod-list li { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-.dod-list input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+.dod-list input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; accent-color: var(--accent); }
 strong { font-weight: 600; }
-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-th, td { border: 1px solid #e0e0e0; padding: 8px 12px; text-align: left; font-size: 0.9em; }
-th { background: #f5f5f5; font-weight: 600; }
+.table-wrap { overflow-x: auto; margin: 12px 0; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; font-size: 0.9em;
+         font-variant-numeric: tabular-nums; }
+th { background: var(--surface); font-weight: 600; }
+.compare-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                gap: 12px; margin: 12px 0; }
+.compare-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; background: var(--surface); }
+.compare-card.recommended { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.compare-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.compare-label { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.78rem; color: var(--muted); }
+.compare-badge { font-size: 0.72rem; font-weight: 600; color: var(--accent);
+                 border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
+.compare-name { margin: 0 0 8px 0; font-size: 0.95rem; }
+.compare-card ul { margin: 0; padding-left: 18px; }
+.compare-note { font-size: 0.9em; color: var(--muted); }
+.section-risk { border-left: 3px solid var(--risk); background: var(--risk-bg);
+                border-radius: 0 6px 6px 0; padding: 10px 16px 2px; }
+.section-risk > :last-child { margin-bottom: 8px; }
 """
 
 KNOWN_SPHERES = {"observability", "santa", "socraai", "data-platform", "tech", "infra"}
 KNOWN_ENVS = {"prod", "stg", "dev", "global", "idc"}
+
+RISK_KEYWORDS = re.compile(r'blast radius|실패 시나리오|롤백 방법|rollback', re.IGNORECASE)
+RISK_HEADING = re.compile(r'리스크|위험|롤백|blast radius|rollback', re.IGNORECASE)
+OPTION_HEADING = re.compile(r'^###\s+Option\s+([A-Za-z0-9]+)\s*:\s*(.*)$')
+RECOMMEND_LINE = re.compile(r'^\*\*추천\*\*\s*:\s*Option\s+([A-Za-z0-9]+)\s*(?:[—\-–]\s*)?(.*)$')
 
 
 def extract_frontmatter(text):
@@ -96,12 +148,73 @@ def escape(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def render_compare_section(lines):
+    """Parse a '## 옵션 비교' section into comparison cards. Returns None if no
+    '### Option X: ...' subsections are found, so the caller can fall back to
+    the default renderer."""
+    cards = []
+    current = None
+    recommend_label = None
+    recommend_text = ""
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = OPTION_HEADING.match(line)
+        if m:
+            if current:
+                cards.append(current)
+            current = {"label": m.group(1), "name": m.group(2).strip(), "body": []}
+            i += 1
+            continue
+        m2 = RECOMMEND_LINE.match(line)
+        if m2:
+            recommend_label = m2.group(1)
+            recommend_text = m2.group(2).strip()
+            i += 1
+            continue
+        if current is not None:
+            current["body"].append(line)
+        i += 1
+    if current:
+        cards.append(current)
+
+    if not cards:
+        return None
+
+    card_html = []
+    for c in cards:
+        is_rec = recommend_label is not None and c["label"].lower() == recommend_label.lower()
+        badge = '<span class="compare-badge">추천</span>' if is_rec else ''
+        rec_class = ' recommended' if is_rec else ''
+        body_html = render_lines(c["body"])
+        card_html.append(
+            f'<div class="compare-card{rec_class}">'
+            f'<div class="compare-card-head"><span class="compare-label">Option {escape(c["label"])}</span>{badge}</div>'
+            f'<h3 class="compare-name">{inline_md(c["name"])}</h3>'
+            f'{body_html}'
+            f'</div>'
+        )
+
+    grid_html = f'<div class="compare-grid">{"".join(card_html)}</div>'
+    note_html = ""
+    if recommend_label:
+        reason = f' — {inline_md(recommend_text)}' if recommend_text else ""
+        note_html = f'<p class="compare-note"><strong>추천</strong>: Option {escape(recommend_label)}{reason}</p>'
+    return grid_html + note_html
+
+
 def render_lines(lines):
     """Render a list of plain body lines to HTML."""
     html = []
     i = 0
     while i < len(lines):
         line = lines[i]
+
+        # H3 subheading (e.g. "스텝별 상세 계획" 내부의 "### Step 1 — ...")
+        if line.startswith("### "):
+            html.append(f'<h3>{inline_md(line[4:].strip())}</h3>')
+            i += 1
+            continue
 
         # fenced code block
         if line.strip().startswith("```"):
@@ -121,7 +234,8 @@ def render_lines(lines):
             while i < len(lines) and lines[i].startswith("> "):
                 bq_lines.append(lines[i][2:])
                 i += 1
-            html.append("<blockquote>" + render_lines(bq_lines) + "</blockquote>")
+            bq_class = ' class="risk"' if RISK_KEYWORDS.search(" ".join(bq_lines)) else ''
+            html.append(f"<blockquote{bq_class}>" + render_lines(bq_lines) + "</blockquote>")
             continue
 
         # unordered list
@@ -164,7 +278,8 @@ def render_lines(lines):
                 th = "".join(f"<th>{inline_md(h)}</th>" for h in header)
                 trs = [f'<tr>{"".join(f"<td>{inline_md(c.strip())}</td>" for c in r.strip("|").split("|"))}</tr>'
                        for r in body_rows]
-                html.append(f'<table><thead><tr>{th}</tr></thead><tbody>{"".join(trs)}</tbody></table>')
+                html.append(f'<div class="table-wrap"><table><thead><tr>{th}</tr></thead>'
+                            f'<tbody>{"".join(trs)}</tbody></table></div>')
             continue
 
         # empty line
@@ -213,7 +328,14 @@ def convert(md_path):
             while i < len(lines) and not lines[i].startswith("## "):
                 section_lines.append(lines[i])
                 i += 1
-            sections_html.append(render_lines(section_lines))
+            if heading == "옵션 비교":
+                compare_html = render_compare_section(section_lines)
+                content_html = compare_html if compare_html is not None else render_lines(section_lines)
+            else:
+                content_html = render_lines(section_lines)
+                if RISK_HEADING.search(heading):
+                    content_html = f'<div class="section-risk">{content_html}</div>'
+            sections_html.append(content_html)
             continue
 
         i += 1

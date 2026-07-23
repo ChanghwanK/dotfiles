@@ -46,12 +46,14 @@ def find_free_port(start=17823):
     return None
 
 
+# Toolbar/완료 페이지는 plan-to-html.py의 CSS 토큰(:root 변수)을 그대로 재사용한다.
+# 승인/거부 버튼은 accent와 별개의 시맨틱 색(초록/빨강)으로, 다크모드에서도 대비를 유지하도록 고정값을 쓴다.
 TOOLBAR_HTML = """
-  <div style="position:fixed;top:0;left:0;right:0;background:#fff;
-              border-bottom:1px solid #e0e0e0;padding:10px 24px;
+  <div style="position:fixed;top:0;left:0;right:0;background:var(--surface);
+              border-bottom:1px solid var(--line);padding:10px 24px;
               display:flex;gap:12px;align-items:center;z-index:999;
               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px">
-    <span style="color:#555;flex:1;font-size:13px">Plan Review — approve or reject below</span>
+    <span style="color:var(--muted);flex:1;font-size:13px">Plan Review — approve or reject below</span>
     <a href="/reject"
        onclick="return confirm('Reject this plan?')"
        style="padding:5px 16px;border-radius:5px;border:1px solid #dc2626;
@@ -65,10 +67,16 @@ TOOLBAR_HTML = """
 
 DONE_HTML = """<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Plan {label}</title>
-<style>body{{font-family:-apple-system,sans-serif;display:flex;align-items:center;
-justify-content:center;height:100vh;margin:0;background:#fff}}
-.msg{{text-align:center;color:{color};font-size:1.5rem;font-weight:700;letter-spacing:-.02em}}
-.sub{{color:#888;font-size:0.95rem;margin-top:8px;font-weight:400}}</style>
+<style>
+:root {{ --paper: #F6F7F9; --ink: #171A21; --muted: #5B6472; }}
+@media (prefers-color-scheme: dark) {{
+  :root {{ --paper: #14161B; --ink: #E7E9EE; --muted: #8A93A3; }}
+}}
+body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;
+       align-items:center;justify-content:center;height:100vh;margin:0;background:var(--paper) }}
+.msg {{ text-align:center;color:{color};font-size:1.5rem;font-weight:700;letter-spacing:-.02em }}
+.sub {{ color:var(--muted);font-size:0.95rem;margin-top:8px;font-weight:400 }}
+</style>
 </head><body>
 <div>
   <div class="msg">Plan {label}</div>
