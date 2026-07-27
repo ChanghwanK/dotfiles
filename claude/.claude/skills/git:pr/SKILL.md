@@ -83,6 +83,30 @@ JSON 출력 필드:
 - `needs_mlops_reviewer`: ai-santa sphere 포함 여부
 - `affected_circles`: `[{sphere, circle, envs}]`
 
+### Step 2.5: Wiki 영향 감지 (자동, 조용함)
+
+이 PR의 diff가 DevOps Infra Wiki 문서의 `verify:` REPO 대상(`file`/`component`/`exists`)과
+겹치는지 확인한다. 매치가 없으면 완전히 침묵한다 — 매 PR마다 뜨는 잡음을 만들지 않는 것이
+최우선 설계 기준이다.
+
+```bash
+python3 devops-wiki/scripts/verify-impact.py --changed-files "$(git diff main...HEAD --name-only)"
+```
+
+출력이 있으면(비어있지 않으면) Step 4의 FYI 블록 직전에 그대로 보여준다:
+
+```
+⚠️  recompile 후보 문서:
+  📄 02-context/observability-stack.md
+     - Loki chart (prod)  (changed: src/observability/loki/infra-k8s-prod/kustomization.yaml)
+```
+
+**PR 본문에는 넣지 않는다.** `## 변경 의도 / 배경 (Why)`나 Summary 3불릿 규칙과는 무관한
+별개 관심사이므로, 채팅 메시지로만 보여주고 `suggested_body`에 섞지 않는다. 문서 프로즈를
+직접 고치는 것도 이 스킬의 역할이 아니다 — 필요하면 `/devops:wiki:recompile` 또는
+`wiki-audit.py --fact-check`로 이어서 확인한다. (`kubernetes` 레포 전용 스텝 — 이 스크립트는
+그 레포의 `devops-wiki/`에만 존재한다.)
+
 ### Step 3: 리뷰어 결정
 
 | 조건 | 리뷰어 |
