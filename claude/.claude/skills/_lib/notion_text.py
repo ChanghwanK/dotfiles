@@ -5,10 +5,15 @@ CLAUDE.md 하드 가드레일을 쓰기 시점에 결정적으로 강제한다 (
 
 - em dash(U+2014) 금지 -> 콜론으로 대체 (CLAUDE.md가 명시한 1순위 대체 문자)
 - 본문 이모지 금지 -> 제거
+- 숫자 버전/backtick 값 쌍의 "to" -> 화살표(U+2192) 치환 (예: "0.93.0 to 0.118.0")
 
 코드 블록은 리터럴이므로 호출자가 "인라인 prose 텍스트"에만 적용한다 (코드 블록 빌더는 우회).
 화살표(U+2192), 중간점(U+00B7), 복합어 하이픈(-), 한글(U+AC00~U+D7AF)은 보존된다.
-주관적 스타일(짧게/핵심만)은 코드로 강제할 수 없어 작성 시점 모델 + notion-review가 담당한다.
+"to" 치환은 숫자 버전/backtick 값 쌍으로만 좁힌다: bare 짧은 식별자 전환(예: "dev to stg")은
+"want to fix" 같은 일반 문장과 토큰 형태가 동일해 정규식만으로 오탐 없이 구분할 수 없으므로
+의도적으로 제외한다 (작성 시점 모델 지침 + notion-review 안전망이 담당).
+레이블 brown+bold, Goals/Non-Goals 헤딩화, 결론 우선 배치, 섹션 간 중복 제거 등 문맥 판단이
+필요한 나머지 규칙은 코드로 강제할 수 없어 작성 시점 모델 + notion-review가 담당한다.
 참조: ~/.claude/docs/notion-writing-style.md
 """
 import re
@@ -16,6 +21,11 @@ import re
 # em dash는 앞뒤 공백(개행 제외)까지 흡수해 "A - B"/"A-B" 형태 모두 "A: B"로 정규화한다.
 # 개행을 먹지 않도록 [ \t]만 흡수한다 (속성 필드의 줄 구조 보존).
 _EM_DASH = re.compile(r"[ \t]*—[ \t]*")
+
+# 버전(1.2.3 형태) 또는 backtick으로 감싼 값끼리의 "A to B" 전환만 화살표로 바꾼다.
+# bare 짧은 식별자(dev, stg 등)는 일반 영어 문장의 "to"와 토큰 형태가 같아 제외한다.
+_VERSION_OR_BACKTICK = r"(?:\d+(?:\.\d+)+|`[^`]+`)"
+_TO_ARROW = re.compile(rf"({_VERSION_OR_BACKTICK})\s+to\s+({_VERSION_OR_BACKTICK})")
 
 # 본문 금지 이모지 범위. 한글/화살표(2190-21FF)/중간점은 의도적으로 제외한다.
 _EMOJI = re.compile(
@@ -40,6 +50,7 @@ def sanitize_body(text):
         return text
     text = _EM_DASH.sub(": ", text)
     text = _EMOJI.sub("", text)
+    text = _TO_ARROW.sub(r"\1 → \2", text)
     return text
 
 
@@ -54,6 +65,9 @@ if __name__ == "__main__":
         ("한글은 그대로", "한글은 그대로"),                                # 한글 보존
         ("`kubectl get pod`", "`kubectl get pod`"),                       # 일반 텍스트 보존
         ("줄1\n— 줄2", "줄1\n: 줄2"),                                # 개행 보존
+        ("0.93.0 to 0.118.0", "0.93.0 → 0.118.0"),                    # 버전 쌍 화살표 치환
+        ("`dev` to `stg`", "`dev` → `stg`"),                          # backtick 값 쌍 화살표 치환
+        ("want to fix this", "want to fix this"),                    # bare 식별자 오탐 없음
         ("", ""),
         (None, None),
     ]

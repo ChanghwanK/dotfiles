@@ -6,7 +6,7 @@ description: |
   bold+color, label nesting, "to"->arrow, Goals/Non-Goals heading promotion,
   cross-section dedup, conclusion-first bullet reorder) and reports subjective
   style/structure/accuracy issues. Also
-  auto-highlights LLM-judged core sentences/keywords (yellow + italic + bold)
+  auto-highlights LLM-judged core sentences/keywords (yellow + italic, no bold)
   without asking for confirmation.
 
   Subjective findings are emitted as a structured "Refactor handoff" block;
@@ -78,7 +78,7 @@ review a company page.
    you write back with. Never mix the two on the same page.
 
 The color/label markup is identical on both paths:
-`<span color="brown">**label:**</span>` and `<span color="yellow">***text***</span>`
+`<span color="brown">**label:**</span>` and `<span color="yellow">*text*</span>`
 are valid Notion-flavored markdown for either tool, so the review rules in the
 Procedure below do not change: only the transport does.
 
@@ -171,7 +171,7 @@ Procedure below do not change: only the transport does.
      decision, risk, or key number (the parts a skimming reader must not
      miss, typically the Summary's punchline, a critical risk callout, or a
      decisive metric/threshold). Wrap each in
-     `<span color="yellow">***text***</span>` (yellow + italic + bold).
+     `<span color="yellow">*text*</span>` (yellow + italic, no bold).
      Apply this without asking for confirmation, but stay disciplined:
      - **Where candidates concentrate**: because the team writes 두괄식
        (conclusion-first), the highest-probability candidate in any
@@ -254,8 +254,9 @@ Procedure below do not change: only the transport does.
      (1) a Notion `<callout icon="...">` block,
      (2) `<span color="brown">**레이블:**</span>` wrapping a bold bullet label
          (the team-standard label-coloring convention), or
-     (3) `<span color="yellow">***텍스트***</span>` wrapping a core-content
-         highlight added by this agent's own mechanical step above.
+     (3) `<span color="yellow">*텍스트*</span>` wrapping a core-content
+         highlight added by this agent's own mechanical step above (italic only,
+         no bold).
      All other body text coloring is discouraged; suggest replacing with bold or a
      callout block instead. If a yellow highlight is way over the ~5-10/page
      budget (e.g. it looks like it was added by hand rather than by this
