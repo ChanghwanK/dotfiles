@@ -701,9 +701,13 @@ def _split_text_content(content):
 
 
 def parse_rich_text(text):
-    """인라인 **bold** / `code` 를 Notion rich_text 배열로 변환."""
+    """인라인 **bold** / *italic* / `code` 를 Notion rich_text 배열로 변환.
+
+    **bold**를 *italic*보다 먼저 매칭해야 `**` 안의 `*`가 오탐되지 않는다
+    (레이블 이탤릭 표기 `*레이블:*` 지원, notion-writing-style.md 참조).
+    """
     text = sanitize_body(text)  # 하드룰 backstop: fenced 코드블록은 별도 빌더라 제외됨
-    tokens = re.split(r"(\*\*[^*]+\*\*|`[^`]+`)", text)
+    tokens = re.split(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)", text)
     rich = []
     for tok in tokens:
         if not tok:
@@ -712,6 +716,8 @@ def parse_rich_text(text):
         content = tok
         if len(tok) >= 4 and tok.startswith("**") and tok.endswith("**"):
             content, annotations = tok[2:-2], {"bold": True}
+        elif len(tok) >= 2 and tok.startswith("*") and tok.endswith("*"):
+            content, annotations = tok[1:-1], {"italic": True}
         elif len(tok) >= 2 and tok.startswith("`") and tok.endswith("`"):
             content, annotations = tok[1:-1], {"code": True}
         for chunk in _split_text_content(content):

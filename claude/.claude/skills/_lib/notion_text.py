@@ -12,7 +12,7 @@ CLAUDE.md 하드 가드레일을 쓰기 시점에 결정적으로 강제한다 (
 "to" 치환은 숫자 버전/backtick 값 쌍으로만 좁힌다: bare 짧은 식별자 전환(예: "dev to stg")은
 "want to fix" 같은 일반 문장과 토큰 형태가 동일해 정규식만으로 오탐 없이 구분할 수 없으므로
 의도적으로 제외한다 (작성 시점 모델 지침 + notion-review 안전망이 담당).
-레이블 brown+bold, Goals/Non-Goals 헤딩화, 결론 우선 배치, 섹션 간 중복 제거 등 문맥 판단이
+레이블 이탤릭+중첩, Goals/Non-Goals 헤딩화, 결론 우선 배치, 섹션 간 중복 제거 등 문맥 판단이
 필요한 나머지 규칙은 코드로 강제할 수 없어 작성 시점 모델 + notion-review가 담당한다.
 참조: ~/.claude/docs/notion-writing-style.md
 """

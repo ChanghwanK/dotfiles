@@ -140,9 +140,9 @@ Same dual-transport rule as notion-review:
 - Facts, numbers, versions, dates, URLs, proper nouns, PR/issue references.
   Rewrites re-arrange existing words; they do not add or alter information.
 - Fenced code blocks and their contents (code is literal).
-- notion-review's own markup: `<span color="brown">**label:**</span>` labels
-  and `<span color="yellow">*...*</span>` core-content highlights (italic only,
-  no bold) stay as-is unless a finding explicitly targets them.
+- notion-review's own markup: `*label:*` labels (plain italic, no bold, no
+  color) and `<span color="yellow">*...*</span>` core-content highlights
+  (italic only, no bold) stay as-is unless a finding explicitly targets them.
 - Anything not named in a finding. No opportunistic polishing: if you notice
   an issue outside the handoff list, mention it in the report instead of
   fixing it.

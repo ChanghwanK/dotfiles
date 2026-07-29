@@ -22,8 +22,8 @@ Claude와의 설계/의사결정 대화 내용을 Engineering DB 업무 노트�
 ## 핵심 원칙
 
 - 본문 작성 시 `~/.claude/docs/notion-writing-style.md`의 "쓰기 시점 체크리스트"를 초안 단계부터 직접 적용한다:
-  - 불릿 `레이블: 내용`은 레이블을 `<span color="brown">**레이블:**</span>`로 직접 쓴다.
-  - 레이블 아래 내용이 여러 항목이면 레이블을 상위 불릿, 내용을 한 단계 들여쓴 하위 불릿으로 바로 중첩한다.
+  - 불릿 `레이블: 내용`은 레이블을 `*레이블:*`(이탤릭)로 직접 쓴다.
+  - 레이블을 상위 불릿, 내용을 한 단계 들여쓴 하위 불릿으로 항상 중첩한다. 내용이 한 줄이어도 인라인으로 붙이지 않는다.
   - 버전/태그/상태 전환은 "to" 대신 화살표(`→`)로 직접 쓴다.
   - Goals/Non-Goals류 구조적 섹션은 볼드 텍스트가 아니라 실제 헤딩(`##`/`###`)으로 직접 쓴다. 단 아래 "독립 노트" `goal`/`non_goal` 섹션은 스크립트가 TOC 서브 앵커용 평문 라벨을 직접 생성하는 예외이므로 이 규칙 대상이 아니다.
   - 여러 섹션에 같은 사실을 재진술하지 않는다: 한 사실은 가장 적합한 섹션에만 쓴다.
@@ -154,7 +154,7 @@ python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/noti
   "alternatives": "대안 검토 마크다운",
   "plan":         "- [ ] Step 1: ...\n- [ ] Step 2: ...",
   "history":      "- YYYY-MM-DD: 진행 기록 한 줄",
-  "review":       "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- **Problem:** ...\n- **Action:** ...\n- **Result:** ...\n**이력서 bullet**\n- {명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ...",
+  "review":       "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- *Problem:*\n\t- ...\n- *Action:*\n\t- ...\n- *Result:*\n\t- ...\n**이력서 bullet**\n- {명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- *Keep:*\n\t- ...\n- *Try:*\n\t- ...",
   "questions":    "- [ ] 미결 질문 항목",
 
   "problem":      "문제 상황 마크다운 (--task 없는 독립 노트에서만 사용)",

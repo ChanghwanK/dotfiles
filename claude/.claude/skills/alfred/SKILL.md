@@ -998,7 +998,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
     "alternatives": "{추출한 대안 검토}",
     "plan": "{실행한 단계}",
     "questions": "{미결 사항}",
-    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- **Problem:**\n\t- ...\n- **Action:**\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n\t\t- {세부 실행}\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n- **Result:**\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- **Keep:** ...\n- **Try:** ..."}
+    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- *Problem:*\n\t- ...\n- *Action:*\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n\t\t- {세부 실행}\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n- *Result:*\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- *Keep:*\n\t- ...\n- *Try:*\n\t- ..."}
    EOF
 
    python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \

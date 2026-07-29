@@ -3,8 +3,9 @@ name: notion-review
 description: |
   Reviews a Notion page right after it is written, enforcing the team's
   writing hard rules. Auto-fixes mechanical violations (em dash, emoji, label
-  bold+color, label nesting, "to"->arrow, Goals/Non-Goals heading promotion,
-  cross-section dedup, conclusion-first bullet reorder) and reports subjective
+  italic formatting, label nesting (always nested, never inline), "to"->arrow,
+  Goals/Non-Goals heading promotion, cross-section dedup, conclusion-first
+  bullet reorder) and reports subjective
   style/structure/accuracy issues. Also
   auto-highlights LLM-judged core sentences/keywords (yellow + italic, no bold)
   without asking for confirmation.
@@ -77,10 +78,11 @@ review a company page.
 4. Stay on ONE connection per page: whichever one successfully fetched is the one
    you write back with. Never mix the two on the same page.
 
-The color/label markup is identical on both paths:
-`<span color="brown">**label:**</span>` and `<span color="yellow">*text*</span>`
-are valid Notion-flavored markdown for either tool, so the review rules in the
-Procedure below do not change: only the transport does.
+The label/highlight markup is identical on both paths: a bullet label is plain
+italic (`*label:*`, no bold, no color) and a core-content highlight is
+`<span color="yellow">*text*</span>`. Both are valid Notion-flavored markdown
+for either tool, so the review rules in the Procedure below do not change:
+only the transport does.
 
 ## Procedure
 
@@ -106,30 +108,40 @@ Procedure below do not change: only the transport does.
    - **emoji**: forbidden in document bodies. Remove the emoji; if it was a
      leading marker, keep the text. Exception: keep emojis that are part of a
      Notion `<callout icon="...">` attribute (that is an icon, not body text).
-   - **Label bold+color missing** (`레이블: 내용` pattern, ref:
+   - **Label italic formatting** (`레이블: 내용` pattern, ref:
      `~/.claude/docs/notion-writing-style.md` §구조): the correct form is always
-     `<span color="brown">**label:**</span> 내용`. Auto-fix regardless of the
+     plain italic, `*label:*`, no bold, no color. Auto-fix regardless of the
      starting state:
-     - Bold label without color (`**label:**`) → wrap in `<span color="brown">`.
-     - Plain-text label (no bold at all) immediately followed by `: ` at the
-       start of a bullet or paragraph line → make it bold AND brown.
+     - Bold label, with or without color (`**label:**`,
+       `<span color="brown">**label:**</span>`) → strip the bold and any color
+       span, replace with plain italic (`*label:*`). This is the common legacy
+       form from before the label convention changed to italic-only; convert it
+       on sight.
+     - Plain-text label (no formatting at all) immediately followed by `: ` at
+       the start of a bullet or paragraph line → make it italic.
      Applies to both bullet items (`- label: content`) and standalone paragraph
      lines. Detection: a short phrase (typically 1-6 words) at the very start of
      the line/bullet, followed immediately by `: ` (colon + space). Skip
      look-alikes that are not real labels: timestamps (`10:00`), URLs
      (`https://`), ratios, or a phrase longer than ~6 words (that colon is
      mid-sentence punctuation, not a label). When the label already has correct
-     brown+bold formatting, do nothing.
-   - **Label nesting** (ref: style doc §구조 중첩 규칙): a label whose content
-     is multiple items must hold that content as one-level-deeper child
-     bullets, not as same-level sibling bullets. Auto-fix ONLY the unambiguous
-     case: a bullet whose entire content is a label
-     (`<span color="brown">**label:**</span>` or `**label:**`, nothing after
-     the colon) followed by same-level bullets that clearly belong to it,
-     where the run ends at the next label-only bullet, heading, or paragraph.
-     Then indent those content bullets one level (pure indentation change, no
-     rewording). If ownership of the following bullets is ambiguous, do not
-     restructure; report it as a subjective issue with the suggested nesting.
+     italic-only formatting, do nothing.
+   - **Label nesting** (ref: style doc §구조 중첩 규칙): a label's content
+     always lives as one-level-deeper child bullet(s), never as a same-level
+     sibling and never inline on the same line as the label, regardless of how
+     many items the content has. Auto-fix both shapes:
+     - **Inline single-line** (`*label:* 내용` all on one line, bullet or
+       paragraph): split into two bullets, the label alone on the parent
+       bullet and the content alone on a child bullet indented one level
+       deeper. Pure structural split, no rewording of the content itself.
+     - **Same-level siblings**: a label-only bullet (nothing after the colon)
+       followed by same-level bullets that clearly belong to it, where the run
+       ends at the next label-only bullet, heading, or paragraph. Indent those
+       content bullets one level (pure indentation change, no rewording).
+     Both shapes are unambiguous once the label is identified, so both
+     auto-fix. Only fall back to reporting as a subjective issue when
+     ownership of the following bullets is genuinely ambiguous (e.g. ordinary
+     prose that happens to contain a colon, not a real label).
    - **"to" instead of arrow**: when a version, tag, or state transition is
      written as `A to B` (e.g. `0.93.0 to 0.118.0`, `dev to stg`), replace the
      literal `to` with `→`: `A → B`. Scope narrowly to transitions between
@@ -141,9 +153,9 @@ Procedure below do not change: only the transport does.
      `**Non-Goals**`, `**목표**`, `**비목표**`) with no other text on that line,
      promote it to a real heading (`## Goals` / `## Non-Goals`, or `###` if it
      is nested under another `##` section) and keep the following bullets
-     under it unchanged. Do not touch bold labels that are followed by inline
-     content on the same line (that's the `레이블: 내용` pattern above, not a
-     section header).
+     under it unchanged. Do not touch labels that are followed by inline
+     content on the same line (that's the `레이블: 내용` pattern above, handled
+     by the label-italic/nesting fixes, not a section header).
    - **Cross-section restatement (dedup)**: when the same fact appears in more
      than one section, even if paraphrased (not just verbatim repeats), keep it
      only in the most appropriate section (per style doc: summary/cause/fix/
@@ -194,10 +206,9 @@ Procedure below do not change: only the transport does.
      - **Idempotency**: if a sentence is already wrapped in
        `<span color="yellow">...</span>` (from a prior review pass), leave it
        as-is; do not re-wrap or duplicate the markup.
-     - **Scope**: do not highlight inside code blocks, inside a
-       `<span color="brown">**label:**</span>` label itself, or table cells
-       used for structured comparison (highlighting there breaks scanability
-       instead of aiding it).
+     - **Scope**: do not highlight inside code blocks, inside a `*label:*`
+       label itself, or table cells used for structured comparison
+       (highlighting there breaks scanability instead of aiding it).
      - List every highlight you added in your final report (quoted phrase +
        which section) so the change stays traceable, exactly like the
        cross-section dedup removals above.
@@ -250,14 +261,16 @@ Procedure below do not change: only the transport does.
      Do NOT auto-fix (context-dependent: you cannot reliably distinguish an
      identifier from a general noun without domain knowledge).
    - **Text color overuse**: if the fetched content contains colored text markup,
-     flag any use that is NOT one of the three sanctioned patterns:
-     (1) a Notion `<callout icon="...">` block,
-     (2) `<span color="brown">**레이블:**</span>` wrapping a bold bullet label
-         (the team-standard label-coloring convention), or
-     (3) `<span color="yellow">*텍스트*</span>` wrapping a core-content
+     flag any use that is NOT one of the two sanctioned patterns:
+     (1) a Notion `<callout icon="...">` block, or
+     (2) `<span color="yellow">*텍스트*</span>` wrapping a core-content
          highlight added by this agent's own mechanical step above (italic only,
          no bold).
-     All other body text coloring is discouraged; suggest replacing with bold or a
+     Labels no longer use color at all (plain italic, `*label:*`); a
+     `<span color="brown">` label is a legacy pattern handled by the mechanical
+     "Label italic formatting" fix above, not this subjective check, so do not
+     flag it here (it will already be gone by the time you report). All other
+     body text coloring is discouraged; suggest replacing with bold or a
      callout block instead. If a yellow highlight is way over the ~5-10/page
      budget (e.g. it looks like it was added by hand rather than by this
      agent's disciplined pass), flag it as overuse too instead of silently
