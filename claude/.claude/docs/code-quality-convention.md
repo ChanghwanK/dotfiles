@@ -50,12 +50,69 @@ if (user.isPaidMember && score >= PREMIUM_ELIGIBILITY_SCORE) {
 - 너무 잘게 나눠 실행 흐름이 흐려지는 구조는 피합니다.
 - 기준은 함수 길이가 아니라 "변경 시 영향 범위를 예측할 수 있는가"입니다.
 
+### private 메서드 판별 기준
+
+private 메서드 자체는 문제가 아닙니다. 판단 기준은 "private이냐 아니냐"가 아니라
+**이 메서드가 조작하는 데이터의 주인이 누구인가**입니다.
+
+- 그 함수가 속한 클래스/모듈 자신의 상태만 다루는 단순 헬퍼(포맷 변환, 파싱, 짧은 절차 분해)라면
+  private로 그대로 둡니다.
+- 파라미터로 받은 다른 객체의 데이터를 계속 꺼내 쓰며 판단·계산 로직을 수행한다면(Feature Envy),
+  그 로직은 원래 그 객체가 가져야 할 책임입니다. 해당 객체로 옮겨 public 메서드로 만듭니다.
+- 이 private 메서드를 독립적으로 테스트하고 싶다는 충동이 든다면, 그 자체가 설계 신호입니다.
+  독립적으로 검증할 가치가 있는 로직은 대개 별도 책임이며, 별도 객체의 public 메서드로 뽑아내면
+  "private을 어떻게 테스트하지" 라는 질문 자체가 사라집니다.
+
+```ts
+// 부족한 코드: OrderService가 order의 데이터를 계속 꺼내 판단한다 (Feature Envy)
+class OrderService {
+  confirm(order: Order) {
+    if (this.isEligibleForDiscount(order)) {
+      this.applyDiscount(order)
+    }
+  }
+
+  private isEligibleForDiscount(order: Order): boolean {
+    return order.totalAmount > 100_000 && order.memberGrade === "VIP"
+  }
+
+  private applyDiscount(order: Order) {
+    order.totalAmount *= 0.9
+  }
+}
+
+// 더 좋은 코드: 판단·계산 로직을 order 자신에게 위임한다 (Tell, Don't Ask)
+class Order {
+  isEligibleForDiscount(): boolean {
+    return this.totalAmount > 100_000 && this.memberGrade === "VIP"
+  }
+
+  applyDiscount() {
+    this.totalAmount *= 0.9
+  }
+}
+
+class OrderService {
+  confirm(order: Order) {
+    if (order.isEligibleForDiscount()) {
+      order.applyDiscount()
+    }
+  }
+}
+```
+
 ## 3. 주석 기준
 
 - 주석은 코드가 이미 말하는 "무엇"을 반복하지 않습니다.
 - 주석은 코드에 드러나지 않는 "왜"를 설명합니다.
 - 비즈니스 예외, 운영 제약, 과거 장애에서 나온 우회, 트레이드오프는 주석으로 남길 수 있습니다.
 - 코드와 맞지 않는 주석은 없는 것보다 위험하므로, 변경 시 함께 수정하거나 제거합니다.
+- 여러 파일에 공통으로 적용되는 아키텍처 결정(계층 규칙, 패턴 선택 이유 등)은 컨벤션
+  문서(`CLAUDE.md`/프로젝트 `CODE_CONVENTION.md`)에 한 번만 적고, 개별 파일 docstring·
+  주석에 반복 서술하지 않습니다. 파일 안에는 그 결정에서 벗어나거나 그 파일에서만
+  성립하는 예외·트레이드오프만 남깁니다.
+- 판별 질문: "이 설명이 프로젝트의 다른 유사한 파일에도 똑같이 적용되는가?" 그렇다면
+  전역/프로젝트 컨벤션 문서로 옮기고, 그 파일만의 사정이면 로컬 주석으로 남깁니다.
 
 ```ts
 // 나쁜 주석
