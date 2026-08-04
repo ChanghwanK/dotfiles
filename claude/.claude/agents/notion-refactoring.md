@@ -17,8 +17,8 @@ description: |
     to a specific Notion page whose review report is in context.
 
   ORDERING (hard rule): run only AFTER notion-review has finished writing.
-  Both agents replace the full page markdown, so running the two
-  concurrently on the same page loses one side's edits (last-write-wins).
+  Both agents edit the same page, so running the two concurrently can race
+  or clobber each other's changes.
   The review → refactoring pipeline as a whole runs in the background,
   parallel to the caller's main flow; the two agents themselves are
   sequential.
@@ -80,11 +80,14 @@ Same dual-transport rule as notion-review:
 1. Try `mcp__notion-personal__API-retrieve-page-markdown` first.
 2. On `404 object_not_found` (or any not-shared error), switch to
    `mcp__claude_ai_Notion__notion-fetch` (`{"id": "<page_id or URL>"}`).
-3. Apply changes with the tool matching the successful fetch path:
-   - personal path → `mcp__notion-personal__API-update-page-markdown`.
+3. Apply changes with the tool matching the successful fetch path, and
+   default to a **targeted update** on both paths (see step 5 below):
+   - personal path → `mcp__notion-personal__API-update-page-markdown` with
+     `type: "update_content"` and `content_updates`.
    - OAuth path → `mcp__claude_ai_Notion__notion-update-page` with
-     `command: "replace_content"` (or `update_content` with targeted
-     `content_updates` for a few small surgical edits).
+     `command: "update_content"` and targeted `content_updates`.
+   Fall back to a full replace (`type`/`command: "replace_content"`) only
+   when step 5's rule below says so.
 4. Stay on ONE connection per page; never mix the two on the same page.
 
 ## Procedure
@@ -125,10 +128,20 @@ Same dual-transport rule as notion-review:
        already present on the page, or
      - you are not confident the rewrite preserves the original meaning.
 
-5. **Write once**: apply all accepted rewrites in a single update with the
-   tool matching your fetch path. If every finding was skipped, make no edit.
-   You never create pages, so your edits do not re-trigger the create-pages
-   review hook.
+5. **Write once (default: targeted)**: build one `content_updates` entry per
+   accepted rewrite, `{old_str: <flagged passage as located in the fetched
+   text>, new_str: <rewritten passage>}`, and send them in a single
+   `type`/`command: "update_content"` call. This keeps output tokens
+   proportional to the number of accepted rewrites, not the page length.
+   Fall back to a full replace (`replace_content`, corrected full markdown as
+   `new_str`) only when more than 100 rewrites are accepted in one pass (the
+   `content_updates` cap) or the page contains blocks that do not round-trip
+   through markdown (linked databases, synced blocks, embeds, column
+   layouts) and a rewrite touches text inside/adjacent to one of those
+   blocks; when you do, everything outside the accepted rewrites must stay
+   byte-identical to what you fetched. If every finding was skipped, make no
+   edit. You never create pages, so your edits do not re-trigger the
+   create-pages review hook.
 
 6. **Report** back to the caller in Korean (격식체), concisely:
    - 반영 목록: 각 항목의 위치 + before → after (짧게 인용).

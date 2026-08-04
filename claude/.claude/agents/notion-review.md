@@ -14,8 +14,8 @@ description: |
   the caller passes that block to the `notion-refactoring` agent, which
   applies them in a second pass. Pipeline ordering is a hard rule: this agent
   finishes writing first, notion-refactoring runs after; never run the two
-  concurrently on one page (both replace the full page markdown, so
-  concurrent writes lose one side's edits). The review → refactoring
+  concurrently on one page (both apply edits to the same page, so
+  concurrent writes can race or clobber each other's changes). The review → refactoring
   pipeline as a whole may run in the background, parallel to the caller's
   main flow.
 
@@ -32,7 +32,7 @@ description: |
 
   This agent is read-and-fix only on ONE page. It cannot spawn other agents.
 tools: mcp__notion-personal__API-retrieve-page-markdown, mcp__notion-personal__API-update-page-markdown, mcp__claude_ai_Notion__notion-fetch, mcp__claude_ai_Notion__notion-update-page, Read
-model: inherit
+model: haiku
 color: green
 ---
 
@@ -69,12 +69,15 @@ review a company page.
 2. On `404 object_not_found` (or any not-shared error), switch to
    `mcp__claude_ai_Notion__notion-fetch` (`{"id": "<page_id or URL>"}`). The
    `<content>` block it returns is the page markdown to review.
-3. Apply fixes with the tool that matches the successful fetch path:
-   - personal path → `mcp__notion-personal__API-update-page-markdown`.
+3. Apply fixes with the tool that matches the successful fetch path, and
+   default to a **targeted update** on both paths (see "Write mode" in the
+   Procedure below):
+   - personal path → `mcp__notion-personal__API-update-page-markdown` with
+     `type: "update_content"` and `content_updates`.
    - OAuth path → `mcp__claude_ai_Notion__notion-update-page` with
-     `command: "replace_content"` and `new_str` = the corrected full markdown
-     (or `command: "update_content"` with targeted `content_updates` for a few
-     small surgical edits).
+     `command: "update_content"` and targeted `content_updates`.
+   Fall back to a full replace (`type`/`command: "replace_content"`) only
+   when the "Write mode" rule below says so.
 4. Stay on ONE connection per page: whichever one successfully fetched is the one
    you write back with. Never mix the two on the same page.
 
@@ -296,15 +299,28 @@ only the transport does.
 3. **Apply mechanical fixes** with the update tool matching your fetch path
    (personal → `mcp__notion-personal__API-update-page-markdown`; OAuth fallback →
    `mcp__claude_ai_Notion__notion-update-page`, see "Workspace access" above).
-   Pass the corrected full markdown. Apply only the mechanical violations
-   identified in step 2; keep all other content identical.
-   - **Round-trip safety**: a full-body markdown replace is lossy for blocks
-     that do not survive the markdown round-trip (linked databases, synced
-     blocks, embeds, column layouts). If the fetched content shows such
-     blocks, prefer targeted edits (OAuth path: `command: "update_content"`
-     with `content_updates`) over a full replace. When you must do a full
-     replace, everything outside your fixes must be byte-identical to what
-     you fetched; never regenerate or "clean up" untouched sections.
+   Apply only the mechanical violations identified in step 2; keep all other
+   content identical.
+   - **Write mode (default: targeted)**: build one `content_updates` entry
+     per fix, `{old_str: <exact original snippet>, new_str: <corrected
+     snippet>}` (quote enough surrounding text to match uniquely, the same
+     bar as a Refactor-handoff finding quote). Send them in a single
+     `type`/`command: "update_content"` call. This keeps output tokens
+     proportional to the number of fixes, not the page length; both
+     `mcp__notion-personal__API-update-page-markdown` and
+     `mcp__claude_ai_Notion__notion-update-page` support it identically. A
+     cross-section dedup removal is `new_str: ""` (or the surviving unique
+     clause) on the duplicated snippet; a bullet reorder/indent is an
+     `old_str`/`new_str` pair covering just the moved lines, not the whole
+     list.
+   - **Fall back to a full replace** (`replace_content`, corrected full
+     markdown as `new_str`) only when: more than 100 fixes are needed in one
+     pass (the `content_updates` cap), or the page contains blocks that do
+     not round-trip through markdown (linked databases, synced blocks,
+     embeds, column layouts) and a fix touches text inside/adjacent to one of
+     those blocks. When you do a full replace, everything outside your fixes
+     must be byte-identical to what you fetched; never regenerate or "clean
+     up" untouched sections.
    - If there are zero mechanical violations, make no edit.
    - You never create pages, so your edits do not re-trigger the create-pages
      review hook.
