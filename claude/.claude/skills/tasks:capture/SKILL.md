@@ -43,6 +43,7 @@ GTD Inbox 원칙: 캡처 ≠ 의사결정. 일단 담고, 나중에 `/tasks:mana
 | **Description** | 아래 "Description 추출 원칙" 참조 | 없음 (선택) |
 | **Images** | 파일 경로 또는 URL 목록 (아래 "이미지 파싱" 참조) | 없음 (선택) |
 | **ROI** | 아래 "ROI 자동 분류 (질문 없음)" 참조. 사용자에게 묻지 않음 | 10문항 순회 결과 전부 No일 때만 미설정 |
+| **Type** | "Task"/"Project" 명시 또는 문맥상 명확(예: "여러 단계로 나눠서", "설계+구현+배포"). 명시적으로 선언되지 않으면 **Priority/Due Date와 묶어 질문**(아래 "Type 확인" 참조) | `Task` |
 
 ### 이미지 파싱
 
@@ -103,6 +104,13 @@ Priority가 파싱되지 않은 경우 아래 규칙으로 추천값을 계산�
 | P2 | 이번 주 금요일 또는 다음 주 금요일 |
 | P3 / P4 | 없음 |
 
+### Type 확인
+
+Notion Task DB의 `Type` 속성은 `Task`/`Project` 두 값뿐이다. 기본값은 항상 `Task`.
+
+- **본격 Task(5-필드 본문 적용 대상, 아래 "본문 템플릿" 참조)**: 여러 단계(설계→검증→배포 등)로 나뉘는 상위 작업으로 보이면 Step 2-A 확인 화면에 `Type: Task [추천]`을 함께 보여주고, 사용자가 "2. 수정"으로 `Project`를 선택할 수 있게 한다. Type을 명시적으로 선언한 입력("이건 프로젝트로")이면 질문 없이 바로 반영한다.
+- **단순 메모(Step 2-B, 템플릿 미적용)**: 한 줄 메모는 Project 범위가 될 수 없으므로 질문하지 않고 기본값 `Task`를 그대로 적용한다(GTD 캡처 원칙 유지, 불필요한 질문으로 fast-capture를 해치지 않기 위함).
+
 ---
 
 ## ROI 자동 분류 (질문 없음)
@@ -145,8 +153,10 @@ P3/P4 이면서 description도 없는 **단순 한 줄 메모**는 템플릿을 
 
 ## 01. 문제 정의
 - {무엇이 문제인지}
-- {현재 상태(As-Is)}
-- {이상 상태(To-Be)}
+- *As-Is:*
+  - {현재 상태}
+- *To-Be:*
+  - {이상 상태}
 
 ## 02. 해결 이유
 - {왜 지금 해결해야 하는지}
@@ -188,6 +198,7 @@ Non-Goals
 - **레이블/화살표/중복**: `~/.claude/docs/notion-writing-style.md`의 "쓰기 시점 체크리스트"를 초안 단계부터 직접 적용한다.
   - 불릿 `레이블: 내용`은 레이블을 `*레이블:*`(이탤릭)로 직접 쓴다.
   - 레이블을 상위 불릿, 내용을 한 단계 들여쓴 하위 불릿으로 항상 중첩한다. 내용이 한 줄이어도 인라인으로 붙이지 않는다.
+  - **01. 문제 정의의 As-Is/To-Be 라벨은 영어 단독으로 쓴다**: `*As-Is:*` / `*To-Be:*`. `현재 상태(As-Is)`처럼 한글 번역을 병기하지 않는다. 위 5-필드 템플릿의 표기를 그대로 따른다.
   - 버전/태그/상태 전환은 "to" 대신 화살표(`→`)로 직접 쓴다.
   - 00~04 섹션 간 같은 사실을 재진술하지 않는다 (예: 01. 문제 정의에서 이미 말한 내용을 03. 기대효과에서 다시 서술하지 않는다).
   em dash/본문 이모지, "to"→화살표(숫자 버전·backtick 값 한정)는 쓰기 스크립트가 추가로 결정적 backstop을 건다.
@@ -243,7 +254,7 @@ Task를 생성하기 전에 두 가지를 확인할게요.
 (추천값을 그대로 제시. "1회 확인 후 생성" 원칙)
 
 ```
-다음 내용으로 Task를 생성할까요? (P2 · ~2026-03-20)
+다음 내용으로 Task를 생성할까요? (P2 · Type: Task [추천] · ~2026-03-20)
 
 ## 00. Summary
 - ...
@@ -344,17 +355,21 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 # 본격 Task: 5-필드 본문 템플릿을 --body 인라인 Markdown으로 전달
 # (헤딩 구조 그대로. description은 짧은 한 줄 요약, --body는 전체 본문)
+# --type 생략 시 기본값 Task. Project로 확정된 경우만 명시.
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
   create-task --name "Task 이름" --priority "P2" --due "2026-03-20" \
-  --category "WORK" --description "한 줄 요약" \
+  --category "WORK" --type "Task" --description "한 줄 요약" \
   --body '## 00. Summary
 - 대상
 - 현재 상태
 - 접근 방법
 
 ## 01. 문제 정의
-- 현재 상태(As-Is)에서 무엇이 문제인지 구체적으로 작성합니다.
-- 이상 상태(To-Be)를 작성합니다.
+- 무엇이 문제인지
+- *As-Is:*
+  - 현재 상태를 구체적으로 작성합니다.
+- *To-Be:*
+  - 이상 상태를 작성합니다.
 
 ## 02. 해결 이유
 - 왜 지금 해결해야 하는지
@@ -379,6 +394,27 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 > **본문 인용 주의**: 본문에 작은따옴표(`'`)가 포함되면 셸 인용이 깨진다. `'\''`로 이스케이프하거나 제거한다.
 > 본문 헤딩은 `## 00. Summary` / `## 01. 문제 정의` / `## 02. 해결 이유` / `## 03. 기대효과` / `## 04. Goals/Non Goals` 5개를 고정 순서로 사용한다.
+
+### Step 3.5 - Task 간 연결 / PR 참조 표기
+
+Task DB에는 `Related Task`라는 self-relation 프로퍼티가 있다 (양방향 sync: 한쪽만 채우면
+반대쪽에도 자동 반영). 새 Task가 기존 Task의 후속·연관 작업이면 본문에 마크다운 텍스트
+백링크를 쓰지 말고 이 프로퍼티로 연결한다.
+
+```bash
+# 생성 시점에 바로 연결 (기존 Task의 page ID를 알고 있을 때)
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
+  create-task --name "Task 이름" --priority "P3" --category "WORK" \
+  --related-task "<기존-task-page-id>"
+
+# 이미 존재하는 두 Task를 사후에 연결
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
+  link-related-task --page-id "<task-A-page-id>" --related-page-id "<task-B-page-id>"
+```
+
+**PR 참조는 링크 멘션으로.** 본문·description에서 PR을 언급할 때 `PR #1234` 같은 plain text
+대신 GitHub PR의 실제 URL(`https://github.com/riiid/kubernetes/pull/1234`)을 그대로 붙인다.
+Notion이 bare URL을 자동으로 언마크(unfurl)해 리치 프리뷰/멘션으로 렌더링한다.
 
 ### Step 4 - 완료 출력
 

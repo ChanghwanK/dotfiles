@@ -12,7 +12,7 @@ Usage:
   python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료: 캘린더 동기화 대상
 
   # 생성
-  python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"] [--body "Markdown" | --body-file PATH]
+  python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"] [--body "Markdown" | --body-file PATH]
 
   # ROI 설정 (Alfred groom, 사용자 승인 후)
   python3 notion-task.py set-roi --page-id <id> --roi High|Medium|Low
@@ -64,6 +64,7 @@ PRIORITY_OPTIONS = {
     "P3",
 }
 CATEGORY_OPTIONS = {"WORK", "MY"}
+TYPE_OPTIONS = {"Task", "Project"}
 # ROI = 가치/노력 판단 버킷. Alfred groom 모드가 기록, 브리핑이 정렬 키로 사용.
 # 판단 기준 SSOT: devops-wiki/01-decisions/work-definition-framework.md (L1/L2/L3/보류 → High/Medium/Low/미설정 매핑)
 ROI_OPTIONS = {"High", "Medium", "Low"}
@@ -154,7 +155,7 @@ def _exit_error(message):
 
 def _parse_page(page):
     props = page.get("properties", {})
-    name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
     priority_sel = props.get("Priority", {}).get("select")
     priority = priority_sel.get("name", "") if priority_sel else ""
     status_obj = props.get("상태", {}).get("status")
@@ -325,6 +326,10 @@ def cmd_create_task(args):
     if roi and roi not in ROI_OPTIONS:
         _exit_error(f"Invalid ROI '{roi}'. Valid: {sorted(ROI_OPTIONS)}")
 
+    task_type = getattr(args, "task_type", None) or "Task"
+    if task_type not in TYPE_OPTIONS:
+        _exit_error(f"Invalid type '{task_type}'. Valid: {sorted(TYPE_OPTIONS)}")
+
     # 본문 템플릿(Summary/Why/기대효과/Non-Goals)을 미리 파싱해 fail-fast.
     # 페이지 POST 전에 검증해야 본문 누락된 반쪽 Task가 생기지 않는다.
     # --body(인라인)와 --body-file 중 파일 우선. 둘 다 없으면 본문 템플릿 생략.
@@ -344,7 +349,7 @@ def cmd_create_task(args):
         body_blocks = markdown_to_blocks(body_md)
 
     properties = {
-        "이름": {
+        "Title": {
             "title": [{"text": {"content": name}}]
         },
         "Priority": {
@@ -352,6 +357,9 @@ def cmd_create_task(args):
         },
         "Group": {
             "select": {"name": category}
+        },
+        "Type": {
+            "select": {"name": task_type}
         },
         "상태": {
             "status": {"name": "해야할 것"}
@@ -368,6 +376,10 @@ def cmd_create_task(args):
         properties["Description"] = {
             "rich_text": [{"text": {"content": args.description}}]
         }
+
+    related_task = getattr(args, "related_task", None)
+    if related_task:
+        properties["Related Task"] = {"relation": [{"id": related_task}]}
 
     body = {
         "parent": {"type": "data_source_id", "data_source_id": resolve_ds_id(token, TASK_DB_ID)},
@@ -483,7 +495,7 @@ def cmd_set_roi(args):
     result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
 
     props = result.get("properties", {})
-    name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
 
     print(json.dumps({
         "success": True,
@@ -560,7 +572,7 @@ def cmd_update_status(args):
     result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
 
     props = result.get("properties", {})
-    name_title = props.get("이름", {}).get("title", [])
+    name_title = props.get("Title", {}).get("title", [])
     name = rich_text_to_plain(name_title)
 
     print(json.dumps({
@@ -576,6 +588,50 @@ def cmd_update_status(args):
 
 
 # ─────────────────────────────────────────────
+# Task 간 연결 (Related Task self-relation)
+# ─────────────────────────────────────────────
+
+def cmd_link_related_task(args):
+    """두 Task를 Related Task 프로퍼티(self-relation)로 연결.
+
+    Task DB 내부의 self-relation이며 양방향 sync라, 한쪽 페이지에만 채우면
+    반대쪽 페이지의 Related Task에도 자동으로 반영된다. 본문에 마크다운
+    텍스트 링크로 백링크를 직접 쓰지 않기 위한 커맨드 (2026-08-04 발견:
+    본문 텍스트 링크로 연결했다가 프로퍼티 존재를 놓쳤던 사례의 후속 조치).
+    """
+    token = get_token()
+
+    # 기존 relation을 덮어쓰지 않도록 먼저 조회 후 추가한다 (여러 Task와
+    # 연결된 상태일 수 있음). 이미 연결돼 있으면 멱등하게 통과.
+    existing = notion_request(token, "GET", f"/pages/{args.page_id}")
+    existing_relations = existing.get("properties", {}).get("Related Task", {}).get("relation", [])
+    existing_ids = {r["id"] for r in existing_relations}
+
+    if args.related_page_id in existing_ids:
+        result = existing
+    else:
+        body = {
+            "properties": {
+                "Related Task": {
+                    "relation": existing_relations + [{"id": args.related_page_id}]
+                }
+            }
+        }
+        result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
+
+    props = result.get("properties", {})
+    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
+
+    print(json.dumps({
+        "success": True,
+        "page_id": args.page_id,
+        "name": name,
+        "related_page_id": args.related_page_id,
+        "already_linked": args.related_page_id in existing_ids,
+    }, ensure_ascii=False, indent=2))
+
+
+# ─────────────────────────────────────────────
 # 삭제 (아카이브)
 # ─────────────────────────────────────────────
 
@@ -586,7 +642,7 @@ def cmd_delete_task(args):
     # 삭제 전 Task 이름 조회
     page = notion_request(token, "GET", f"/pages/{args.page_id}")
     props = page.get("properties", {})
-    name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
 
     body = {"archived": True}
     notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
@@ -941,6 +997,8 @@ def main():
                     choices=sorted(PRIORITY_OPTIONS),
                     help="우선순위")
     ct.add_argument("--category", required=True, choices=["WORK", "MY"], help="카테고리")
+    ct.add_argument("--type", dest="task_type", default="Task", choices=sorted(TYPE_OPTIONS),
+                    help="Task/Project 구분 (기본값 Task)")
     ct.add_argument("--due", default=None, help="마감일 (YYYY-MM-DD)")
     ct.add_argument("--roi", default=None, choices=sorted(ROI_OPTIONS),
                     help="ROI 버킷 (선택). 미지정 시 groom 대상으로 남음")
@@ -952,6 +1010,14 @@ def main():
                     help="본문 템플릿 Markdown 파일 경로 (--body 대신 파일로 전달). 파일 우선")
     ct.add_argument("--image", dest="images", action="append", default=None,
                     help="이미지 URL 또는 로컬 파일 경로 (여러 번 사용 가능)")
+    ct.add_argument("--related-task", dest="related_task", default=None,
+                    help="연결할 기존 Task의 page ID (Related Task self-relation, 양방향 sync)")
+
+    # link-related-task
+    lr = subparsers.add_parser("link-related-task",
+                                help="두 Task를 Related Task 프로퍼티로 연결 (self-relation, 양방향 sync)")
+    lr.add_argument("--page-id", required=True, help="Notion page ID")
+    lr.add_argument("--related-page-id", required=True, help="연결할 상대방 Task의 page ID")
 
     # set-roi
     sr = subparsers.add_parser("set-roi", help="Task ROI 버킷 설정 (groom)")
@@ -997,6 +1063,7 @@ def main():
         "create-task": cmd_create_task,
         "set-roi": cmd_set_roi,
         "update-status": cmd_update_status,
+        "link-related-task": cmd_link_related_task,
         "delete-task": cmd_delete_task,
         "append-content": cmd_append_content,
         "carry-over": cmd_carry_over,
