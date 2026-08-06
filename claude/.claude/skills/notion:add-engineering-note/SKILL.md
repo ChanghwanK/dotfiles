@@ -11,6 +11,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
   - Write(/tmp/eng-note-sections.json)
+  - mcp__claude_ai_Notion__notion-fetch
 ---
 
 # Engineering Note Skill
@@ -76,6 +77,24 @@ Task 페이지가 없으므로 문제 정의/목표/비목표를 그대로 포�
 `--task` 유무로 자동 분기하므로(`linked_to_task`), Claude는 어느 케이스인지만 판단해
 아래 표의 해당 키만 채우면 된다.
 
+### 업무 Plan의 원본: Task의 `05. 세부 계획`
+
+`plan`(작업 계획) 섹션은 Engineering Note에서 새로 창작하는 것이 아니라, **연결된 Task 페이지의
+`## 05. 세부 계획`을 업무 Plan으로 승격시킨 결과**다.
+
+위 "역할 분리"에서 문제 정의/목표/비목표는 Task가 단일 출처라 노트에 다시 쓰지 않는다고 했는데,
+세부 계획만 예외로 옮기는 이유는 **두 문서가 담는 시점이 다르기 때문**이다. Task의 `05. 세부 계획`은
+착수 시점의 계획이고, 노트의 `plan`은 그 계획을 실행 상태와 함께 보관하는 자리다. 노트가
+`작업 History` / `Task Review`를 함께 들고 있으므로 실행 기록의 단일 출처는 노트 쪽이 맞다.
+
+- 옮길 때 실제 수행 상태를 반영한다: 완료 항목은 `- [x]`, 남은 항목은 `- [ ]`.
+- Task 본문의 `*롤백:*` 라벨 불릿도 함께 옮긴다. 실행 항목은 아니지만 업무 Plan의 일부다.
+- **계획이 실행 중 바뀌었으면 바뀐 최종 계획을 `plan`에 담고, 왜 바뀌었는지는 `design` 또는
+  `alternatives`에 남긴다.** 이때 Task의 `05`는 착수 시점 기록으로 그대로 두고 소급 수정하지 않는다.
+  어느 쪽이 최종인지 묻는다면 답은 항상 노트의 `plan`이다.
+- Task에 `05. 세부 계획`이 없으면(구 5-필드 Task 또는 단순 메모) 대화에서 실행 단계를 추출해
+  `plan`을 합성한다. 없는 섹션을 있는 것처럼 인용하지 않는다.
+
 ### Step 1: 대화 내용 분석 및 섹션 매핑
 
 **Task 연결 노트** (표준 경로, Task가 있으면 항상 이 표만 사용):
@@ -84,7 +103,7 @@ Task 페이지가 없으므로 문제 정의/목표/비목표를 그대로 포�
 |------|----------|-----------|
 | 설계 | `design` | 선택한 아키텍처/방식 |
 | 대안 검토 | `alternatives` | 검토했던 다른 옵션들 |
-| 작업 계획 | `plan` | 실행 단계, 체크리스트 |
+| 작업 계획 | `plan` | 업무 Plan(실행 단계 체크리스트). **연결된 Task에 `## 05. 세부 계획`이 있으면 그것을 원본으로 옮겨 담는다** (아래 "업무 Plan의 원본" 참조). 없을 때만 대화에서 합성한다 |
 | 작업 History | `history` | 날짜별 실제 진행 기록. 생성 시점엔 비워두고 이후 `append-content`로 계속 추가하는 것을 표준으로 한다 |
 | Task Review | `review` | 완료 후 회고. task:review 출력 구조(성과 측정 / 성과 문장 PAR / 성장 회고)를 따르고, 상위 "Task Review" heading 없이 `### 성과 측정` 이하 하위 섹션만 넣는다. PAR 하위에는 3종(대표 PAR / 이력서 bullet / 성과평가용 확장형)을 모두 포함한다(이력서 bullet 생략 금지, 명사형 종결). 작업 진행 중에는 비워두고 완료 시점에 채운다 |
 | 미결 질문 | `questions` | 아직 결정 안 된 것 |
