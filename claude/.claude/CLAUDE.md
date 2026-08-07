@@ -193,19 +193,28 @@ Alfred 에이전트로 위임된 맥락에서는 적용하지 않는다 (에이�
 
 **자동 동작 (2단계):**
 - **승인 프롬프트 직전**: `PreToolUse(ExitPlanMode)` 훅(`scripts/plan-preview.sh`)이
-  `tool_input.plan`을 임시 `.md`로 저장하고 `plan-approval-server.py`를 띄운다.
-  브라우저에 **승인/거부 버튼 포함 프리뷰**가 즉시 뜨므로, 사용자는 결정 전에 브라우저에서 검토할 수 있다.
+  `tool_input.plan`을 세션별 임시 `.md`로 저장하고 `plan-approval-server.py`를 띄운다.
+  브라우저에 **승인/논의/거부 3버튼 프리뷰**가 즉시 뜨므로, 사용자는 결정 전에 브라우저에서 검토할 수 있다.
 - **승인 완료 후**: `PostToolUse(ExitPlanMode)` 훅(`scripts/notify-plan-done.sh`)이
   frontmatter가 주입된 최종 `.md` 기준으로 영속 `.html`을 같은 경로에 갱신한다 (오프라인 보관용, 브라우저는 열지 않음).
 
 **목적:** 승인 결정 "전에" 브라우저에서 플랜을 가독성 높게 검토하기 위함.
 
+**3버튼의 의미 (Claude가 받는 결과가 다르다):**
+- **승인** → `permissionDecision: allow`. 그대로 실행한다.
+- **거부** → `deny` + `[PLAN REJECTED]`. 플랜을 폐기한다. **같은 플랜을 재제출하지 말고** 사용자에게 방향을 다시 묻는다.
+- **논의** → `deny` + `[PLAN PAUSED]`. 플랜 모드가 유지된다. reason에 담긴 순서를 따른다:
+  ① 이해 점검 답변을 먼저 채점·교정한다 → ② 논의 사항을 반영한다 → ③ **변경점을 먼저 제시한 뒤**
+  ExitPlanMode를 다시 호출한다. 코드·파일을 수정하지 않는다.
+
 **규칙:**
 - 영속 HTML 경로: `.md`와 동일 디렉터리, 확장자만 `.html`로 변경
   - 예: `~/.claude/plans/upgrade-mango.md` → `~/.claude/plans/upgrade-mango.html`
-- 디자인: 토큰 기반 절제된 팔레트, 라이트/다크 모드 지원. 위험(리스크·롤백)·추천 정보만 시맨틱 색상으로 강조, 그 외 장식 없음
+- 디자인: 토큰 기반 절제된 팔레트, 라이트/다크/자동 테마. 위험(리스크·롤백)·추천 정보만 시맨틱 색상으로 강조, 그 외 장식 없음
+- 이해 점검 섹션 작성 조건(Steps 3개 이상 / prod·인프라 / one-way door)은 `~/.claude/docs/plan-format.md` 참조
 
 템플릿 상세(훅 스크립트가 소비, Claude는 읽을 필요 없음): `~/.claude/docs/plan-html-template.md`
+CSS/JS 정본: `~/.claude/scripts/assets/plan.css`, `plan.js`
 
 ## Plan TODO 통합
 

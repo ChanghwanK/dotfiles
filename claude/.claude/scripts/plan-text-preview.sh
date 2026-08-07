@@ -59,20 +59,27 @@ PYEOF
 
 [ -z "$PLAN" ] && exit 0
 
+# 세션 단위 작업 디렉터리. hash 파일은 턴을 넘겨 유지되어야 하므로 세션별로 분리한다
+# (고정 경로면 두 세션이 서로의 중복 판정을 덮어써 프리뷰가 안 뜨거나 두 번 뜬다).
+SLUG=$(basename "$TRANSCRIPT" .jsonl | tr -cd 'a-zA-Z0-9-' | cut -c1-12)
+WORKDIR="${TMPDIR:-/tmp}/claude-plan-text-${SLUG:-noid}"
+mkdir -p "$WORKDIR" 2>/dev/null || exit 0
+
 # 중복 오픈 방지 — 동일 플랜이 다음 턴에도 마지막 메시지로 남아 재오픈되는 것을 막는다.
 HASH=$(printf '%s' "$PLAN" | shasum | awk '{print $1}')
-HASH_FILE="/tmp/claude-plan-text-preview.hash"
+HASH_FILE="$WORKDIR/last.hash"
 [ -f "$HASH_FILE" ] && [ "$(cat "$HASH_FILE" 2>/dev/null)" = "$HASH" ] && exit 0
 printf '%s' "$HASH" > "$HASH_FILE"
 
 # md → html 변환 후 브라우저 오픈 (읽기 전용, 승인 버튼 없음)
-PREVIEW_MD="/tmp/claude-plan-text-preview.md"
+PREVIEW_MD="$WORKDIR/preview.md"
 printf '%s' "$PLAN" > "$PREVIEW_MD"
 
-HTML=$(python3 -c "import importlib.util; \
-spec=importlib.util.spec_from_file_location('p','${HOME}/.claude/scripts/plan-to-html.py'); \
-m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(m.convert('$PREVIEW_MD'))" \
-  2>/dev/null)
+# 경로는 argv로 넘긴다 — 소스에 보간하면 경로 안의 따옴표가 코드를 깨뜨린다.
+HTML=$(python3 -c "import importlib.util,sys; \
+spec=importlib.util.spec_from_file_location('p',sys.argv[1]); \
+m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print(m.convert(sys.argv[2]))" \
+  "${HOME}/.claude/scripts/plan-to-html.py" "$PREVIEW_MD" 2>/dev/null)
 
 [ -n "$HTML" ] && [ -f "$HTML" ] && open "$HTML" >/dev/null 2>&1
 

@@ -52,7 +52,7 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/plan-preview.sh",
-            "timeout": 320
+            "timeout": 900
           }
         ]
       }
