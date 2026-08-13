@@ -175,11 +175,54 @@ def md_to_blocks(text):
     code_lang = ""
     code_lines = []
     code_indent = 0
+    table_buf = []  # [(indent, line)] 연속된 `|...|` 줄 버퍼
+
+    def split_row(row):
+        return [c.strip() for c in row.strip().strip("|").split("|")]
+
+    def flush_table():
+        """버퍼가 GFM 표면 table 블록으로, 아니면 기존대로 문단으로 떨군다."""
+        if not table_buf:
+            return
+        rows = [split_row(l) for _, l in table_buf]
+        is_table = (
+            len(rows) >= 2
+            and all(re.fullmatch(r':?-{2,}:?', c) for c in rows[1] if c)
+            and len(rows[1]) == len(rows[0])
+        )
+        if is_table:
+            width = len(rows[0])
+            body = [rows[0]] + rows[2:]
+            children = []
+            for r in body:
+                cells = (r + [""] * width)[:width]
+                children.append({"type": "table_row", "table_row": {
+                    "cells": [md_to_rich_text(c) if c else [] for c in cells]
+                }})
+            blocks.append({"type": "table", "table": {
+                "table_width": width,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": children,
+            }})
+            stack.clear()
+        else:
+            for ind, l in table_buf:
+                place(ind, {"type": "paragraph", "paragraph": {
+                    "rich_text": md_to_rich_text(l), "color": "default"
+                }})
+        table_buf.clear()
 
     for line in lines:
         stripped = line.rstrip()
         lstripped = stripped.lstrip(" ")
         indent = len(stripped) - len(lstripped)
+
+        if not in_code:
+            if re.match(r'^\|.*\|$', lstripped):
+                table_buf.append((indent, lstripped))
+                continue
+            flush_table()
 
         if in_code:
             if lstripped.startswith("```"):
@@ -261,6 +304,7 @@ def md_to_blocks(text):
             "color": "default"
         }})
 
+    flush_table()
     return blocks
 
 

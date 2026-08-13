@@ -815,6 +815,7 @@ def markdown_to_blocks(md):
     blocks = []                       # top-level 블록
     stack = []                        # [(indent, block)] 현재 조상 체인
     code_lines, code_lang, in_code = [], "plain text", False
+    table_buf = []                    # [(indent, line)] 연속된 `|...|` 줄 버퍼
 
     def place(indent, block):
         # 현재 indent 이하(형제·더 얕음)인 조상은 pop → 남은 top이 부모
@@ -829,8 +830,45 @@ def markdown_to_blocks(md):
         if block["type"] in _CONTAINER_TYPES:
             stack.append((indent, block))
 
+    def flush_table():
+        """버퍼가 GFM 표면 table 블록으로, 아니면 기존대로 문단으로 떨군다."""
+        if not table_buf:
+            return
+        rows = [[c.strip() for c in l.strip().strip("|").split("|")] for _, l in table_buf]
+        is_table = (
+            len(rows) >= 2
+            and all(re.fullmatch(r":?-{2,}:?", c) for c in rows[1] if c)
+            and len(rows[1]) == len(rows[0])
+        )
+        if is_table:
+            width = len(rows[0])
+            children = []
+            for r in [rows[0]] + rows[2:]:
+                cells = (r + [""] * width)[:width]
+                children.append({"object": "block", "type": "table_row", "table_row": {
+                    "cells": [parse_rich_text(c) if c else [] for c in cells]
+                }})
+            blocks.append({"object": "block", "type": "table", "table": {
+                "table_width": width,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": children,
+            }})
+            stack.clear()
+        else:
+            for ind, l in table_buf:
+                place(ind, {"object": "block", "type": "paragraph",
+                            "paragraph": {"rich_text": parse_rich_text(l)}})
+        table_buf.clear()
+
     for raw in lines:
         stripped = raw.rstrip()
+        if not in_code:
+            _s = stripped.strip()
+            if re.match(r"^\|.*\|$", _s):
+                table_buf.append((len(stripped) - len(stripped.lstrip(" ")), _s))
+                continue
+            flush_table()
         if stripped.lstrip().startswith("```"):
             if not in_code:
                 in_code, code_lang, code_lines = True, stripped.lstrip()[3:].strip(), []
@@ -887,6 +925,7 @@ def markdown_to_blocks(md):
                      "paragraph": {"rich_text": parse_rich_text(s)}}
         place(indent, block)
 
+    flush_table()
     return blocks
 
 
