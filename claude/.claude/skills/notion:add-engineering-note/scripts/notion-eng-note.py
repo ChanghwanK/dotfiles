@@ -21,6 +21,9 @@ sections.json 형식 (--task 지정 시, problem/goal/non_goal 생략 가능):
   "review":   "Task Review (마크다운, task:review 구조: 성과 측정/PAR/성장 회고. 상위 heading 없이 하위 섹션만)",
   "questions": "미결 질문 (마크다운)"
 }
+
+각 섹션 제목은 템플릿이 H1으로 깔기 때문에, 섹션 내용에 쓰는 heading은 H2(##)부터 시작한다.
+호출자가 ###으로 써도 make_template_blocks가 H2 기준으로 자동 보정하므로 계층이 깨지지 않는다.
 """
 
 import os
@@ -308,6 +311,55 @@ def md_to_blocks(text):
     return blocks
 
 
+MIN_SUBSECTION_HEADING_LEVEL = 2  # 섹션 제목이 H1이므로 섹션 내용의 최상위 heading은 H2다
+MAX_NOTION_HEADING_LEVEL = 3      # Notion은 heading_3까지만 지원한다
+
+
+def normalize_subsection_headings(blocks):
+    """섹션 내용의 heading 최상위 레벨을 H2로 맞춘다 (상대 깊이는 보존).
+
+    템플릿이 각 섹션 제목을 H1으로 깔기 때문에, 섹션 내용이 H3부터 시작하면
+    H1 바로 아래 H3이 오는 계층 건너뜀이 생긴다. 호출자마다 ## / ### 중 무엇을 쓸지
+    엇갈리므로(문서화만으로는 반복 교정이 필요했다) 여기서 결정론적으로 보정한다.
+
+    Notion heading이 3단계뿐이라 H3을 넘는 깊이는 H3으로 접힌다. 접힘이 실제로
+    발생하면 형제 관계가 뭉개지므로 stderr로 알린다.
+    """
+    levels = [
+        int(b["type"][-1]) for b in blocks
+        if b.get("type", "").startswith("heading_")
+    ]
+    if not levels:
+        return blocks
+
+    shift = MIN_SUBSECTION_HEADING_LEVEL - min(levels)
+    if shift == 0:
+        return blocks
+
+    collapsed = False
+    for block in blocks:
+        block_type = block.get("type", "")
+        if not block_type.startswith("heading_"):
+            continue
+        level = int(block_type[-1])
+        new_level = level + shift
+        if new_level > MAX_NOTION_HEADING_LEVEL:
+            new_level = MAX_NOTION_HEADING_LEVEL
+            collapsed = True
+        if new_level == level:
+            continue
+        block[f"heading_{new_level}"] = block.pop(block_type)
+        block["type"] = f"heading_{new_level}"
+
+    if collapsed:
+        print(
+            "WARN: 섹션 내용의 heading 깊이가 Notion 한계(H3)를 넘어 일부가 H3으로 접혔습니다. "
+            "섹션 내용은 ## / ### 두 단계까지만 쓰십시오.",
+            file=sys.stderr,
+        )
+    return blocks
+
+
 def make_template_blocks(sections=None, linked_to_task=False):
     """업무 노트 템플릿 블록 구조 생성.
 
@@ -321,6 +373,11 @@ def make_template_blocks(sections=None, linked_to_task=False):
 
     def h1(text):
         return {"type": "heading_1", "heading_1": {
+            "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
+        }}
+
+    def h2(text):
+        return {"type": "heading_2", "heading_2": {
             "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
         }}
 
@@ -352,7 +409,7 @@ def make_template_blocks(sections=None, linked_to_task=False):
         """섹션 내용 반환: sections[key]가 있으면 파싱, 없으면 placeholder."""
         content = s.get(key, "").strip()
         if content:
-            return md_to_blocks(content)
+            return normalize_subsection_headings(md_to_blocks(content))
         return placeholders
 
     section_count = (0 if linked_to_task else 2) + 6  # 6개 공통 섹션 + (독립 노트만) 문제정의/목표비목표
@@ -407,12 +464,14 @@ def make_template_blocks(sections=None, linked_to_task=False):
         # Task Review: 완료 후 작성. task:review 출력 구조(성과 측정/PAR/성장 회고)와
         # 포맷을 통일한다 (2026-07-15: 템플릿과 gate가 쓰는 포맷이 달라 중복 섹션 발생)
         h1(f"{next(n)}. Task Review"),
+        # 미기입 placeholder도 H2로 둔다: 섹션 제목이 H1이라 하위 제목은 H2여야 하고,
+        # 빈 템플릿이 그 레벨을 그대로 보여줘야 Notion UI에서 이어 쓸 때도 계층이 유지된다.
         *section_blocks("review", [
-            paragraph("성과 측정"),
+            h2("성과 측정"),
             quote(""),
-            paragraph("성과 문장 (PAR: 대표 PAR / 이력서 bullet / 확장형)"),
+            h2("성과 문장 (PAR: 대표 PAR / 이력서 bullet / 확장형)"),
             quote(""),
-            paragraph("성장 회고 (Keep / Try)"),
+            h2("성장 회고 (Keep / Try)"),
             quote(""),
         ]),
         divider(),
