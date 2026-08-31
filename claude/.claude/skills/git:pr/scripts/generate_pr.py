@@ -38,6 +38,18 @@ ENV_CONTEXT_MAP = {
     'infra-k8s-office': ('k8s-office', 'office'),
 }
 
+# Title env slot은 배포 파이프라인 순서로 고정한다: 리뷰어가 매번 같은 자리에서 prod를 찾게 하려는 것.
+ENV_LABEL_ORDER = ['common', 'dev', 'stg', 'prod', 'global', 'idc', 'office']
+
+# 이 개수를 넘으면 나열 대신 sphere로 축약한다 (title이 대상 나열에 잠식되는 것을 막는다).
+MAX_LISTED_CIRCLES = 3
+MAX_LISTED_SPHERES = 3
+
+TITLE_SUBJECT_PLACEHOLDER = (
+    '<!-- FILL_ME: 동작 + 대상 + (가능하면) 효과. '
+    '커밋 subject 복사 금지, PR 전체 의도로 새로 쓴다 -->'
+)
+
 
 def parse_diff(diff_file: str) -> list:
     entries = []
@@ -98,41 +110,72 @@ def analyze_changes(entries: list) -> dict:
     return circles
 
 
-def infer_commit_type(commits: list) -> str:
-    if not commits:
-        return 'chore'
-    m = CONVENTIONAL_COMMIT_RE.match(commits[0]['subject'])
-    return m.group('type') if m else 'feat'
+def strip_commit_prefix(subject: str) -> str:
+    """Drop a Conventional Commits prefix so the subject can seed a PR title hint."""
+    m = CONVENTIONAL_COMMIT_RE.match(subject)
+    return m.group('desc') if m else subject
+
+
+def collect_subject_hints(commits: list) -> list:
+    """Commit subjects are hints for the author, never the PR title itself."""
+    hints = []
+    for c in commits:
+        desc = strip_commit_prefix(c['subject']).strip()
+        if desc and desc not in hints:
+            hints.append(desc)
+    return hints
+
+
+def build_env_slot(circles: dict) -> str:
+    """Env slot = blast radius, the first thing a GitOps reviewer needs."""
+    labels = set()
+    for envs in circles.values():
+        for env in envs:
+            if env in ('common', 'applicationset'):
+                # common/applicationset 레이어는 그 circle의 모든 환경에 반영된다.
+                labels.add('common')
+            elif env.startswith('infra-k8s-'):
+                labels.add(ENV_CONTEXT_MAP.get(env, (env, env))[1])
+
+    if not labels:
+        # 클러스터에 배포되지 않는 변경(문서, 스킬, 스크립트).
+        return 'repo'
+
+    ordered = [label for label in ENV_LABEL_ORDER if label in labels]
+    ordered += sorted(labels - set(ENV_LABEL_ORDER))
+    return ','.join(ordered)
+
+
+def build_scope(circles: dict) -> str:
+    """Scope 표기: circle을 최대 3개까지만 나열하고 넘으면 sphere로 축약한다."""
+    if not circles:
+        return ''
+
+    spheres = sorted({sphere for sphere, _ in circles})
+
+    if len(spheres) == 1:
+        circle_names = sorted(circle for _, circle in circles)
+        if len(circle_names) <= MAX_LISTED_CIRCLES:
+            return f'{spheres[0]}/{",".join(circle_names)}'
+        return spheres[0]
+
+    if len(spheres) <= MAX_LISTED_SPHERES:
+        return ','.join(spheres)
+    listed = ','.join(spheres[:MAX_LISTED_SPHERES])
+    return f'{listed},+{len(spheres) - MAX_LISTED_SPHERES}'
 
 
 def generate_title(circles: dict, commits: list) -> str:
-    if not commits:
-        return 'chore: update kubernetes manifests'
+    """Deterministic prefix only. Subject는 LLM이 PR 전체 의도로 새로 쓴다.
 
-    # Single commit → use subject directly
-    if len(commits) == 1:
-        return commits[0]['subject']
-
-    sphere_circle_list = sorted(circles.keys())
-
-    if len(sphere_circle_list) == 0:
-        return commits[0]['subject']
-
-    if len(sphere_circle_list) == 1:
-        sphere, circle = sphere_circle_list[0]
-        commit_type = infer_commit_type(commits)
-        m = CONVENTIONAL_COMMIT_RE.match(commits[0]['subject'])
-        desc = m.group('desc') if m else commits[0]['subject']
-        return f'{commit_type}({sphere}/{circle}): {desc}'
-
-    spheres = sorted({s for s, _ in sphere_circle_list})
-    commit_type = infer_commit_type(commits)
-
-    if len(spheres) == 1:
-        n = len(sphere_circle_list)
-        return f'{commit_type}({spheres[0]}): update {n} circles'
-
-    return f'{commit_type}: update {len(sphere_circle_list)} circles across {len(spheres)} spheres'
+    커밋 subject를 그대로 흘려보내던 이전 동작을 제거했다: PR title은 squash 후
+    main history 한 줄이자 리뷰 진입점이므로, 첫 커밋이 아니라 PR 전체를 설명해야 한다.
+    """
+    scope = build_scope(circles)
+    prefix = f'[{build_env_slot(circles)}]'
+    if scope:
+        prefix = f'{prefix} {scope}'
+    return f'{prefix}: {TITLE_SUBJECT_PLACEHOLDER}'
 
 
 def generate_body(circles: dict, commits: list) -> str:
@@ -245,6 +288,10 @@ def cmd_analyze(diff_file: str, log_file: str) -> None:
 
     result = {
         'suggested_title': generate_title(circles, commits),
+        'title_prefix': (
+            f'[{build_env_slot(circles)}] {build_scope(circles)}'.strip()
+        ),
+        'subject_hints': collect_subject_hints(commits),
         'suggested_body': generate_body(circles, commits),
         'affected_circles': [
             {'sphere': s, 'circle': c, 'envs': sorted(envs)}

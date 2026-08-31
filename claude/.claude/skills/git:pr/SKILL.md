@@ -15,7 +15,7 @@ allowed-tools:
 
 # git:pr
 
-변경된 sphere/circle/env를 자동 분석하여 Conventional Commits 제목과
+변경된 sphere/circle/env를 자동 분석하여 `[env] sphere/circle: subject` 형식의 제목과
 테스트 플랜이 포함된 PR 본문을 생성하고 `gh pr create`로 PR을 생성한다.
 
 ---
@@ -26,23 +26,48 @@ allowed-tools:
 - **main 브랜치 직접 PR 생성 불가**: 별도 feature 브랜치 필요
 - **PR은 기본 ready(non-draft)로 오픈**: 실제 merged PR 이력상 prod/global 변경 포함 여부와 무관하게 전부 non-draft로 오픈되어 왔다. 사용자가 명시적으로 요청할 때만 draft로 전환한다
 - **리뷰어 자동 지정**: `src/ai-santa/` → `@riiid/mlops`, 나머지 → `@riiid/infra`
-- **PR title = squash 후 main의 유일한 history 줄**: `git:commit`의 subject 규칙과 동일 기준을 적용한다 (아래 Title 컨벤션 참조)
+- **PR title은 커밋에서 파생하지 않는다**: 커밋 subject를 복사하거나 커밋 type을 물려받지 않는다. PR은 커밋 하나가 아니라 변경 전체이므로 title도 PR 전체 의도로 새로 쓴다 (아래 Title 컨벤션 참조)
 - **PR 본문에 "변경 의도/배경(Why)" 필수**: diff는 "무엇을 바꿨는지"만 보여준다. 리뷰어·미래의 변경자가 안전하게 리뷰·롤백하려면 "왜 이 변경이 필요했는지"(유발한 문제·요구·배경)가 본문에 있어야 한다. 스크립트가 `## 변경 의도 / 배경 (Why)` 섹션에 `<!-- FILL_ME ... -->` placeholder를 넣으므로, LLM이 대화 맥락에서 이를 반드시 채운 뒤 PR을 생성한다 (아래 Step 4/5 게이트 참조).
 
-## Title 컨벤션 (= git:commit subject 규칙과 정렬)
+## Title 컨벤션 (PR 전용 형식)
 
-이 레포는 PR squash merge다. main `git log`에 남는 건 **PR title 한 줄**이며, 사람과 LLM이 history·맥락을 파악하는 1차 소스다.
-따라서 title은 `git:commit`의 subject 규칙을 그대로 따른다:
+**형식: `[env] sphere/circle: 동작 + 대상 + (가능하면) 효과`**
 
-- 형식 `type(sphere/circle): subject`: `동작 + 대상 + (가능하면) 의도/효과`를 한 줄로 압축
-- 단순 `update N circles` / `update kubernetes manifests` / `Update X` 금지: "왜/효과"를 한 조각 넣는다
-- 길이 ~72자 가이드
-- 원인 분석·해결 과정·롤백·blast radius는 title이 아닌 **PR 본문(Summary/테스트 플랜)**에 적는다 (커밋과 동일한 역할 분담)
+이 레포는 PR squash merge다. main `git log`에 남는 건 **PR title 한 줄**이며, 동시에 리뷰어가
+PR 목록에서 blast radius를 판단하는 1차 신호다. 그래서 title은 커밋 규칙을 물려받는 대신
+**환경 → 대상 → 내용** 순서를 고정 슬롯으로 갖는다. 리뷰어가 매번 같은 자리에서 prod 여부를 찾게 하려는 것이다.
 
-| generic (지양) | history-친화 (지향) |
-|----------------|---------------------|
-| `chore(santa): update 3 circles` | `chore(santa): bump auth/worker/gateway images to dev-4164f0a` |
-| `chore: update 5 circles across 2 spheres` | `fix: raise memory limits for tempo, loki to stop prod OOMKill` |
+### 슬롯 1: `[env]` (스크립트가 diff에서 결정, 임의 수정 금지)
+
+- 표기 순서 고정: `common` → `dev` → `stg` → `prod` → `global` → `idc` → `office`
+- `common/`·`applicationset.jsonnet` 변경은 그 circle의 전 환경에 반영되므로 `common`을 포함한다 (예: `[common,prod]`)
+- 클러스터에 배포되지 않는 변경(`devops-wiki/`, 스크립트, `.github/`)은 `[repo]`
+- 커밋 type(`chore`/`feat`/`fix`)은 이 슬롯에 들어가지 않는다: 유형 판단은 본문 Summary가 담당한다
+
+### 슬롯 2: `sphere/circle` (스크립트가 결정)
+
+| 변경 범위 | 표기 |
+|-----------|------|
+| circle 1개 | `observability/alloy` |
+| 같은 sphere, circle 3개 이하 | `santa/authentication,gateway,worker` |
+| 같은 sphere, circle 4개 이상 | `santa` (sphere만, 개수는 쓰지 않는다) |
+| 여러 sphere | `infra,observability` |
+| src 밖 변경만 | 슬롯 생략 (`[repo]: ...`) |
+
+### 슬롯 3: subject (LLM이 작성)
+
+- `동작 + 대상 + (가능하면) 효과`를 한 줄로 압축한다. 길이 가이드는 슬롯 포함 ~72자
+- **커밋 subject 복사 금지**: 커밋은 작업 단위, PR은 변경 전체다. 커밋 3개짜리 PR의 title이 첫 커밋만 설명하면 squash 후 history가 나머지 2개를 잃는다
+- `update N circles` / `여러 서비스 설정 변경` 같은 개수·범주 서술 금지: 개수는 이미 슬롯 2에 있으므로 subject에는 **공통 의도**를 적는다
+- 환경명을 subject에 중복해 쓰지 않는다: `[prod] observability/alloy: prod Alloy에 카운터 추가` (X)
+
+| 지양 | 지향 |
+|------|------|
+| `[dev] santa: update 3 circles` | `[dev] santa/authentication,gateway,worker: 이미지를 dev-4164f0a로 일괄 승격` |
+| `[prod] observability/tempo,loki: 메모리 limit 수정` | `[prod] observability/loki,tempo: 메모리 limit 상향으로 OOMKill 차단` |
+| `[stg] infra/argo-rollouts: oauth2-proxy 변경` | `[stg] infra/argo-rollouts: oauth2-proxy OIDC를 okta.socra.ai로 전환 (2/3)` |
+
+원인 분석·해결 과정·blast radius 서술은 title이 아닌 **PR 본문(Summary / 변경 의도)**에 적는다.
 
 ---
 
@@ -75,7 +100,9 @@ python3 /Users/changhwan/.claude/skills/git:pr/scripts/generate_pr.py \
 ```
 
 JSON 출력 필드:
-- `suggested_title`: `type(sphere/circle): message` 형식
+- `title_prefix`: `[env] sphere/circle` (diff에서 결정된 고정 슬롯, 그대로 사용한다)
+- `suggested_title`: `title_prefix` + `: ` + subject `<!-- FILL_ME ... -->` placeholder
+- `subject_hints`: 커밋 subject에서 `type(scope):`를 벗겨낸 목록. **title 후보가 아니라 참고 재료다** (그대로 복사하지 않는다)
 - `suggested_body`: 두괄식 3불릿 요약(문제/해결/영향, 높임말 기술문서체) + 환경 요약 표 + 변경 내용 + 테스트 플랜 (Rollback 섹션 없음)
 - `has_prod`, `has_global`: prod/global 변경 포함 여부 (본문/리뷰어 판단용, draft 판단에는 미사용)
 - `suggest_draft`: 항상 `false` (팀 컨벤션: PR은 기본 ready로 오픈)
@@ -121,13 +148,14 @@ python3 devops-wiki/scripts/verify-impact.py --changed-files "$(git diff main...
 draft=아니요)을 그대로 적용하고 Step 5로 진행한다. "이대로 진행할까요?" 같은 승인 대기 프롬프트를 만들지 않는다.
 사용자가 직접 다른 제목/draft를 명시적으로 요청한 경우에만 그 값을 반영한다.
 
-먼저 `suggested_title`을 **Title 컨벤션** 기준으로 평가한다.
-스크립트는 다중 circle/sphere일 때 `update N circles` 같은 deterministic fallback을 낸다.
-이런 generic title이면 diff와 커밋 내용을 근거로 `동작 + 대상 + 의도/효과`로 다듬는다.
-(단일 커밋 케이스는 커밋 subject가 그대로 흐르므로 추가 가공 불필요.) 다듬은 제목은 그대로 확정한다(재확인 불필요).
+**Title 확정 (슬롯 3만 작성):**
+- `title_prefix`(`[env] sphere/circle`)는 diff에서 결정된 값이므로 **그대로 쓴다.** 환경·대상을 임의로 줄이거나 바꾸지 않는다.
+- subject placeholder만 채운다. 재료는 diff·커밋 전체·대화 맥락이며, `subject_hints`는 참고용이다.
+  커밋이 하나뿐이어도 그 subject를 그대로 옮기지 않고, PR 전체를 설명하는 문장인지 확인한 뒤 쓴다.
+- 채운 제목은 그대로 확정한다 (재확인 불필요).
 
 **Placeholder 채우기 (유일한 예외 게이트):**
-- `suggested_body`에는 네 종류의 `<!-- FILL_ME ... -->` placeholder가 들어 있다.
+- title에 subject placeholder 1개, `suggested_body`에 네 종류의 `<!-- FILL_ME ... -->` placeholder가 들어 있다.
   1. `## Summary` 첫 불릿: **문제 상황**을 짧은 한 문장으로.
   2. `## Summary` 둘째 불릿: **해결 방법**을 짧은 한 문장으로.
   3. `## Summary` 셋째 불릿: **영향 범위/주의사항**을 짧은 한 문장으로.
@@ -149,7 +177,7 @@ draft=아니요)을 그대로 적용하고 Step 5로 진행한다. "이대로 �
 - `## 변경 의도 / 배경 (Why)`는 원인 분석·논증이 목적인 문단이라 연결된 서술을 허용하지만, 종결어미는 동일하게 높임말을 사용한다.
 - 네 placeholder 모두 **대화 맥락**(diff·커밋 메시지·이전 대화에서 언급된 알럿/장애/요구사항 등)으로 채운다. 대부분의 경우 diff/제목/커밋만으로 채울 수 있으므로 확인 없이 바로 채운다.
 - **맥락이 불충분해 문제/해결 문장이나 Why를 채울 수 없는 경우에만** 진행을 멈추고 사용자에게 물어본다. 이것이 이 스킬에서 유일하게 사용자 응답을 기다리는 지점이다.
-- `<!-- FILL_ME -->` placeholder가 하나라도 남아 있는 본문으로는 **Step 5(PR 생성)로 진행하지 않는다.**
+- `<!-- FILL_ME -->` placeholder가 **제목 또는 본문**에 하나라도 남아 있으면 **Step 5(PR 생성)로 진행하지 않는다.**
 
 **Rollback 섹션은 만들지 않는다:**
 - PR 본문에 별도 `## Rollback` 헤딩을 추가하지 않는다. GitOps 레포는 PR 자체가 단일 revert 대상이라 "이 PR을 되돌리는 방법"이 항상 "이 PR을 revert한다"로 동일하며, 별도 서술이 정보값을 더하지 않는다.
@@ -161,7 +189,7 @@ draft=아니요)을 그대로 적용하고 Step 5로 진행한다. "이대로 �
 ────────────────────────────────────────────
  📋 PR 생성
 ────────────────────────────────────────────
- 제목  : feat(tech/ai-gateway): update image to v1.2.3
+ 제목  : [dev,stg] tech/ai-gateway: 이미지를 v1.2.3으로 올려 토큰 만료 버그 수정
  Draft : 아니요
  리뷰어: riiid/infra
 ────────────────────────────────────────────
@@ -178,7 +206,7 @@ draft=아니요)을 그대로 적용하고 Step 5로 진행한다. "이대로 �
 
 ### Step 5: PR 생성
 
-**진행 전 확인**: `--body`로 넘길 본문에 `FILL_ME` placeholder가 남아 있으면 중단하고 Step 4의 placeholder 게이트로 돌아간다.
+**진행 전 확인**: `--title`·`--body`로 넘길 제목과 본문에 `FILL_ME` placeholder가 남아 있으면 중단하고 Step 4의 placeholder 게이트로 돌아간다.
 
 upstream 없으면 먼저 push:
 
