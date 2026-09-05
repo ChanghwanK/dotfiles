@@ -62,5 +62,9 @@
 
 ## 적용 범위
 
+이 문서가 이력서 bullet 포맷의 **단일 출처**다. 아래 소비처는 규칙을 요약·재정의하지 않고 이 문서를
+읽어 그대로 적용한다.
+
 - `task:review` 스킬 Part A.5 "이력서 bullet" 출력
+- `resume:bullet` 스킬 Step 2(bullet 생성) 및 Step 5(출력 전 검증 체크리스트)
 - `notion-review` 에이전트가 task:review PAR 섹션(`### PAR 성과 문장`)이 포함된 Task 문서를 리뷰할 때
