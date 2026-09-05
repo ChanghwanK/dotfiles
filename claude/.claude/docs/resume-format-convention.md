@@ -4,7 +4,7 @@
 `notion-review` 에이전트가 Task 문서를 리뷰할 때 이 기준을 함께 참조한다.
 
 경력기술서/성과평가용 문장(PAR 구조: Problem/Action/Result 레이블 + 서술형)은 이 표준의 적용 대상이
-**아니다**. 그쪽은 기존 PAR 포맷을 그대로 유지한다.
+**아니다**. 그쪽 표준은 `~/.claude/docs/par-format-convention.md`가 단일 출처다.
 
 ## 핵심 구조
 
