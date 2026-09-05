@@ -115,6 +115,22 @@ def resolve_ds_id(token, db_id):
     return _DS_CACHE[db_id]
 
 
+_DS_PROPS_CACHE = {}
+
+
+def ds_property_names(token, db_id):
+    """data source의 속성 이름 집합 (프로세스 내 캐시).
+
+    Notion DB 스키마는 사람이 UI에서 언제든 바꿀 수 있어 코드와 어긋난다.
+    없는 속성에 write하면 Notion이 400을 내고 명령 전체가 실패하므로,
+    "있으면 같이 갱신"류의 선택적 속성은 이 집합으로 존재를 먼저 확인한다.
+    """
+    if db_id not in _DS_PROPS_CACHE:
+        ds = notion_request(token, "GET", f"/data_sources/{resolve_ds_id(token, db_id)}")
+        _DS_PROPS_CACHE[db_id] = set(ds.get("properties", {}).keys())
+    return _DS_PROPS_CACHE[db_id]
+
+
 def rich_text_to_plain(rich_text_list):
     return "".join(item.get("plain_text", "") for item in rich_text_list)
 
@@ -516,15 +532,19 @@ def cmd_update_status(args):
     if args.status not in VALID_STATUSES:
         _exit_error(f"Invalid status '{args.status}'. Valid: {sorted(VALID_STATUSES)}")
 
-    # Task DB는 완료 여부를 상태(status)와 Done(checkbox) 두 속성으로 이중 관리한다.
-    # DONE 뷰·롤업은 Done 체크박스를 필터 기준으로 쓰므로, 상태만 바꾸면
-    # status=완료인데 DONE 뷰에 안 보이는 불일치가 생긴다. 둘을 항상 동기화한다.
+    # 완료 여부의 단일 출처는 상태(status)다. Done(checkbox)은 DONE 뷰·롤업이
+    # 필터로 쓰던 사본이라, 존재하면 같이 갱신해 불일치를 막는다.
+    #
+    # 2026-09-05: Task DB에서 Done 속성이 제거된 것을 확인했다. 없는 속성에
+    # write하면 Notion이 400을 내 상태 변경까지 통째로 실패하므로(사용자가
+    # UI에서 스키마를 바꾸면 CLI가 죽는 구조였다) 존재할 때만 동기화한다.
+    # 출력의 done은 DB 속성이 아니라 상태에서 파생하므로, Done 유무와 무관하게
+    # 완료 여부를 정확히 보고한다(alfred 완료 게이트의 검증 계약 유지).
     is_done = args.status == "완료"
     is_starting = args.status == "진행 중"
-    properties = {
-        "상태": {"status": {"name": args.status}},
-        "Done": {"checkbox": is_done},
-    }
+    properties = {"상태": {"status": {"name": args.status}}}
+    if "Done" in ds_property_names(token, TASK_DB_ID):
+        properties["Done"] = {"checkbox": is_done}
 
     # 완료·진행 중 전환은 각각 다른 날짜 속성을 backfill하므로, 기존 값 확인을
     # 위한 GET을 한 번만 수행하고 두 분기가 공유한다(중복 조회 방지).

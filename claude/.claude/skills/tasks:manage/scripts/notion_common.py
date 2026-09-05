@@ -120,6 +120,22 @@ def resolve_ds_id(token, db_id):
     return _DS_CACHE[db_id]
 
 
+_DS_PROPS_CACHE = {}
+
+
+def ds_property_names(token, db_id):
+    """data source의 속성 이름 집합 (프로세스 내 캐시).
+
+    Notion DB 스키마는 사람이 UI에서 언제든 바꿀 수 있어 코드와 어긋난다.
+    없는 속성에 write하면 Notion이 400을 내고 명령 전체가 실패하므로,
+    "있으면 같이 갱신"류의 선택적 속성은 이 집합으로 존재를 먼저 확인한다.
+    """
+    if db_id not in _DS_PROPS_CACHE:
+        ds = notion_request(token, "GET", f"/data_sources/{resolve_ds_id(token, db_id)}")
+        _DS_PROPS_CACHE[db_id] = set(ds.get("properties", {}).keys())
+    return _DS_PROPS_CACHE[db_id]
+
+
 # ── rich_text 변환 ────────────────────────────────────────────
 
 def rich_text_to_plain(rich_text_list):

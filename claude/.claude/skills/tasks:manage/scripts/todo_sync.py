@@ -376,13 +376,14 @@ def push(token, doc, dry_run):
         actions.append(("status", f"{task['name']} → {task['status']}"))
         stats["status_pushed"] += 1
         if not dry_run:
-            # 상태와 Done 체크박스를 함께 push한다. Task DB는 완료를 status와 Done
-            # 두 속성으로 이중 관리하므로(DONE 뷰·롤업은 Done 기준), 상태만 보내면
-            # status=완료인데 DONE 뷰에 안 보이는 불일치가 생긴다(notion-task.py와 동일 정책).
+            # 완료의 단일 출처는 상태(status)이고 Done은 DONE 뷰용 사본이다.
+            # Done이 DB에서 제거돼 있으면 write가 400을 내 push 전체가 실패하므로
+            # 존재할 때만 함께 보낸다(notion-task.py update-status와 동일 정책).
+            push_props = {"상태": {"status": {"name": task["status"]}}}
+            if "Done" in nc.ds_property_names(token, nc.TASK_DB_ID):
+                push_props["Done"] = {"checkbox": task["status"] == "완료"}
             nc.notion_request(token, "PATCH", f"/pages/{task['page_id']}",
-                              {"properties": {
-                                  "상태": {"status": {"name": task["status"]}},
-                                  "Done": {"checkbox": task["status"] == "완료"}}})
+                              {"properties": push_props})
             task["meta_dirty"] = False
             changed = True
     if not dry_run and changed:
