@@ -33,7 +33,7 @@ AWS 인스턴스 타입 질문을 3개 병렬 Agent(spec-explorer, usage-analyze
 
 - **Data-Driven**: 추정치 금지, AWS API/Pricing API로 실제 스펙/가격을 런타임 조회
 - **Context First**: 현재 사용 중인 리소스를 먼저 확인한 뒤 권장사항 제시
-- **Trade-off Explicit**: 생산성 > 비용 > 안정성 가중치 명시적 반영 (CLAUDE.md 준수)
+- **Trade-off Explicit**: 안정성 > 비용 > 가용성 수준 가중치 명시적 반영 (CLAUDE.md 준수)
 - **Parallel Investigation**: 3 Agent 병렬 실행으로 빠른 결과 도출
 
 ---
