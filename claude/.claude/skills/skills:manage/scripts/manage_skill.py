@@ -48,7 +48,7 @@ def expand_project_dir(path_str: str) -> str:
 
 
 REQUIRED_FIELDS = {"name", "description"}
-ALLOWED_FIELDS = {"name", "description", "model", "allowed-tools", "license", "metadata"}
+ALLOWED_FIELDS = {"name", "description", "model", "effort", "allowed-tools", "license", "metadata"}
 NAME_PATTERN = re.compile(r"^[a-z0-9]+([:-][a-z0-9]+)*$")
 MAX_NAME_LEN = 64
 
