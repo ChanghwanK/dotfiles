@@ -976,7 +976,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 
 작업 내용 기록(5단계) 직후 **확인 없이 자동으로 실행**한다. gate는 이미 자율 쓰기 모드이므로 task:review 저장 여부를 묻지 않는다(잔소리 방지 및 흐름 유지).
 
-> **건너뛰기 금지 (하드룰)**: task:review는 **완료/마일스톤/설계 산출물 여부와 무관하게 gate가 열릴 때마다 항상 실행**한다. "이번은 완료가 아니라 마일스톤이라 회고 대상이 아니다" 같은 자의적 판단으로 생략하지 않는다(2026-07-15 설계 gate에서 task:review를 자의적으로 skip한 재발 방지). Task가 완료로 닫히지 않고 진행 중이어도, 이번 세션에서 한 작업을 PAR + 이력서 bullet로 남기는 것이 목적이므로 항상 수행한다.
+> **건너뛰기 금지 (하드룰)**: task:review는 **완료/마일스톤/설계 산출물 여부와 무관하게 gate가 열릴 때마다 항상 실행**한다. "이번은 완료가 아니라 마일스톤이라 회고 대상이 아니다" 같은 자의적 판단으로 생략하지 않는다(2026-07-15 설계 gate에서 task:review를 자의적으로 skip한 재발 방지). Task가 완료로 닫히지 않고 진행 중이어도, 이번 세션에서 한 작업을 PAAR + 이력서 bullet로 남기는 것이 목적이므로 항상 수행한다.
 >
 > **병렬 실행**: task:review 합성은 세션 컨텍스트가 필요하므로 Alfred가 인라인으로 하되(step 1), 그 결과의 **저장(append)과 notion-review → notion-refactoring 교정 파이프라인(step 4)은 background agent로 띄워 7단계(후속 등록)와 병렬로 진행**한다. 리뷰 저장·교정이 끝날 때까지 gate 흐름을 막지 않으며, 완료 알림이 오면 결과만 1줄 보고한다.
 >
@@ -987,21 +987,21 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 1. 현재 대화 컨텍스트를 기반으로 `task:review/SKILL.md`의 Step 0~9 절차를 인라인으로 수행한다 (별도 스킬 호출 없이 Alfred 내에서 실행).
    - **출력 포맷 자유 요약 금지**: 인라인 수행이어도 `task:review/assets/output-template.md`를 Read해
      그 구조를 기준으로 산출한다. Engineering Note에 압축본을 담더라도 **Part A.5의 3종 산출물
-     (대표 PAR / 이력서 bullet / 성과평가용 확장형)은 생략하지 않는다.** 이력서 bullet은
+     (대표 PAAR / 이력서 bullet / 성과평가용 확장형)은 생략하지 않는다.** 이력서 bullet은
      `~/.claude/docs/resume-format-convention.md` 포맷(명사형 종결)을 따른다(2026-07-15: 인라인
      수행이 출력을 자유 요약하면서 이력서 bullet이 통째로 탈락한 재발 방지).
-   - **Action/Result 그룹핑 필수**: 대표 PAR의 Action과 Result은 평평한 불릿 나열로 쓰지 않는다.
+   - **Analyze/Action/Result 그룹핑 필수**: 대표 PAAR의 Analyze, Action, Result은 평평한 불릿 나열로 쓰지 않는다.
      그룹핑 축·그룹 수·레이블 표기의 정본은 `~/.claude/docs/par-format-convention.md`의
      **프로파일 B(Notion 문서형)** 이므로 그 문서를 Read해 그대로 적용한다. Alfred는 규칙을
      재기술하지 않고, 인라인 수행에서도 이 그룹핑을 생략하지 않는다는 강제만 유지한다
      (2026-07-20: 평평하게 쓰면 판단이 작업 나열에 묻혀 "왜 그렇게 했는가"가 사라지는 문제 대응).
-   - **판단 근거 누락 경고 (질문 아님)**: 합성한 대표 PAR의 Action에 기각한 대안도 선택의 대가도
+   - **판단 근거 누락 경고 (질문 아님)**: 합성한 대표 PAAR의 Analyze에 기각한 대안도 선택의 대가도
      없으면(세션에도, Task 본문 `02. 해결 이유`의 `*검토한 대안:*`에도 근거가 없으면) 완료는 그대로
      진행하되 경고를 1줄 병기한다. 흐름을 질문으로 끊지 않는다(점수 무관 완료, 단 침묵하지 않는다).
      ```
      ⚠ 판단 근거 미기록: 왜 그 방법이었는지가 남지 않아 나중에 경력기술서로 복원할 수 없습니다.
      ```
-     근거가 세션에는 있는데 Task 본문에 없는 경우는 경고 대신 그 근거를 PAR Action에 담아 저장한다
+     근거가 세션에는 있는데 Task 본문에 없는 경우는 경고 대신 그 근거를 PAAR Analyze에 담아 저장한다
      (경고는 어디에도 없을 때만 띄운다).
 
 2. review 결과를 Engineering Note에 저장한다. 5단계 경로에 따라 분기한다:
@@ -1017,7 +1017,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
     "alternatives": "{추출한 대안 검토}",
     "plan": "{실행한 단계}",
     "questions": "{미결 사항}",
-    "review": "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- *Problem:*\n\t- ...\n- *Action:*\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n\t\t- {세부 실행}\n\t- **{판단 그룹}**\n\t\t- {세부 실행}\n- *Result:*\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- *Keep:*\n\t- ...\n- *Try:*\n\t- ..."}
+    "review": "### 성과 측정\n- ...\n### PAAR 성과 문장\n**대표 PAAR**\n- *Problem:*\n\t- ...\n- *Analyze:*\n\t- **{판단 그룹}**\n\t\t- {후보와 비교 축}\n\t\t- {기각 근거 또는 대가}\n\t- **{판단 그룹}**\n\t\t- {후보와 비교 축}\n- *Action:*\n\t- **{실행 그룹}**\n\t\t- {세부 실행}\n\t\t- {세부 실행}\n\t- **{실행 그룹}**\n\t\t- {세부 실행}\n- *Result:*\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- *Keep:*\n\t- ...\n- *Try:*\n\t- ..."}
    EOF
 
    python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \

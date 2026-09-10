@@ -100,7 +100,8 @@ only the transport does.
    the two ever conflict, follow the style doc and note the conflict in your
    final report so the digest gets updated. Read
    `~/.claude/docs/resume-format-convention.md` only when the page contains a
-   `### PAR 성과 문장` section (the resume-bullet check below).
+   `### PAAR 성과 문장` section (or the pre-2026-09-10 `### PAR 성과 문장`; the
+   resume-bullet check below).
 
    ### Mechanical (auto-fix these)
    - **em dash** (U+2014): forbidden anywhere in prose. Replace with a
@@ -282,9 +283,9 @@ only the transport does.
    - Obvious factual or formatting inconsistencies (broken tables, endpoints or
      versions that contradict each other within the page).
    - **Resume bullet format** (only applies to a Working Task doc: a Task DB page
-     whose body contains a `### PAR 성과 문장` section, appended by the
+     whose body contains a `### PAAR 성과 문장` (or legacy `### PAR 성과 문장`) section, appended by the
      `task:review` skill). Within that section's `이력서 bullet` block only
-     (not the `대표 PAR` or `성과평가용 확장형` blocks, which stay in PAR
+     (not the `대표 PAAR` or `성과평가용 확장형` blocks, which stay in PAAR
      narrative form), judge each bullet line against
      `~/.claude/docs/resume-format-convention.md`:
      - Ends with a sentence-final verb ("~했습니다", "~합니다") instead of a

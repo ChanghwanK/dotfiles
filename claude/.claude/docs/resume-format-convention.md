@@ -3,7 +3,7 @@
 이력서 work experience 항목(bullet)의 표준 작성 포맷이다. `task:review` 스킬의 "이력서 bullet" 출력과
 `notion-review` 에이전트가 Task 문서를 리뷰할 때 이 기준을 함께 참조한다.
 
-경력기술서/성과평가용 문장(PAR 구조: Problem/Action/Result 레이블 + 서술형)은 이 표준의 적용 대상이
+경력기술서/성과평가용 문장(PAAR 구조: Problem/Analyze/Action/Result 레이블 + 서술형)은 이 표준의 적용 대상이
 **아니다**. 그쪽 표준은 `~/.claude/docs/par-format-convention.md`가 단일 출처다.
 
 ## 핵심 구조
@@ -29,11 +29,11 @@
 - **실측 수치가 없을 때**: `[N건]`, `[N%]` 같은 플레이스홀더로 남기고, 실제 작성 시 반드시 실측치로
   치환해야 함을 표기한다. 가짜 수치를 채워 넣지 않는다.
 - **글자수 상한**: 공백 포함 90자 권장, 110자 하드캡. 넘치면 내용을 자를 것이 아니라 디테일을
-  경력기술서 PAR로 내리고 bullet은 증상·방법·성과의 뼈대만 남긴다.
+  경력기술서 PAAR로 내리고 bullet은 증상·방법·성과의 뼈대만 남긴다.
 - **Result 대괄호에는 성과 1개만**: 병기해도 최대 2개(`[즉시 식별 / MTTR N분→M분]`)까지. 3개 이상
   들어가면 성과 선별이 안 된 것이므로 가장 강한 1개를 고른다.
 - **진단 메커니즘·구현 디테일 금지**: "왜 그렇게 발화했는지"의 원인 분석 서사, 룰/API/스크립트 이름 같은
-  구현 경로는 bullet에 넣지 않는다. 그 내용은 경력기술서 PAR의 Action 몫이다.
+  구현 경로는 bullet에 넣지 않는다. 그 내용은 경력기술서 PAAR의 Analyze·Action 몫이다.
 - **구현 산출물 수치는 성과 수치가 아니다**: 룰 개수, 파일 수, PR 수 같은 산출물 증가는 Result로 쓰지
   않는다. Result는 독자에게 가치가 읽히는 지표(시간, 비용, 에러율, 가용 경로)여야 한다.
 - **사내/내부 고유명사 금지**: 외부 면접관이 아는 수준(AWS 서비스명, 일반 기술명)까지만 허용한다.
@@ -55,7 +55,7 @@
 - "단일 SEARCH 룰이 전 prod Aurora DB의 slow query를 무차원 합산 발화해 대상 DB 식별이 불가하던 알럿을,
   CloudWatch metricName 기반 DB별 분리(Grafana provisioning API)와 runbook 연동으로 재구성 [1룰→6룰,
   발화 라벨만으로 대상 DB 즉시 식별 / 조회→개선 셀프서비스 대응 경로] 확보"
-  (PAR 내용물을 한 줄에 압축한 형태: 진단 서사 포함, 내부 고유명사 과다, 대괄호에 성과 3개,
+  (PAAR 내용물을 한 줄에 압축한 형태: 진단 서사 포함, 내부 고유명사 과다, 대괄호에 성과 3개,
   구현 산출물 수치(1룰→6룰)를 성과로 사용, 110자 초과)
   → 수정: "전 prod Aurora slow query 알럿이 단일 룰 합산 발화로 대상 DB 식별이 불가하던 문제를,
   DB별 알럿 분리와 대응 runbook 연동으로 재구성해 초동 식별 [즉시 식별 / MTTR N분→M분] 확보"
@@ -67,4 +67,4 @@
 
 - `task:review` 스킬 Part A.5 "이력서 bullet" 출력
 - `resume:bullet` 스킬 Step 2(bullet 생성) 및 Step 5(출력 전 검증 체크리스트)
-- `notion-review` 에이전트가 task:review PAR 섹션(`### PAR 성과 문장`)이 포함된 Task 문서를 리뷰할 때
+- `notion-review` 에이전트가 task:review PAAR 섹션(`### PAAR 성과 문장`)이 포함된 Task 문서를 리뷰할 때
