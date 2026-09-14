@@ -1,7 +1,7 @@
 # 이력서 Work Experience 포맷 표준
 
-이력서 work experience 항목(bullet)의 표준 작성 포맷이다. `task:review` 스킬의 "이력서 bullet" 출력과
-`notion-review` 에이전트가 Task 문서를 리뷰할 때 이 기준을 함께 참조한다.
+이력서 work experience 항목(bullet)의 표준 작성 포맷이다. `task:review` 스킬의 "이력서 bullet" 출력이
+이 기준을 참조한다.
 
 경력기술서/성과평가용 문장(PAAR 구조: Problem/Analyze/Action/Result 레이블 + 서술형)은 이 표준의 적용 대상이
 **아니다**. 그쪽 표준은 `~/.claude/docs/par-format-convention.md`가 단일 출처다.
@@ -67,4 +67,3 @@
 
 - `task:review` 스킬 Part A.5 "이력서 bullet" 출력
 - `resume:bullet` 스킬 Step 2(bullet 생성) 및 Step 5(출력 전 검증 체크리스트)
-- `notion-review` 에이전트가 task:review PAAR 섹션(`### PAAR 성과 문장`)이 포함된 Task 문서를 리뷰할 때

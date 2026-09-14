@@ -39,7 +39,7 @@ _OUT_OF_SCOPE = re.compile(
 
 _HINT = """[review-trigger] The user's prompt ends with an explicit "검토" trigger.
 Scope gate first: the `review` skill verifies MECHANISM hypotheses (how or why a component behaves, what causes what) formed during troubleshooting or deep analysis, against primary sources for the installed version.
-If the target is a state or capacity judgement with no mechanism in it (raise replicas?, how much memory?, is prod OK?), or a resume, prose, Notion wording, or blog post, do NOT invoke the skill; say so in one line and route (devops:infra-rca, cost-analyzer-agent, resume:bullet, notion-review, blog:review) or answer plainly.
+If the target is a state or capacity judgement with no mechanism in it (raise replicas?, how much memory?, is prod OK?), or a resume, prose, Notion wording, or blog post, do NOT invoke the skill; say so in one line and route (devops:infra-rca, cost-analyzer-agent, resume:bullet, blog:review) or answer plainly.
 If in scope: invoke the `review` skill via the Skill tool (skill: "review") BEFORE composing the answer and follow its workflow.
 The review target is the text preceding the trigger, or the artifact currently under discussion if that text only points to it."""
 

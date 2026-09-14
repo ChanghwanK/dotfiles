@@ -17,7 +17,7 @@ Add a new `@` import line here whenever you add a document to ~/.claude/docs/.
 
 ### on-demand 참조 (전역 import 아님, 필요 시점에 Read)
 
-- `notion-writing-style.md`: Notion 문서 문장 톤·문법 + 시각적 포맷·구조 기본값 (notion:add-* 스킬 + alfred(gate·task·week 모드)·tasks:capture의 Task DB 5-필드 본문 + notion-review 에이전트가 참조, 2026-07-09 상시 import에서 전환, 2026-07-09 Task DB 생성 경로 추가)
+- `notion-writing-style.md`: Notion 문서 문장 톤·문법 + 시각적 포맷·구조 기본값 (notion:add-* 스킬 + alfred(gate·task·week 모드)·tasks:capture의 Task DB 5-필드 본문이 참조, 2026-07-09 상시 import에서 전환, 2026-07-09 Task DB 생성 경로 추가)
 - `plan-html-template.md`: Plan HTML 렌더링 템플릿 (plan-preview.sh 등 훅 스크립트가 소비, Claude는 읽지 않음)
-- `resume-format-convention.md`: 이력서 work experience bullet 표준 포맷 (task:review 스킬 + notion-review 에이전트가 참조)
-- `par-format-convention.md`: 경력기술서·성과평가용 PAR(Problem/Action/Result) 포맷 단일 출처. 채팅 간이형(프로파일 A) / Notion 문서형(프로파일 B) 2개 프로파일 (task:review Part A.5 + resume:bullet Step 3 + notion-review 에이전트가 참조, 2026-09-05 신규)
+- `resume-format-convention.md`: 이력서 work experience bullet 표준 포맷 (task:review 스킬이 참조)
+- `par-format-convention.md`: 경력기술서·성과평가용 PAR(Problem/Action/Result) 포맷 단일 출처. 채팅 간이형(프로파일 A) / Notion 문서형(프로파일 B) 2개 프로파일 (task:review Part A.5 + resume:bullet Step 3이 참조, 2026-09-05 신규)

@@ -181,7 +181,6 @@ Notion Task·Eng Note에 남기는 경우다. 레이블 표기와 그룹핑이 �
 - `task:review` 스킬 Part A.5 "PAR 성과 문장" (프로파일 B)
 - `resume:bullet` 스킬 Step 3 "경력기술서 PAR 생성" (프로파일 A)
 - `alfred` 스킬 gate 모드 6단계가 task:review를 인라인 수행할 때 (프로파일 B)
-- `notion-review` 에이전트가 `### PAR 성과 문장` 섹션이 포함된 Task 문서를 리뷰할 때 (프로파일 B)
 
 소비처의 섹션 제목·설명 문구에 남아 있는 "PAR"은 이 문서의 PAAR을 가리킨다. 소비처는 요소 구성을
 자체 정의하지 않고 이 문서의 4요소를 따른다.

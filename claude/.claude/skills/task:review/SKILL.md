@@ -191,8 +191,7 @@ PAAR은 성과를 과장하기 위한 포맷이 아니라, 문제 해결의 맥�
 - Result는 Step 2에서 **측정된 outcome만** 사용한다. 측정되지 않은 임팩트는 넣지 않는다.
 - "PAAR만" 또는 "이력서 문장만" 요청이어도 Step 1~4의 최소 근거 추출은 내부적으로 수행한다.
   이때 화면에는 Part A를 출력하지 않는다.
-- 출력 섹션 제목은 `### PAAR 성과 문장`으로 고정한다. `notion-review` 에이전트가 이 제목으로 리뷰
-  대상을 식별한다 (2026-09-10 이전 문서의 `### PAR 성과 문장`도 같은 섹션으로 인식한다).
+- 출력 섹션 제목은 `### PAAR 성과 문장`으로 고정한다 (2026-09-10 이전 문서는 `### PAR 성과 문장`을 썼다).
 
 ---
 
@@ -368,8 +367,7 @@ PAAR은 성과를 과장하기 위한 포맷이 아니라, 문제 해결의 맥�
 최종 리뷰 출력 전체를 기준으로 저장 여부를 1회만 제안한다. 사용자가 생략해도 재촉하지 않는다.
 
 ```
-이 리뷰를 Notion Task 본문에 저장하시겠습니까?
-저장 후 notion-review → notion-refactoring 파이프라인이 문서를 자동 교정합니다. (Y/N)
+이 리뷰를 Notion Task 본문에 저장하시겠습니까? (Y/N)
 ```
 
 **Y 선택 시:**
@@ -396,23 +394,5 @@ PAAR은 성과를 과장하기 위한 포맷이 아니라, 문제 해결의 맥�
    - 마크다운 표는 미지원이므로 review 본문에 표가 있으면 bullet로 대체.
    - 저장 후: "리뷰가 Notion Task 본문에 저장됐습니다 (blocks_appended: {N})."
    - 실패 시: "저장 실패: `page_id`와 권한을 확인해 주십시오." 후 종료.
-
-3. **notion-review → notion-refactoring 파이프라인 실행** (자동):
-   저장 성공 시 즉시 실행한다. 두 에이전트는 background로 띄워 사용자와의 대화 흐름과 병렬로 진행하되, 에이전트 간에는 반드시 순차(파이프라인)로 실행한다.
-
-   - `Agent(subagent_type="notion-review", prompt="{page_id}")` 로 페이지 교정 (background).
-   - em dash(U+2014), 이모지, 문장 스타일 위반을 자동 감지·수정.
-   - 완료 알림 도착 시 교정 결과 1줄 보고:
-     ```
-     → notion-review: {N}건 교정 완료.
-     ```
-   - 교정이 없으면: "→ notion-review: 교정 불필요 (문서 스타일 적합)."
-   - 실패 시: "→ notion-review 실패: Notion 페이지에서 수동 검토를 권합니다." 후 종료 (refactoring 체이닝 생략).
-   - **notion-refactoring 체이닝 (자동)**: notion-review 리포트의 `### Refactor handoff` 블록에 `findings`가 1건 이상이면, 블록 원문을 그대로 prompt로 전달해 background로 실행한다:
-     `Agent(subagent_type="notion-refactoring", prompt="{Refactor handoff 블록 원문}")`
-     - 리뷰가 보고만 한 주관적 지적(문장 분리·병합, 군더더기, 코드 블록 오용, 구조·톤, 이력서 bullet 포맷)을 의미 보존 범위에서 반영한다.
-     - 완료 알림 도착 시 1줄 보고: "→ notion-refactoring: {M}건 반영, {K}건 보류."
-     - `findings: 0`이면 띄우지 않는다.
-   - **동시 실행 금지 (하드룰)**: 두 에이전트는 같은 페이지의 전체 markdown을 교체하므로 절대 동시에 띄우지 않는다 (동시 쓰기는 한쪽 수정이 유실됨). review 완료 확인 → refactoring 순서를 지킨다.
 
 **N 선택 시:** 화면 출력으로만 종료. "필요하시면 언제든 `/alfred gate`에서 저장하실 수 있습니다."
