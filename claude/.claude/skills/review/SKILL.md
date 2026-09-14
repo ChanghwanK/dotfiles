@@ -4,7 +4,7 @@ description: |
   메커니즘 검토 스킬. 트러블슈팅·심층 분석 중 세운 "원리·동작 방식·인과" 가설을 신뢰 자료로 동조 없이 검증한다.
   대상은 "X는 Y 때문에 이렇게 동작한다" 류의 메커니즘 주장과 그것으로 관측을 설명하는 추론이다.
   반증 우선 수집, 우리 클러스터 설치 버전 기준 공식 문서 대조, 사용자 입장을 모르는 블라인드 평가,
-  근거 tier(공식 문서·소스코드 > 네임드 엔지니어·빅테크 블로그 > 모델 지식), 링크 필수를 강제한다.
+  근거 tier(공식 문서 > 네임드 엔지니어·빅테크 블로그 > 모델 지식), 링크 필수를 강제한다.
   사용 시점: 사용자 메시지가 명시적으로 "검토", "검토 해", "검토 한다"로 끝날 때, 또는 "/review"를 호출할 때만.
   이 문구 없이 자동 호출하지 않는다. "리뷰해줘", "봐줘", "어때?", "맞아?" 류는 트리거가 아니다.
   비대상: 상태·용량 판단("replicas 늘릴까", "리소스 얼마"), 이력서·글쓰기·문장 교정·Notion 문서·블로그 리뷰.
@@ -50,7 +50,7 @@ Take a mechanism hypothesis formed during troubleshooting or deep analysis, spli
 
 ### Step 0: Scope gate, target, stance
 
-1. **Scope gate.** The target must contain at least one **mechanism claim**: how or why a component behaves, what causes what, what a setting does internally. If the request is a state or capacity judgement with no mechanism in it ("should we raise replicas", "how much memory", "is prod OK"), stop and answer in one line: `이 요청은 메커니즘 검토 대상이 아니라 상태·용량 판단입니다. <devops:infra-rca / cost-analyzer-agent / 직접 답변>으로 진행하겠습니다.` Resumes, prose, Notion wording, blog posts: same one-liner, route to `resume:bullet`, `notion-review`, `blog:review`.
+1. **Scope gate.** The target must contain at least one **mechanism claim**: how or why a component behaves, what causes what, what a setting does internally. If the request is a state or capacity judgement with no mechanism in it ("should we raise replicas", "how much memory", "is prod OK"), stop and answer in one line: `이 요청은 메커니즘 검토 대상이 아니라 상태·용량 판단입니다. <devops:infra-rca / cost-analyzer-agent / 직접 답변>으로 진행하겠습니다.` Resumes, prose, Notion wording, blog posts: same one-liner, route to `resume:bullet` or `blog:review`.
 2. **Target** = the text preceding the trigger word, or the hypothesis under discussion in the current analysis if that text only points to it. Two equally plausible candidates: ask one question.
 3. **Stance** (internal): what the user believes and how strongly. In an RCA this is usually `favors` their own hypothesis. This is what the blind evaluator must not see and what Step 4 must resist.
 
@@ -71,7 +71,7 @@ Strip evaluative words. Write each claim so that it can be false. List the alter
 
 | Kind | Sources, in order | Link form |
 |------|------------------|-----------|
-| **M** | (1) against: T1 docs for `A1`, release notes and changelog between the doc version and `A1`, source code; (2) for: same T1, then T2 named engineers and big-tech blogs (`references/evidence-tiers.md`); (3) TX: `devops-wiki/04-postmortems/`, `04-issues/`, `03-guardrails/` Lessons, project memory, `claude-mem:mem-search`. Freshness and versioned-docs trap: `~/.claude/skills/research/references/source-tiers.md` | URL, source path with tag, wiki path |
+| **M** | (1) against: T1 docs for `A1`, release notes and changelog between the doc version and `A1`; (2) for: same T1, then T2 named engineers and big-tech blogs (`references/evidence-tiers.md`); (3) TX: `devops-wiki/04-postmortems/`, `04-issues/`, `03-guardrails/` Lessons, project memory, `claude-mem:mem-search`. Docs ambiguous is not a reason to read source: `UNDETERMINED` instead (`references/evidence-tiers.md`). Freshness and versioned-docs trap: `~/.claude/skills/research/references/source-tiers.md` | URL, wiki path |
 | **O** | The query in the conversation. If the observation is a conclusion without a query, re-measure now: VictoriaMetrics, Loki, `kubectl get/describe/logs`. Record query and result | query text + result, or `path:line` |
 | **I** | No separate source. Judged in Step 3 and 4 from verified M and O, against the listed alternatives | derived |
 | **P** | Config (`Grep`/`Read`) or one measurement | `path:line` or query |

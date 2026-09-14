@@ -8,7 +8,7 @@ Tier assignment for every evidence item, the named-source seed list, and the con
 
 | Tier | Name | Includes | Link required | Can alone carry SUPPORTED / REFUTED |
 |------|------|----------|---------------|-------------------------------------|
-| **T1** | Primary | Official docs, API reference, release notes, changelog, RFC / KEP / PEP, the project's source code, vendor docs (`docs.aws.amazon.com` etc.) | Yes (URL) | Yes |
+| **T1** | Primary | Official docs, API reference, release notes, changelog, RFC / KEP / PEP, vendor docs (`docs.aws.amazon.com` etc.) | Yes (URL) | Yes |
 | **T2** | Named engineers and big-tech engineering | Writings by engineers listed below, big-tech engineering blogs (seed: `~/.claude/skills/research/references/tech-blogs.md`), peer-reviewed papers, conference talks with published material | Yes (URL) | Yes, when 2 independent T2 items converge; otherwise `PARTIAL` |
 | **TX** | Our experience | Project memory (`MEMORY.md` entries), `devops-wiki/04-issues/`, `04-postmortems/`, `03-guardrails/` Lessons, merged PRs, past sessions via `claude-mem:mem-search` | Yes (repo path or PR URL) | Only for claims about our own infra, and only with the measurement that produced the conclusion |
 | **T3** | Model knowledge | What the model believes without a fetched source | No (label `(model knowledge, unverified)`) | No. Max `UNDETERMINED` |
@@ -18,6 +18,7 @@ Rules:
 - T2 vendor material arguing its own product's superiority: downgrade one step unless an independent source agrees.
 - TX is scoped: it says what happened here under those conditions. Do not generalize `n=1`. Count impact by affected units (pods, requests, users), not tool units (alerts, log lines).
 - T3 must be tried last, after a T1 and a T2 search both returned nothing relevant. Record that the searches were made.
+- Source code is not an evidence tier here. Docs being ambiguous about a mechanism is not a reason to read source: go to T2 next, and if the claim is still unsettled after T1 and T2, issue `UNDETERMINED` and name the T1 page that would settle it. Read source only when the user explicitly asked for source level; when you do, pin it to the GitHub tag matching the version we run, cite it alongside (never instead of) the doc section, and restate it in one plain sentence. Rationale: a source citation cannot prove it matches the version we run, and it forces the reader to follow surrounding context, so it fails the "quickly and easily verifiable" bar that makes evidence persuasive.
 
 ---
 
