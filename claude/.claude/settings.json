@@ -13,7 +13,34 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "claude-fable-5-1[1m]",
+  "skillOverrides": {
+    "1p:addsecret": "off",
+    "aws:network-question": "off",
+    "email:reply": "off",
+    "learn:design": "off",
+    "learn:recall": "off",
+    "notion:add-personal-note": "off",
+    "plan:todo": "off",
+    "slack:search": "off",
+    "tasks:carry-over": "off",
+    "tf:consult": "off",
+    "wiki:lint": "off",
+    "claude-mem:babysit": "off",
+    "claude-mem:design-is": "off",
+    "claude-mem:do": "off",
+    "claude-mem:how-it-works": "off",
+    "claude-mem:knowledge-agent": "off",
+    "claude-mem:learn-codebase": "off",
+    "claude-mem:oh-my-issues": "off",
+    "claude-mem:pathfinder": "off",
+    "claude-mem:smart-explore": "off",
+    "claude-mem:standup": "off",
+    "claude-mem:timeline-report": "off",
+    "claude-mem:weekly-digests": "off",
+    "claude-mem:what-the": "off",
+    "claude-mem:wowerpoint": "off"
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -25,8 +52,22 @@
           },
           {
             "type": "command",
+            "command": "python3 $HOME/.claude/scripts/return-briefing.py prompt",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "python3 $HOME/.claude/scripts/review-trigger.py",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
           }
         ]
       }
@@ -37,6 +78,25 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/alfred-session-start.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/changhwan/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
           }
         ]
       }
@@ -60,6 +120,16 @@
             "timeout": 900
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -73,20 +143,12 @@
         ]
       },
       {
-        "matcher": "mcp__claude_ai_Notion__notion-create-pages",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $HOME/.claude/scripts/notion-review-reminder.py"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/scripts/notion-review-reminder.py"
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
           }
         ]
       }
@@ -101,6 +163,88 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/plan-text-preview.sh"
+          },
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/scripts/return-briefing.py stop",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -r '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ] && [ -x '/Users/changhwan/.orca/agent-hooks/claude-hook.sh' ]; then /bin/sh '/Users/changhwan/.orca/agent-hooks/claude-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
+            "timeout": 10
           }
         ]
       }
@@ -114,10 +258,41 @@
     "command": "python3 $HOME/.claude/statusline.py"
   },
   "enabledPlugins": {
-    "claude-mem@thedotmack": true
+    "claude-mem@thedotmack": true,
+    "session-report@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "serena@claude-plugins-official": true,
+    "diagram-design@diagram-design": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "diagram-design": {
+      "source": {
+        "source": "github",
+        "repo": "cathrynlavery/diagram-design"
+      }
+    }
   },
   "effortLevel": "high",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "medium"
+    },
+    "claude-sonnet-5": {
+      "effortLevel": "medium"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "high"
+    }
+  },
   "skipDangerousModePermissionPrompt": true,
+  "theme": "dark",
   "editorMode": "vim",
+  "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true
 }
