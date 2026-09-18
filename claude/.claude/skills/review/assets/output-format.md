@@ -41,7 +41,6 @@ Korean, formal register (격식체), conclusion first. Angle brackets are placeh
 
 ## 제안   (REFUTED / PARTIAL이 있거나 사용자가 요청했을 때만)
 1. <제안> [n]
-   - 우리 인프라에서는: <SOCRA AI 맥락 한 줄>
    - 트레이드오프: <성능 / 비용 / 운영 부담 / 복잡도 / 위험>
 2. <제안> [n]
 
