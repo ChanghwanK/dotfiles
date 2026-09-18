@@ -32,4 +32,7 @@ claude/.claude/skills/.backups/
 claude/.claude/paste-cache/
 claude/.claude/mcp-needs-auth-cache.json
 claude/.claude/tasks/
+
+# skills CLI(npx skills add -g)로 설치한 외부 벤더 스킬 제외 (출처·버전은 ~/.agents/.skill-lock.json이 관리)
+claude/.claude/skills/archify/
 tmux/.config/tmux/plugins/*
