@@ -49,7 +49,7 @@ if [ ! -f "$MANIFEST" ]; then
   exit 4
 fi
 
-# 매니페스트에서 name/priority/repo 추출 (탭 구분 — name의 공백을 보존).
+# 매니페스트에서 name/repo 추출 (탭 구분: name의 공백을 보존).
 fields=$(python3 - "$MANIFEST" "$PAGE_ID" <<'PY'
 import json, sys
 manifest, pid = sys.argv[1], sys.argv[2]
@@ -57,7 +57,7 @@ data = json.load(open(manifest, encoding="utf-8"))
 item = next((x for x in data.get("items", []) if x.get("page_id") == pid), None)
 if not item:
     sys.exit(3)
-print("\t".join([item.get("name", ""), item.get("priority", ""), item.get("repo") or ""]))
+print("\t".join([item.get("name", ""), item.get("repo") or ""]))
 PY
 )
 rc=$?
@@ -65,7 +65,7 @@ if [ "$rc" -eq 3 ]; then
   echo "page_id not found in manifest: $PAGE_ID" >&2
   exit 3
 fi
-IFS=$'\t' read -r NAME PRIORITY REPO <<< "$fields"
+IFS=$'\t' read -r NAME REPO <<< "$fields"
 
 # 디렉터리 해석: --dir 우선, 없으면 repo 매핑.
 DIR=""
@@ -86,7 +86,7 @@ fi
 
 # 새 세션 SessionStart hook이 주입할 수 있도록 최근 Task로 기록(실패해도 무시).
 python3 "$SCRIPTS_DIR/alfred-state.py" record \
-  --page-id "$PAGE_ID" --name "$NAME" --priority "$PRIORITY" --source resume >/dev/null 2>&1 || true
+  --page-id "$PAGE_ID" --name "$NAME" --source resume >/dev/null 2>&1 || true
 
 # 새 세션이 자동 실행할 초기 프롬프트 — loader 단계로 진입한다.
 MSG="/alfred resume --task $PAGE_ID"

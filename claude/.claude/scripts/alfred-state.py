@@ -9,12 +9,12 @@ state 파일은 alfred check 모드가 "최근 작업한 Task"를 교차 검증 
 
 스키마:
   {
-    "current_task": { page_id, name, priority, source, started_at },  # = recent_tasks[0] 미러
-    "recent_tasks": [ { page_id, name, priority, source, started_at }, ... ]  # 최신순, 최대 MAX_RECENT
+    "current_task": { page_id, name, source, started_at },  # = recent_tasks[0] 미러
+    "recent_tasks": [ { page_id, name, source, started_at }, ... ]  # 최신순, 최대 MAX_RECENT
   }
 
 Usage:
-  alfred-state.py record --page-id <id> --name "<name>" [--priority "<p>"] [--source tui|gate|week|task]
+  alfred-state.py record --page-id <id> --name "<name>" [--source tui|gate|week|task]
   alfred-state.py get [--max-age-hours 8]   # TTL 이내 항목만 반환 (없으면 빈 결과)
 """
 import argparse
@@ -83,7 +83,6 @@ def cmd_record(args):
     task = {
         "page_id": args.page_id,
         "name": args.name,
-        "priority": args.priority or "",
         "source": args.source or "",
         "started_at": datetime.datetime.now().astimezone().isoformat(),
     }
@@ -109,7 +108,6 @@ def main():
     rec = sub.add_parser("record", help="Task 를 recent_tasks 맨 앞에 기록(dedup·cap)")
     rec.add_argument("--page-id", required=True)
     rec.add_argument("--name", required=True)
-    rec.add_argument("--priority", default="")
     rec.add_argument("--source", default="")
 
     g = sub.add_parser("get", help="TTL 이내 recent_tasks 반환")

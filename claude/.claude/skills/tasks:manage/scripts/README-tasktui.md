@@ -48,10 +48,10 @@ TUI는 **엔티티로 분리한 세 탭**을 `ctrl-t`로 순환한다: `[ ●Now
 
 - **Now 탭** (혼합 예외, `📁`=Task `▷`=Todo): 진행 중 Task(`진행 중`) + 진행중 Todo(`진행중`)만 모은다. 마감일 무관, 순수 WIP를 한눈에 점검해 동시 진행이 과한지 본다. `enter` 열기/드릴인 · `space` Todo상태전환 · `ctrl-t` 탭전환 · `ctrl-r` sync · `esc` 종료. 하단에 `WIP: Task N · Todo M` 카운트. Task 상태 변경은 여기서 하지 않는다(Tasks 탭 `ctrl-s`).
 - **Tasks 탭** (Notion Project 전용): `enter` Task 세션 · `space` 하위 Todo 드릴인 · `ctrl-s` 상태변경 · `ctrl-a` 새 Task · `ctrl-d` 삭제(Notion) · `ctrl-o` Notion열기 · `ctrl-i` import · `ctrl-p` Plan · `ctrl-r` sync · `esc` 종료
-  - 우선순위 필터(`1`=P1 `2`=P2 `3`=P3 `0`=ALL) + **오늘 마감 칩**(`ctrl-f` 토글, 마감 ≤ 오늘(지남 포함)인 Task만). **ALL(`0`)일 때만** 활성 Task 아래에 최근 완료 Task가 함께 노출된다(Due Date 최근 14일 내, 읽기 전용 캐시 `tasks_completed.json`). 오늘 마감 칩이 켜지면 Backlog·완료본은 제외된다.
+  - **오늘 마감 칩**(`ctrl-f` 토글, 마감 ≤ 오늘(지남 포함)인 Task만). **칩이 꺼져 있을 때만** 활성 Task 아래에 최근 완료 Task가 함께 노출된다(Due Date 최근 14일 내, 읽기 전용 캐시 `tasks_completed.json`). 오늘 마감 칩이 켜지면 Backlog·완료본은 제외된다.
   - 드릴인(Level 2): `enter` 세션 · `space` 토글 · `ctrl-a` 추가 · `ctrl-e` 제목 · `ctrl-n` 설명 · `ctrl-d` 삭제 · `ctrl-p` Plan · `esc` 뒤로
 - **Todos 탭** (실행 항목 전용 평면 목록, 소속 `· Task/Backlog` + `[repo]` 표시): `enter` Claude열기 · `space` 상태전환 · `ctrl-a` 추가(Backlog) · `ctrl-e` 제목 · `ctrl-n` 설명 · `ctrl-d` 삭제 · `ctrl-p` Plan뷰 · `ctrl-g` repo필터 · `ctrl-r` sync · `esc` 종료
-  - **렌즈 칩**(우선순위 키와 동형): `1`=활성(시작전·진행중, 기본) · `2`=오늘(마감 ≤ 오늘, 지남 포함) · `3`=완료 · `0`=전체. 완료 렌즈에서 `space`는 재오픈(✓→□)으로 동작해 회고+되살리기를 겸한다. 모든 렌즈가 같은 상태 badge로 렌더돼 탭 내 시각이 일관된다.
+  - **렌즈 칩**: `1`=활성(시작전·진행중, 기본) · `2`=오늘(마감 ≤ 오늘, 지남 포함) · `3`=완료 · `0`=전체. 완료 렌즈에서 `space`는 재오픈(✓→□)으로 동작해 회고+되살리기를 겸한다. 모든 렌즈가 같은 상태 badge로 렌더돼 탭 내 시각이 일관된다.
 
 ### repo별 Todo 조회
 
@@ -90,7 +90,7 @@ python3 …/todo_store.py add --task __backlog__ --title "할 일"
   그래서 본문을 "필요할 때만" 당긴다.
   - `ctrl-r` = **메타만**(`sync-meta`): Task 목록 + push. 본문 reconcile 없음 → ~1초.
   - Task **드릴인**(Tasks/Today/Doing 탭 enter·space) = 그 Task 본문만(`pull-task`) → ~0.5초.
-  - `ctrl-u` = **전체 본문**(`sync` full): 평면 탭은 전체, Tasks 탭은 현재 우선순위 범위. 느림(Task 수 비례).
+  - `ctrl-u` = **전체 본문**(`sync` full): 모든 탭에서 활성 Task 전체. 느림(Task 수 비례).
   - 트레이드오프: Notion 웹 등 외부에서 바꾼 todo는 평면 Todos/Done 탭에 즉시 안 뜬다.
     해당 Task 드릴인 또는 `ctrl-u`로 반영한다. body_md 캐시는 메타 sync 시 carry-over로 보존.
 - **충돌 해소**: todo 단위 last-write-wins. 양쪽 변경 시 `updated_at`(로컬 KST)과

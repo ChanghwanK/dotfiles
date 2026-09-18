@@ -312,14 +312,13 @@ options:
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "항목명" --priority "P3" --category "WORK" \
+  create-task --name "항목명" --category "WORK" \
   --due "내일 날짜(YYYY-MM-DD)"
 ```
 
-- Priority: 기본 P3. 내일 할 것들 초안에 포함된 항목이면 P2 고려.
 - Due Date: 내일 날짜 (carry-over 성격).
 - Category: WORK.
-- 성공 시 `📥 등록 완료: [P3] 항목명 (~YYYY-MM-DD)` 형식으로 출력.
+- 성공 시 `📥 등록 완료: 항목명 (~YYYY-MM-DD)` 형식으로 출력.
 
 ---
 

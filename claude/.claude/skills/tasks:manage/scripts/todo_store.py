@@ -62,10 +62,6 @@ TODO_STATUS_VALUES = ("시작전", "진행중", "완료")
 TODO_STATUS_ICON = {"시작전": "□", "진행중": "▷", "완료": "✓"}
 TODO_STATUS_SORT = {"진행중": 0, "시작전": 1, "완료": 2}  # 진행중 최상단
 
-TODO_PRIORITY_VALUES = ("P1", "P2", "P3", "")
-# P1: 오늘/내일 처리 필요, P2: 이번 주 내, P3: 언젠가/여유 있을 때
-TODO_ROI_VALUES = ("high", "medium", "low", "")
-
 # ANSI 색상: fzf --ansi 플래그 전제
 _STATUS_COLOR = {"시작전": "", "진행중": "\033[1;33m", "완료": "\033[2;32m"}
 _RESET = "\033[0m"
@@ -86,22 +82,24 @@ def _status_badge(status):
 
 
 # Task(Notion) 상태 → 텍스트 badge. Todo 상태와 값 집합이 다르므로(공백 포함
-# '진행 중'·'시작 전', Todo에 없는 '대기' 존재) Todo용 _status_badge를 재사용하지
+# '진행 중'·'해야할 것', Todo에 없는 '대기' 존재) Todo용 _status_badge를 재사용하지
 # 않고 별도로 둔다. 정렬을 위해 공백을 제거(진행 중→진행중)해 6 display cols로 맞춘다.
 _TASK_STATUS_COLOR = {
     "진행 중": "\033[1;33m",  # 노랑, 진행 중 강조
     "완료":    "\033[2;32m",  # 흐린 녹색
     "대기":    "\033[2;36m",  # 흐린 청록, 보류 구분
-    "시작 전": "",
+    "해야할 것": "",
 }
+# '해야할것'(8 cols)은 6 cols 배지에 들어가지 않아 잘리므로 짧은 표시명을 쓴다.
+_TASK_STATUS_LABEL = {"해야할 것": "할일"}
 
 
 def _task_status_badge(status):
-    """[진행중](노랑)·[완료](녹색)·[대기]·[시작전]: 괄호 포함 8 display cols 고정.
+    """[진행중](노랑)·[완료](녹색)·[대기]·[할일]: 괄호 포함 8 display cols 고정.
     빈 상태(Backlog 등)는 같은 폭의 공백을 반환해 목록 정렬을 유지한다."""
     if not status:
         return " " * 8
-    label = _fit(status.replace(" ", ""), 6)
+    label = _fit(_TASK_STATUS_LABEL.get(status, status.replace(" ", "")), 6)
     c = _TASK_STATUS_COLOR.get(status, "")
     inner = f"{c}{label}{_RESET}" if c else label
     return f"[{inner}]"
@@ -234,11 +232,6 @@ def _counts_map(doc):
 
 # ── 출력 포맷 ─────────────────────────────────────────────────
 
-def _priority_short(priority):
-    # "P2" → "P2" (구 형식 "P2 - Should Have"도 첫 토큰만 취해 호환), 없으면 "--"
-    return priority.split(" ")[0] if priority else "--"
-
-
 def _eaw(c: str) -> int:
     """East Asian Width: CJK 문자는 터미널에서 2칸 차지."""
     return 2 if unicodedata.east_asian_width(c) in ('W', 'F') else 1
@@ -320,59 +313,42 @@ def _category_tag(task):
 
 def _task_display(task, done, total):
     # 통일 행 문법(Today/Doing과 동일): 📁 │ [상태] │ 이름 │ due │ tail.
-    # category·priority·진행도·tags는 tail로 보내 제목 좌측 모서리를 모든 탭과 맞춘다.
+    # category·진행도·tags는 tail로 보내 제목 좌측 모서리를 모든 탭과 맞춘다.
     badge = _task_status_badge(task.get("status", ""))
     name = task.get("name", "(이름 없음)")
     plan_badge = " 📋" if task.get("plan_id") else ""
     # 제목 시작 위치는 📁(2)+sp(1)+badge(8)+sp(1)=12 cols로 고정 → 다른 탭과 정렬.
     # Tasks 탭은 preview 창(right:48%)이 있으므로 리스트 영역 ≈ 52%.
-    # 오버헤드: prefix(12)+sep(2)+due(6)+sep(2)+tail(~16) = 38
+    # 오버헤드: prefix(12)+sep(2)+due(6)+sep(2)+tail(~11) = 33
     _cols = _tty_cols()
-    name_width = max(34, int(_cols * 0.50) - 38)
+    name_width = max(34, int(_cols * 0.50) - 33)
     name_col = _fit(name + plan_badge, name_width)
     due = task.get("due_date", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD (5칸) 또는 공백
-    pri = _priority_short(task.get("priority", ""))
     cat = _category_tag(task)
     tags = task.get("tags", [])
     tag_str = ("  " + " ".join(f"#{t}" for t in tags)) if tags else ""
-    tail = f"[{pri}] ({done}/{total})  {cat}{tag_str}".rstrip()
+    tail = f"({done}/{total})  {cat}{tag_str}".rstrip()
     return f"📁 {badge} {name_col}  {due_str}  {tail}".rstrip()
 
 
-def _priority_badge(priority):
-    """P1/P2/P3 → 색상 배지 2칸. 없으면 공백."""
-    _COLOR = {"P1": "\033[1;31m", "P2": "\033[1;33m", "P3": "\033[0;36m"}
-    p = (priority or "").upper()
-    if p in _COLOR:
-        return f"{_COLOR[p]}{p}{_RESET}"
-    return "  "
-
-
-def _roi_short(roi):
-    """high→H, medium→M, low→L, 없으면 공백."""
-    return {"high": "H", "medium": "M", "low": "L"}.get((roi or "").lower(), " ")
-
-
 def _todo_display(todo):
-    """Level 2 및 preview용, 통일 행 문법: icon pri [상태] 제목  due roi."""
+    """Level 2 및 preview용, 통일 행 문법: icon [상태] 제목  due."""
     status = _get_status(todo)
     glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
-    pri = _priority_badge(todo.get("priority", ""))
     badge = _status_badge(status)
     title = todo.get("title", "")
     plan_badge = " 📋" if todo.get("plan_id") else ""
     desc_badge = " 📝" if todo.get("description") else ""
     img_badge = " 🖼" if todo.get("images") else ""
-    # 오버헤드: glyph(2)+pri(3)+badge(9)+sep(2)+due(6)+roi(2)+dirty(2)+buffer(4) = 30
+    # 오버헤드: glyph(2)+badge(9)+sep(2)+due(6)+dirty(2)+buffer(4) = 25
     _cols = _tty_cols()
-    title_width = max(30, _cols - 30)
+    title_width = max(30, _cols - 25)
     title_col = _fit(title + plan_badge + desc_badge + img_badge, title_width)
     due = todo.get("due", "")
     due_str = f"~{due[5:10]}" if due else "     "  # ~MM-DD 5칸
-    roi = _roi_short(todo.get("roi", ""))
     dirty = " *" if todo.get("dirty") else ""
-    return f"{glyph_col}{pri} {badge} {title_col}  {due_str} {roi}{dirty}"
+    return f"{glyph_col}{badge} {title_col}  {due_str}{dirty}"
 
 
 # ── 커맨드 ────────────────────────────────────────────────────
@@ -380,7 +356,6 @@ def _todo_display(todo):
 def cmd_list_tasks(args):
     tdoc = load_todos()
     tasks = load_tasks()["tasks"]
-    prio = getattr(args, "priority", "") or ""  # "P1"|"P2"|"P3"|"" (전체)
     # 마감 필터(Tasks 탭 '오늘' 칩): 켜지면 due_date ≤ 오늘(지남 포함)인 Task만.
     due_today = getattr(args, "due_today", False)
     _today = nc.now_kst()[:10]
@@ -393,16 +368,14 @@ def cmd_list_tasks(args):
     bdone, btotal = counts(BACKLOG_ID)
     if args.format == "json":
         enriched = [{"page_id": BACKLOG_ID, "name": BACKLOG_LABEL, "status": "",
-                     "priority": "", "todo_done": bdone, "todo_count": btotal}]
+                     "todo_done": bdone, "todo_count": btotal}]
         for task in tasks:
-            if prio and not _priority_short(task.get("priority", "")).startswith(prio):
-                continue
             if not _due_ok(task):
                 continue
             done, total = counts(task["page_id"])
             enriched.append({**task, "todo_done": done, "todo_count": total})
-        # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 뒤에 덧붙인다(마감 필터 시 제외).
-        if not prio and not due_today:
+        # 마감 필터가 꺼져 있을 때만 최근 완료 Task를 뒤에 덧붙인다.
+        if not due_today:
             for task in load_completed_tasks()["tasks"]:
                 done, total = counts(task["page_id"])
                 enriched.append({**task, "todo_done": done, "todo_count": total})
@@ -414,15 +387,13 @@ def cmd_list_tasks(args):
         backlog_todo = f"({bdone}/{btotal})".rjust(7)
         print(f"{BACKLOG_ID}\t   [--]  {backlog_name}  {backlog_todo}")
     for task in tasks:
-        if prio and not _priority_short(task.get("priority", "")).startswith(prio):
-            continue
         if not _due_ok(task):
             continue
         done, total = counts(task["page_id"])
         print(f"{task['page_id']}\t{_task_display(task, done, total)}")
-    # ALL 뷰(우선순위 미지정)에서만 최근 완료 Task를 활성 목록 아래에 노출한다(마감 필터 시 제외).
+    # 마감 필터가 꺼져 있을 때만 최근 완료 Task를 활성 목록 아래에 노출한다.
     # 완료본은 하위 to_do를 pull하지 않으므로 todo 카운트는 (0/0)으로 표시된다.
-    if not prio and not due_today:
+    if not due_today:
         for task in load_completed_tasks()["tasks"]:
             done, total = counts(task["page_id"])
             print(f"{task['page_id']}\t{_task_display(task, done, total)}")
@@ -522,18 +493,16 @@ def cmd_list_all_todos(args):
                          ensure_ascii=False, indent=2))
         return
     # preview-window right:35% → list area ≈ 65%
-    # 고정 오버헤드: glyph(2)+pri(3)+badge(9)+sep(2)+due(5)+roi(1)+dirty(2)+buffer(2) = 26
+    # 고정 오버헤드: glyph(2)+badge(9)+sep(2)+due(5)+dirty(2)+buffer(2) = 22
     # ctx_part / repo_tag는 title 이후에 붙으므로 오버플로우 시 fzf가 우단 절단 → 제목 우선
     _term_cols = _tty_cols()
-    title_width = max(28, int(_term_cols * 0.65) - 26)
+    title_width = max(28, int(_term_cols * 0.65) - 22)
 
-    # fzf: "{glyph} {pri} {badge} {title:dynamic} {due:5} {roi}{dirty}  [· {task명}]  [{repo}]"
-    # priority를 제목 왼쪽에 배치: 제목 잘림 시에도 우선순위가 항상 보임.
+    # fzf: "{glyph} {badge} {title:dynamic} {due:5}{dirty}  [· {task명}]  [{repo}]"
     # Todos 버킷 소속은 ctx 생략 (자명하므로), Task 연결 시만 Task명 표시
     for t in todos:
         status = _get_status(t)
         glyph_col = _colored_icon(status) + " "  # box(1)+space → Task 📁(2)와 폭 정렬
-        pri = _priority_badge(t.get("priority", ""))
         badge = _status_badge(status)
         title_field = (t.get("title", "")
                        + (" 📋" if t.get("plan_id") else "")
@@ -542,13 +511,12 @@ def cmd_list_all_todos(args):
         title_col = _fit(title_field, title_width)
         due = t.get("due", "")
         due_str = f"~{due[5:10]}" if due else "     "
-        roi = _roi_short(t.get("roi", ""))
         dirty = " *" if t.get("dirty") else ""
         repo = repo_of(t)
         repo_tag = f"  [{repo}]" if repo else ""
         ctx = ctx_of(t)
         ctx_part = f"  · {_fit(ctx, 16)}" if ctx != BACKLOG_LABEL else ""
-        print(f"{t['id']}\t{glyph_col}{pri} {badge} {title_col}  {due_str} {roi}{dirty}{ctx_part}{repo_tag}")
+        print(f"{t['id']}\t{glyph_col}{badge} {title_col}  {due_str}{dirty}{ctx_part}{repo_tag}")
 
 
 def cmd_get(args):
@@ -587,12 +555,6 @@ def cmd_add(args):
     status = getattr(args, "status", None) or "시작전"
     if status not in TODO_STATUS_VALUES:
         _err(f"Invalid status '{status}'. Valid: {TODO_STATUS_VALUES}")
-    priority = (getattr(args, "priority", None) or "").upper()
-    if priority and priority not in TODO_PRIORITY_VALUES:
-        _err(f"Invalid priority '{priority}'. Valid: P1, P2, P3")
-    roi = (getattr(args, "roi", None) or "").lower()
-    if roi and roi not in TODO_ROI_VALUES:
-        _err(f"Invalid roi '{roi}'. Valid: high, medium, low")
     todo = {
         "id": _new_todo_id(),
         "task_page_id": args.task,
@@ -603,8 +565,6 @@ def cmd_add(args):
         "status": status,
         "done": status == "완료",
         "due": args.due or "",
-        "priority": priority,
-        "roi": roi,
         "created_at": now,
         "updated_at": now,
         "dirty": not is_backlog,  # Task-scoped만 다음 sync에서 Notion에 append
@@ -665,18 +625,6 @@ def cmd_edit(args):
     if add_images:
         existing = todo.get("images") or []
         todo["images"] = existing + [p for p in add_images if p.strip()]
-    new_priority = getattr(args, "priority", None)
-    if new_priority is not None:
-        p = new_priority.upper()
-        if p and p not in TODO_PRIORITY_VALUES:
-            _err(f"Invalid priority '{p}'. Valid: P1, P2, P3")
-        todo["priority"] = p
-    new_roi = getattr(args, "roi", None)
-    if new_roi is not None:
-        r = new_roi.lower()
-        if r and r not in TODO_ROI_VALUES:
-            _err(f"Invalid roi '{r}'. Valid: high, medium, low")
-        todo["roi"] = r
     todo["updated_at"] = nc.now_kst()
     todo["dirty"] = todo.get("task_page_id") != BACKLOG_ID  # Backlog은 로컬 전용
     save_todos(doc)
@@ -717,7 +665,7 @@ def cmd_preview_task(args):
         task = next((t for t in load_tasks()["tasks"] if t["page_id"] == page_id), None)
     if task:
         print(f"  {task.get('name', '')}")
-        print(f"  상태: {task.get('status', '')}   우선순위: {task.get('priority', '')}")
+        print(f"  상태: {task.get('status', '')}")
         if task.get("due_date"):
             print(f"  마감: {task['due_date']}")
         if task.get("tags"):
@@ -779,10 +727,6 @@ def cmd_preview_todo(args):
     badge = _status_badge(status)
     print(f"  {box} {todo.get('title', '')}")
     print(f"  상태: {badge}")
-    if todo.get("priority"):
-        print(f"  우선순위: {todo['priority']}")
-    if todo.get("roi"):
-        print(f"  ROI: {todo['roi']}")
     if todo.get("due"):
         print(f"  마감: {todo['due']}")
     if todo.get("repo"):
@@ -829,7 +773,7 @@ def cmd_preview_todo(args):
         task = next((t for t in load_tasks()["tasks"] if t["page_id"] == task_id), None)
         if task:
             print(f"\n  Task: {task.get('name', '')}")
-            print(f"  상태: {task.get('status', '')}  우선순위: {task.get('priority', '')}")
+            print(f"  상태: {task.get('status', '')}")
 
 
 # ── Today 뷰 ──────────────────────────────────────────────────
@@ -926,7 +870,6 @@ def cmd_today(args):
             if i["kind"] == "task":
                 out.append({"kind": "task", "urgency": i["urgency"], "page_id": o["page_id"],
                             "name": o.get("name", ""), "due": i["due"],
-                            "priority": _priority_short(o.get("priority", "")),
                             "todo_done": i["done"], "todo_count": i["total"]})
             else:
                 out.append({"kind": "todo", "urgency": i["urgency"], "id": o["id"],
@@ -973,7 +916,7 @@ def cmd_today(args):
         if i["kind"] == "task":
             title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
             title_col = _fit(title_field, title_width)
-            tail = f"[{_priority_short(o.get('priority', ''))}] ({i['done']}/{i['total']})"
+            tail = f"({i['done']}/{i['total']})"
             print(f"{o['page_id']}\t📁 {badge} {title_col}  {due_str}  {tail}")
         else:
             status = _get_status(o)
@@ -1014,7 +957,7 @@ def cmd_preview_today(args):
 def _collect_doing():
     """진행 중 Task(드릴인) / 진행중 Todo(세션 오픈)를 한 리스트로 모은다.
 
-    정렬: Task 먼저(우선순위 → 마감 → 이름), 그다음 Todo(마감 → 제목). Task와 Todo를
+    정렬: Task 먼저(마감 → 이름), 그다음 Todo(마감 → 제목). Task와 Todo를
     섞되 kind로 구분해 셸이 enter 동작(Task=드릴인 / Todo=세션 오픈)을 분기하게 한다.
     """
     tdoc = load_todos()
@@ -1038,7 +981,6 @@ def _collect_doing():
 
     items.sort(key=lambda i: (i["obj"].get("title") or i["obj"].get("name") or ""))
     items.sort(key=lambda i: i["due"] or "9999-99-99")
-    items.sort(key=lambda i: _priority_short(i["obj"].get("priority", "")) if i["kind"] == "task" else "P9")
     items.sort(key=lambda i: 0 if i["kind"] == "task" else 1)  # stable: Task 그룹을 위로
     return items
 
@@ -1064,7 +1006,6 @@ def cmd_doing(args):
             if i["kind"] == "task":
                 out.append({"kind": "task", "page_id": o["page_id"],
                             "name": o.get("name", ""), "due": i["due"],
-                            "priority": _priority_short(o.get("priority", "")),
                             "todo_done": i["done"], "todo_count": i["total"]})
             else:
                 out.append({"kind": "todo", "id": o["id"], "title": o.get("title", ""),
@@ -1091,10 +1032,10 @@ def cmd_doing(args):
         print("__none__\t  ✨ 진행 중인 Task/Todo가 없습니다  (ctrl-t: 다른 탭)")
         return
     # preview-window right:30% → list area ≈ 70%
-    # 오버헤드(Task): glyph(3)+badge(9)+pri(3)+sep(2)+due(5)+roi(2)+count(8) = 32
-    # 오버헤드(Todo): glyph(3)+badge(9)+pri(3)+sep(2)+due(5)+roi(2) = 24
+    # 오버헤드(Task): glyph(3)+badge(9)+sep(2)+due(5)+count(8) = 27
+    # 오버헤드(Todo): glyph(3)+badge(9)+sep(2)+due(5) = 19
     _cols = _tty_cols()
-    title_width = max(26, int(_cols * 0.70) - 32)
+    title_width = max(26, int(_cols * 0.70) - 27)
     n_task = sum(1 for i in items if i["kind"] == "task")
     n_todo = len(items) - n_task
     for i in items:
@@ -1103,24 +1044,20 @@ def cmd_doing(args):
         due_str = f"~{due[5:10]}" if due else "     "
         if i["kind"] == "task":
             badge = _now_entity_badge("task")
-            pri = _priority_badge(o.get("priority", ""))
-            roi = _roi_short(o.get("roi", ""))
             title_field = o.get("name", "") + (" 📋" if o.get("plan_id") else "")
             title_col = _fit(title_field, title_width)
             tail = f"({i['done']}/{i['total']})"
-            print(f"{o['page_id']}\t📁 {badge} {pri} {title_col}  {due_str} {roi}  {tail}")
+            print(f"{o['page_id']}\t📁 {badge} {title_col}  {due_str}  {tail}")
         else:
             status = _get_status(o)
             badge = _now_entity_badge("todo")
             glyph_col = _colored_icon(status) + " "  # box(1) + space → Task 📁(2)와 폭 정렬
-            pri = _priority_badge(o.get("priority", ""))
-            roi = _roi_short(o.get("roi", ""))
             title_field = (o.get("title", "")
                            + (" 📋" if o.get("plan_id") else "")
                            + (" 📝" if o.get("description") else "")
                            + (" 🖼" if o.get("images") else ""))
             title_col = _fit(title_field, title_width)
-            print(f"{o['id']}\t{glyph_col} {badge} {pri} {title_col}  {due_str} {roi}")
+            print(f"{o['id']}\t{glyph_col} {badge} {title_col}  {due_str}")
     print(f"__info__\t   ⋯ WIP: Task {n_task} · Todo {n_todo}")
 
 
@@ -1271,8 +1208,7 @@ def cmd_summary(args):
     rows = []
     for task in in_progress:
         done, total = counts(task["page_id"])
-        rows.append({"name": task["name"], "done": done, "total": total,
-                     "priority": _priority_short(task.get("priority", ""))})
+        rows.append({"name": task["name"], "done": done, "total": total})
     if args.format == "json":
         print(json.dumps({"in_progress": rows, "synced_at": tasks_doc.get("synced_at", "")},
                          ensure_ascii=False))
@@ -1281,7 +1217,7 @@ def cmd_summary(args):
         print("진행 중 Task 없음")
         return
     for r in rows:
-        print(f"⏳ [{r['priority']}] {r['name']} ({r['done']}/{r['total']})")
+        print(f"⏳ {r['name']} ({r['done']}/{r['total']})")
 
 
 # ── main ──────────────────────────────────────────────────────
@@ -1297,7 +1233,6 @@ def main():
 
     lt = sub.add_parser("list-tasks")
     lt.add_argument("--format", choices=["fzf", "json"], default="fzf")
-    lt.add_argument("--priority", default="", help="우선순위 필터 (P1|P2|P3|P4, 빈값=전체)")
     lt.add_argument("--due-today", dest="due_today", action="store_true",
                     help="마감 ≤ 오늘(지남 포함)인 Task만: Tasks 탭 '오늘' 칩")
 
@@ -1326,10 +1261,6 @@ def main():
     ad.add_argument("--due", default=None)
     ad.add_argument("--status", default="시작전", choices=TODO_STATUS_VALUES,
                     help="진행 상태 (기본: 시작전)")
-    ad.add_argument("--priority", default=None, choices=["P1", "P2", "P3", ""],
-                    help="우선순위: P1(오늘/내일) / P2(이번 주) / P3(언젠가)")
-    ad.add_argument("--roi", default=None, choices=["high", "medium", "low", ""],
-                    help="기대 효과: high / medium / low")
     ad.add_argument("--description", default=None, help="배경·문제·이유 등 자유 텍스트")
     ad.add_argument("--image", dest="images", action="append", default=None,
                     help="이미지 파일 경로 또는 URL (여러 번 사용 가능)")
@@ -1350,10 +1281,6 @@ def main():
     ed.add_argument("--title", default="")
     ed.add_argument("--status", default=None, choices=TODO_STATUS_VALUES,
                     help="진행 상태 변경")
-    ed.add_argument("--priority", default=None, choices=["P1", "P2", "P3", ""],
-                    help="우선순위 변경 (빈 문자열로 초기화)")
-    ed.add_argument("--roi", default=None, choices=["high", "medium", "low", ""],
-                    help="기대 효과 변경 (빈 문자열로 초기화)")
     ed.add_argument("--description", default=None, help="설명 업데이트 (빈 문자열로 삭제)")
     ed.add_argument("--description-only", dest="description_only", action="store_true")
     ed.add_argument("--image", dest="images", action="append", default=None,

@@ -3,7 +3,7 @@
 Notion Task 링크 -> page_id 파싱 + Task DB 속성 조회.
 
 task:resume 스킬 전용. Task DB(2da64745-3170-8072-80bd-fb05cf592929) 페이지의
-이름/상태/우선순위/마감일을 조회해 작업 재개 컨텍스트를 만든다.
+이름/상태/마감일을 조회해 작업 재개 컨텍스트를 만든다.
 상태 변경(update-status)은 tasks:manage/scripts/notion-task.py를 그대로 호출한다
 (같은 로직을 여기서 다시 구현하지 않는다: Done 체크박스 동기화, started_at
 backfill 등 update-status 안 로직이 이미 있음).
@@ -94,12 +94,10 @@ def cmd_resolve(args):
     # 두 필드 모두 확인해야 data_source_id만 있는 응답에서 false negative가 안 난다.
     is_task_db = TASK_DB_ID in (parent.get("database_id") or "") or TASK_DB_ID in (parent.get("data_source_id") or "")
 
-    name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
     status = (props.get("상태", {}).get("status") or {}).get("name")
-    priority = (props.get("Priority", {}).get("select") or {}).get("name")
     due = (props.get("Due Date", {}).get("date") or {}).get("start")
-    category = (props.get("Category", {}).get("select") or {}).get("name")
-    roi = (props.get("ROI", {}).get("select") or {}).get("name")
+    category = (props.get("Group", {}).get("select") or {}).get("name")
 
     print(json.dumps({
         "success": True,
@@ -107,10 +105,8 @@ def cmd_resolve(args):
         "is_task_db": is_task_db,
         "name": name,
         "status": status,
-        "priority": priority,
         "due_date": due,
         "category": category,
-        "roi": roi,
     }, ensure_ascii=False, indent=2))
 
 

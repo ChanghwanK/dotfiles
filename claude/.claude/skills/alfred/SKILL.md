@@ -10,14 +10,13 @@ description: |
   하루 시작(daily)은 daily:start 스킬로 인계해 어제 회고 + Top3 + Obsidian Daily Note 생성까지 잇는다.
   작업 완료 선언 시 done 전 "완료 게이트"(안심 핵심 2체크·점수화, 리스크/추가작업은 신호 있을 때만)로 '끝남'과 '동작함'을 구분한다.
   이번 주 Task 전체 조회·상태 변경·신규 생성과 Task 하위 Todo(로컬 TUI) + Daily Note Todos 통합 관리를 지원한다.
-  모드: briefing(아침 브리핑) / daily(하루 시작: daily:start 인계) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / groom(미분류 정리) / syncup(팀 Tech Daily 데일리 스크럼 작성).
-  직접 호출(슬래시): "/alfred", "/alfred briefing", "/alfred daily", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred groom", "/alfred syncup".
+  모드: briefing(아침 브리핑) / daily(하루 시작: daily:start 인계) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / syncup(팀 Tech Daily 데일리 스크럼 작성).
+  직접 호출(슬래시): "/alfred", "/alfred briefing", "/alfred daily", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred syncup".
 model: sonnet
 allowed-tools:
   - Agent
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-roi *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carry-over --dry-run*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
@@ -80,12 +79,12 @@ Alfred가 직접 `create-task`를 호출하는 모든 경로(week·gate·task �
 
 ### 본격 판정 기준
 
-아래 중 하나라도 해당하면 본격 Task로 보고 6-필드 본문 템플릿을 적용한다.
+**배경·목적을 합성할 맥락이 있는 실제 업무 항목이면 본격(6-필드)**, **단순 메모성 할 일이면 간이 생성**이 판정 기준이다. 아래 중 하나라도 해당하면 본격 Task로 보고 6-필드 본문 템플릿을 적용한다.
 
-- 최종 Priority가 **P1 또는 P2** (명시 또는 자동 추천 포함)
+- 대화에서 문제 정의·해결 이유를 추출할 수 있는 실제 업무 항목인 경우
 - 사용자가 Task에 대한 배경/이유를 추가로 설명한 경우
 
-P3/P4 이면서 단순 메모 수준이면 템플릿 없이 `--name`만으로 생성한다.
+단순 메모 수준(맥락 없이 "이거 해줘" 류)이면 템플릿 없이 `--name`만으로 생성한다.
 
 ### 6-필드 헤딩 (순서 확인용, 내용은 단일 출처 참조)
 
@@ -135,8 +134,8 @@ Task를 생성하기 전에 두 가지를 확인할게요.
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P2" --due "2026-03-27" \
-  --category "WORK" --description "한 줄 요약" [--roi Medium] \
+  create-task --name "Task 이름" --due "2026-03-27" \
+  --category "WORK" --description "한 줄 요약" \
   --body-file "/path/to/scratchpad/task-body.md"
 ```
 
@@ -175,7 +174,6 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 | `resume` | 작업 픽업 → 새 세션 | 브리핑된 Task를 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용) |
 | `resume --task <page_id>` | 이어가기 로더 | 새 세션이 자동 실행: Task+Todo+claude-mem 기억 요약 후 첫 액션 제안 |
 | `check` | 중간 점검 | 오늘 진행률만 가볍게 |
-| `groom` | 그루밍 (Triage) | 미분류 Task의 ROI를 판단·부여 (게이트된 자율성, 승인 후 쓰기) |
 | `gate` / `done` | 완료 게이트 (Deliver) | "끝났다" 선언 시 done 전 안심 핵심 2체크·점수화 |
 | `review` | 저녁 일잘 리뷰 (Sustain) | 가시성·레버리지·소진 3점검 후 `daily:review`로 인계 |
 | `week` | 주간 Task 관리 | 이번 주 Task 전체 뷰 + 상태 변경·신규 생성 자율 실행 |
@@ -208,9 +206,8 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
 ```
 - 완료 제외 **전체 활성 Task**를 조회한다 (due 유무 무관, due 없는 Task가 사라지던 블랙홀 제거).
-- 정렬 키 우선순위: **ROI desc(High>Medium>Low) → Priority asc(P1>P4) → due 임박 순**. ROI가 같으면 Priority, 그것도 같으면 due로 가른다.
+- 정렬 키 우선순위: **상태(진행 중 → 해야할 것 → 대기) → due 임박 순**. 상태가 같으면 due로 가르며, due 없는 항목은 해당 상태 그룹 안에서 맨 뒤로 보낸다.
 - 브리핑엔 **상위 N건(기본 5~7건)만** 노출한다(푸시 DM 과부하 방지). 나머지는 "외 M건"으로 집계.
-- **미분류 집계**: `roi == ""` 인 활성 Task 수를 센다. 이 수가 0보다 크면 브리핑 하단에 groom 넛지를 단다(아래 템플릿 참조).
 
 **(C) 이월 후보: Notion (스크립트, dry-run)**
 
@@ -226,7 +223,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json
 ```
 - **Notion(B)와 별개 소스다.** TUI store에만 있거나 Notion에서 누락된 due 항목을 여기서 보강한다. (B)만 보면 오늘 마감 항목이 통째로 빠질 수 있다. 반드시 둘 다 수집한다.
-- `list-tasks` → `tasks[]`: 각 항목 `name`/`priority`/`status`/`due_date`/`todo_done`/`todo_count`. `page_id == "__backlog__"`(name `📥 Todos`)는 Backlog 버킷 집계.
+- `list-tasks` → `tasks[]`: 각 항목 `name`/`status`/`due_date`/`todo_done`/`todo_count`. `page_id == "__backlog__"`(name `📥 Todos`)는 Backlog 버킷 집계.
 - `list-all-todos` → `todos[]`: Backlog + Task-scoped 개별 Todo. 각 항목 `title`/`done`/`due`/`status`/`task_page_id`/`repo`.
 - **추출 규칙**: `done == false`인 항목 중 **`due`(또는 `due_date`)가 오늘(`Asia/Seoul`) 이하**인 것은 **전부** 수집한다(만료 포함). due 없는 항목은 진행중(`status`) 우선으로 요약.
 - **실패 격리**: 비-0 종료면 로컬 Todo 섹션을 "조회 불가"로 표기하고 다음 단계로 넘어간다. 중단하지 않는다.
@@ -237,7 +234,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py tasks --week current --status all > /tmp/alfred-week.json
 ```
-- 출력 `tasks.{in_progress,upcoming,waiting,completed}`. 각 항목 `page_id`/`name`/`priority`/`status`/`due_date`/`roi`/`tags`.
+- 출력 `tasks.{in_progress,upcoming,waiting,completed}`. 각 항목 `page_id`/`name`/`status`/`due_date`/`tags`.
 
 이어서 직전 브리핑 스냅샷과 차분해 **"지난 브리핑 이후 끝난 것"** 을 가려낸다(완료 보고):
 ```bash
@@ -283,9 +280,8 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 
 [주의]
 - (일정 충돌 / 오늘 마감(D-day) / 준비 임박 회의가 있으면 여기 한두 줄. 없으면 "특이사항 없습니다.")
-- **due ≤ 오늘인 항목(Notion·TUI 어느 소스든)은 ROI·우선순위 정렬과 무관하게 여기 최상단에 무조건 올린다**. 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
-  - Notion Task는 P1·P2를 기준으로 끌어올린다.
-  - **로컬 Backlog Todo(`__backlog__`)는 P-level이 없으므로 우선순위 필터를 적용하지 않는다. due ≤ 오늘이면 무조건 [주의]에 올린다**(2026-06-26 PgBouncer due-today 드롭 재발 방지). Backlog Todo가 P가 없다는 이유로 누락시키지 않는다.
+- **due ≤ 오늘인 항목(Notion·TUI 어느 소스든)은 정렬과 무관하게 여기 최상단에 무조건 올린다**. 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
+  - Notion Task든 로컬 Backlog Todo(`__backlog__`)든 예외 없이, due ≤ 오늘이면 무조건 [주의]에 올린다(2026-06-26 PgBouncer due-today 드롭 재발 방지).
 
 오늘 일정 ({N}건){캐시 재사용 시 끝에: ` · 캘린더 오늘 HH:MM 조회 기준 (--refresh로 갱신)`}
 - HH:MM–HH:MM  {제목}
@@ -300,10 +296,10 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - ⊘ {종료/이동 추정 Task명}        ← 차분 closed_unknown (아카이브·이동 가능성, 확인 권고)
   (completed+closed_unknown 0건이면 "지난 브리핑 이후 종료된 항목 없습니다." / first_run이면 "기준 스냅샷을 생성했습니다(다음 브리핑부터 완료 보고).")
 
-우선순위 Task (ROI 순, 상위 {N}건 / 활성 {전체}건 · `/alfred resume`로 번호 선택)
-1. [개인][ROI High][P1] {이름} (due {MM/DD})  · 안 하면: {한 줄, 무엇이 막히나}
-2. [회사][ROI High][P2] {이름} (due {없음})
-3. [회사][ROI Med][P2] {이름} (due {MM/DD})
+우선순위 Task (상태→due 순, 상위 {N}건 / 활성 {전체}건 · `/alfred resume`로 번호 선택)
+1. [개인][진행 중] {이름} (due {MM/DD})  · 안 하면: {한 줄, 무엇이 막히나}
+2. [회사][해야할 것] {이름} (due {없음})
+3. [회사][해야할 것] {이름} (due {MM/DD})
   (… 외 {M}건)
 
 로컬 Todo (TUI todo_store)
@@ -317,21 +313,17 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
   (0건이면 이 섹션 전체를 생략한다)
 
 이월 후보 ({M}건)
-- [P{n}] {이름} (기존 due {MM/DD})
+- {이름} (기존 due {MM/DD})
   (0건이면 "지난 주 미완료 없습니다.")
-
-미분류 {K}건: ROI 판단이 안 된 활성 Task가 {K}건입니다. `/alfred groom` 권합니다.
-  (K=0이면 이 줄 생략)
 
 - 무엇부터 손대실지 한 줄 권고 (생산성 우선, 트레이드오프 명시). 끝에 "Daily Note를 만들까요?" 유도.
 ```
 
 - **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다. **due ≤ 오늘 항목은 Notion·TUI 두 소스를 합쳐(union) 점검**한다. 한 소스에만 있어도 누락하지 않는다.
 - **소스 중복 제거**: 같은 항목이 Notion(B)·TUI(D)에 모두 있으면 한 번만 노출하되, 둘 중 due가 있는 쪽을 채택한다(이름 유사 매칭). 로컬 Todo 섹션은 TUI 고유 항목 위주로 보여 중복 노이즈를 줄인다.
-- **Pick(옳은 일)**: Task는 due가 아니라 **ROI(가치/노력) 순**으로 줄 세운다. ROI 필드가 1차 정렬 키, Priority가 2차다. 최상단 1건에만 "안 하면 무엇이 막히나"를 한 줄 단다(푸시 DM 과부하 방지). 권고 시 '본질 해결 vs 증상 대응'을 구분해 말한다.
+- **Pick(옳은 일)**: Task는 **상태(진행 중 → 해야할 것 → 대기) → due 임박 순**으로 줄 세운다(due 없는 항목은 그룹 내 맨 뒤). 최상단 1건에만 "안 하면 무엇이 막히나"를 한 줄 단다(푸시 DM 과부하 방지). 권고 시 '본질 해결 vs 증상 대응'을 구분해 말한다.
 - **번호 = 매니페스트 `n`**: "우선순위 Task" 줄 번호는 (E)에서 만든 `alfred-briefing-latest.json`의 `items[].n`과 동일 순서·동일 번호여야 한다. 매니페스트 빌더가 같은 정렬 키를 쓰므로 그대로 1, 2, 3…으로 매긴다. 사용자는 이 번호를 `/alfred resume`에서 그대로 골라 작업 세션을 연다.
-- **회사/개인 구분**: 각 Task 줄 앞에 `[개인]`(Group=MY) / `[회사]`(Group=WORK) 라벨을 붙여 성격을 드러낸다(정렬 키는 ROI 그대로, 라벨은 표시만). 개인 Task는 `/alfred calendar`로 캘린더에 동기화할 수 있음을 권고 줄에서 가볍게 환기할 수 있다.
-- **미분류 가시화**: ROI 미부여 Task가 묻히지 않도록 건수를 항상 노출하고 groom으로 유도한다. 단, 브리핑에서 ROI를 임의로 부여하지 않는다(쓰기는 groom에서 승인 후에만).
+- **회사/개인 구분**: 각 Task 줄 앞에 `[개인]`(Group=MY) / `[회사]`(Group=WORK) 라벨을 붙여 성격을 드러낸다(정렬 키는 상태→due 그대로, 라벨은 표시만). 개인 Task는 `/alfred calendar`로 캘린더에 동기화할 수 있음을 권고 줄에서 가볍게 환기할 수 있다.
 - **이번 주 일정(B)**: 오늘은 상세(시간·제목), 내일~일요일은 날짜별 헤드라인으로 압축한다(하루 2건+초과는 "외 N건"). 이번 주 안의 **준비가 필요한 회의·외부 일정**이나 **오늘 일정과의 충돌**이 보이면 본문이 아니라 [주의]로 끌어올린다.
 - **완료 보고(E)**: 차분 `completed`는 "✓ 끝남"으로 단정하되, `closed_unknown`은 "⊘ 종료/이동 추정"으로 **확정하지 않고** 확인을 권한다(아카이브·주간 이동일 수 있음). `first_run`이면 완료 보고 대신 "기준 스냅샷 생성" 한 줄만 남긴다.
 - **후속 액션(F)**: `repo==follow-up` 미처리 항목을 경과일수와 함께 리마인드한다. `days_since_first ≥ 5`면 "아직 유효합니까? 정리 권합니다"로 격상해 **방치된 후속을 정리하도록** 민다(쌓이기만 하는 백로그 방지). 항목이 0건이면 섹션을 생략해 잔소리를 줄인다.
@@ -403,9 +395,9 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 3. **번호 목록 출력**(🎩 톤, 결론 먼저):
    ```
    🎩 오늘 브리핑된 작업: 어느 것을 이어가시겠습니까?
-    1  [회사][P1] GPU Operator 이관      · due 06/24  · repo: kubernetes
-    2  [개인][P2] 온콜 SOP 정리           · due 06/30  · repo: (미지정)
-    3  [회사][P2] VictoriaMetrics 릴리스   · due 06/30  · repo: kubernetes
+    1  [회사][진행 중] GPU Operator 이관      · due 06/24  · repo: kubernetes
+    2  [개인][해야할 것] 온콜 SOP 정리           · due 06/30  · repo: (미지정)
+    3  [회사][해야할 것] VictoriaMetrics 릴리스   · due 06/30  · repo: kubernetes
    번호를 말씀해 주시면 해당 repo에 새 세션을 띄웁니다.
    ```
 4. **선택 → launch**: 사용자가 번호를 고르면 그 항목의 `page_id`로 런처를 호출한다:
@@ -424,14 +416,14 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 
 ### loader 단계: `/alfred resume --task <page_id>` (새 세션이 자동 실행)
 
-런처가 띄운 새 세션의 첫 입력으로 들어온다. 컨텍스트를 모아 보여주고, **착수 시점이므로 '시작 전' Task만 1회 확인 후 '진행 중'으로 전이**한다(그 외 상태·Todo는 건드리지 않는다).
+런처가 띄운 새 세션의 첫 입력으로 들어온다. 컨텍스트를 모아 보여주고, **착수 시점이므로 '해야할 것' Task만 1회 확인 후 '진행 중'으로 전이**한다(그 외 상태·Todo는 건드리지 않는다).
 
-1. **Task 메타 회수**: 매니페스트(`alfred-briefing-manifest.py get`)에서 `page_id` 항목의 name/priority/roi/due_date를 꺼낸다(추가 Notion 호출 없음).
+1. **Task 메타 회수**: 매니페스트(`alfred-briefing-manifest.py get`)에서 `page_id` 항목의 name/status/due_date를 꺼낸다(추가 Notion 호출 없음).
 2. **최신 Todo 재로드**: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos --task <page_id>` 로 그 사이 바뀌었을 수 있는 Todo를 최신화한다.
 3. **과거 기록: claude-mem**: `mcp__plugin_claude-mem_mcp-search__timeline` 또는 검색으로 Task명 키워드 관련 과거 작업 **3~5건**을 추린다(지난번 어디까지 했는지). 결과가 없으면 "이전 작업 기록 없음"으로 생략.
 4. **출력**(🎩 톤):
    ```
-   🎩 이어갑니다: {Task명} ({priority}, ROI {roi}, due {MM/DD})
+   🎩 이어갑니다: {Task명} ({status}, due {MM/DD})
 
    할 일 (TUI Todo)
    □ {미완료 todo}
@@ -444,9 +436,9 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 
    → 첫 손댈 곳: {한 줄 권고, 생산성 우선, 트레이드오프 명시}
    ```
-5. **착수 전이 가드: '시작 전' → '진행 중'** (단방향·멱등):
+5. **착수 전이 가드: '해야할 것' → '진행 중'** (단방향·멱등):
    - 현재 상태 확인: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active` 결과에서 `page_id` 항목의 `status`를 읽는다(매니페스트엔 status가 없으므로 이 호출로 확인).
-   - `status == "시작 전"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
+   - `status == "해야할 것"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
      ```bash
      python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <page_id> --status "진행 중"
      ```
@@ -457,7 +449,7 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 ### resume 경계
 
 - picker의 **launch는 인터랙티브에서만** 한다(헤드리스 가드). 새 세션을 띄우는 것은 사용자 명시 선택(번호 입력) 뒤에만 발생하는 부수효과다.
-- loader의 자동 쓰기는 **'시작 전' → '진행 중' 단방향 전이 하나로 제한**한다(1회 확인 필수, 다른 상태는 건드리지 않음). Todo 완료 처리·완료/대기 전환 등 그 외 상태 변경은 하지 않는다(그건 `/alfred task`·`gate`의 몫).
+- loader의 자동 쓰기는 **'해야할 것' → '진행 중' 단방향 전이 하나로 제한**한다(1회 확인 필수, 다른 상태는 건드리지 않음). Todo 완료 처리·완료/대기 전환 등 그 외 상태 변경은 하지 않는다(그건 `/alfred task`·`gate`의 몫).
 - 디렉터리가 모호하면 **임의로 추측하지 않고** 1회 확인한다(엉뚱한 repo에서 세션이 열리는 것 방지).
 
 ---
@@ -492,7 +484,7 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 **(A) alfred-state.json 기반 감지 (0단계 `recent_tasks` 재사용)**
 - `recent_tasks` **각 Task**에 대해 Notion 상태를 대조한다:
-  - Notion 상태가 "시작 전"이면 → **상태 불일치**로 분류 (정확도 높음, TUI 경로).
+  - Notion 상태가 "해야할 것"이면 → **상태 불일치**로 분류 (정확도 높음, TUI 경로).
   - Notion 상태가 "진행 중"이면 → 정상 (이미 동기화됨).
 
 **(B) claude-mem timeline 보조 감지 (state 파일 없을 때)**
@@ -501,13 +493,13 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 - `query`: "오늘 작업", `depth_before`: 0, `depth_after`: 30
 - 실패하면 이 단계를 건너뛰고 1단계 결과만으로 판단한다.
 
-수집 후 **Notion "시작 전" Task명과 세션 관찰 키워드를 교차 대조**한다:
+수집 후 **Notion "해야할 것" Task명과 세션 관찰 키워드를 교차 대조**한다:
 - 활성 Task 이름(또는 주요 키워드)이 오늘 세션 관찰에 등장하면 → **"세션 작업 감지"** 로 표시.
-- Notion 상태가 "시작 전"인데 세션 작업이 감지된 Task → **상태 불일치**로 분류.
+- Notion 상태가 "해야할 것"인데 세션 작업이 감지된 Task → **상태 불일치**로 분류.
 
 **(C) Daily Note ↔ Notion 역방향 교차 검증 (Daily Note 지연 감지): 진행률 진실 소스**
 
-> (A)·(B)는 *Notion이 뒤처진* 케이스(시작 전인데 실제 작업 있음)만 잡는다.
+> (A)·(B)는 *Notion이 뒤처진* 케이스(해야할 것인데 실제 작업 있음)만 잡는다.
 > 반대 방향, *Daily Note가 뒤처진* 케이스(미완료 표기인데 Notion은 완료/진행 중)는 여기서 잡는다.
 > 이 방향을 빠뜨리면 진행률이 실제보다 비관적으로 집계된다.
 
@@ -529,7 +521,7 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconc
 
 [상태 동기화 필요]
 # A-1) Notion 뒤처짐 (2단계 A·B):
-- '{Task명}': Notion은 '시작 전'이지만 {TUI 선택 / 오늘 세션 관찰}에서 작업이 감지됐습니다.
+- '{Task명}': Notion은 '해야할 것'이지만 {TUI 선택 / 오늘 세션 관찰}에서 작업이 감지됐습니다.
   → '진행 중'으로 변경할까요? 또는 완료됐다면 '/alfred gate'로 마무리를 권합니다.
 # A-2) Daily Note 뒤처짐 (2단계 C):
 - '{Task명}': Notion은 '{완료/진행 중}'인데 Daily Note는 미완료 표기입니다.
@@ -572,75 +564,6 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 
 ---
 
-## 워크플로우: groom (그루밍 / Triage, Pick)
-
-캡처만 되고 분류되지 않은 Task(블랙홀)를 끌어올려 **ROI를 판단·부여**한다.
-핵심 설계는 **게이트된 자율성**: Alfred가 판단을 *제안*하되, Notion 쓰기는 **반드시 사용자 승인 후**에만 한다.
-Alfred가 멋대로 우선순위를 바꾸기 시작하면 신뢰가 깨지고 결국 사람이 다 다시 보게 된다. 그 부채를 막기 위함이다.
-
-### 1단계: 미분류 Task 수집
-
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
-```
-- 결과에서 `roi == ""` 인 Task만 추린다(= 미분류 = groom 대상).
-- **배치 상한**: 한 세션에 최대 **10건**만 처리한다. 초과분은 "외 K건 (다음 groom에서)" 로 알린다(과부하·승인 피로 방지).
-
-### 2단계: ROI 판단 제안 (쓰기 없음)
-
-각 미분류 Task에 [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 **판단 순서(10문항)**를 적용해 6유형 중 하나로 분류하고 L1/L2/L3/보류 레벨을 먼저 정한 뒤, 같은 문서의 "Notion Task ROI 매핑" 표로 ROI 버킷을 도출한다. `tasks:tech-spec`의 Goal Challenge `[ROI 검증]`도 동일한 기준을 쓰므로, groom·tech-spec·Notion ROI가 서로 다른 결론을 내지 않는다.
-
-| 프레임워크 레벨 | ROI 버킷 |
-|-----------------|----------|
-| L1 (외부 병목/긴급 위험 차단형) | High |
-| L2 (반복 제거/기술 부채/예방적 위험 차단형) | Medium |
-| L3 (지식 부채/내부 병목/가시성/표준화형) | Low |
-| 보류 (6유형 어디에도 해당 안 됨) | 미설정: groom 대상에서 제외하고 재확인 권고 |
-
-개인(MY) Task처럼 6유형이 딱 들어맞지 않을 때는, 프레임워크의 판단 정신("안 하면 무엇이 막히는가/비용이 커지는가")을 그대로 적용해 가장 가까운 레벨로 근사한다.
-
-**Quick-Win 상향**: 위 표로 정한 레벨이 L3(Low)나 L2(Medium)여도, 소요 시간 약 30분 이내 또는 프롬프트/명령어 한 번으로 끝나는 **수정형 작업**이면 한 단계 올린다(L3→Medium, L2→High). 신규 조사·설계처럼 규모가 있는 작업은 겉보기 시간이 짧아도 제외한다. **이 추정은 Alfred(나)가 Task 제목·설명만 보고 하는 것**이다. 사용자에게 소요 시간을 되묻지 않고, 애매하면 상향하지 않는다. 판단 휴리스틱은 `work-definition-framework.md`의 "Quick-Win 상향 규칙" 참조.
-
-판단을 표로 제시한다(결론 먼저, 근거 1줄, 유형·레벨을 근거에 명시. Quick-Win 상향이 적용됐으면 근거에 "(Quick-Win↑)" 표기):
-
-```
-🎩 그루밍 제안: 미분류 {K}건 (이번 배치 {N}건)
-
-#  Task                                    제안 ROI   근거(1줄)
-1  GPU Operator 이미지 harbor-idc 이관       High      L1·외부 병목형: 다른 팀 배포가 이 이관 없이는 막힘
-2  Backstage(IDP) 도입 검증                  Medium    L2·기술 부채형: 지금 안 하면 나중에 더 비쌈, 급하지 않음
-3  values.yaml 오탈자 수정                    Medium    L3·표준화형이나 5분·명령 한 줄 (Quick-Win↑ L3→Medium)
-4  VictoriaMetrics 릴리스 5건 검토            Low       L3·가시성 확보형: 여유 있을 때, blast radius 작음
-...
-```
-
-### 3단계: 승인 게이트 (AskUserQuestion)
-
-표 제시 후 **AskUserQuestion**으로 한 번 묻는다:
-
-- **전체 적용**: 제안대로 모두 기록
-- **개별 조정**: 일부만 바꾸고 적용 (조정 대상은 최대 4건씩 ROI 3지선다로 되묻는다)
-- **취소**: 아무것도 쓰지 않음
-
-승인 전에는 `set-roi`를 **절대 호출하지 않는다**. (게이트된 자율성의 핵심)
-
-### 4단계: 적용 (승인된 항목만)
-
-승인된 각 Task에 대해서만:
-
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-roi --page-id <id> --roi High|Medium|Low
-```
-- 각 호출의 `success` 로 결과를 집계해 "적용 {n}건 / 실패 {m}건"으로 1줄 보고.
-
-### groom 경계
-
-- ROI **외** 속성(Priority·due·상태)은 groom에서 바꾸지 않는다. 그건 `tasks:status`·`tasks:carry-over`의 책임이다.
-- 미분류가 0건이면 "모든 활성 Task가 분류돼 있습니다"로 끝낸다(불필요한 질문 금지).
-- 매일 강제하지 않는다. 브리핑의 "미분류 K건" 넛지나 사용자 호출 시에만 돈다.
-
----
-
 ## 워크플로우: gate (완료 게이트, v2)
 
 주인이 작업을 "끝났다 / 완료 / done"이라고 선언하면, done 처리 **전에** 핵심 2항목(동작 확인·실패 케이스)을 점검한다.
@@ -665,13 +588,13 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py set-
   1. 등록 후 게이트 진행 [추천]
   0. 취소
   ```
-  - **1 선택** → 맥락에서 priority/category/ROI를 추정해 생성한다(곧 완료할 작업이므로 due는 생략, 상태는 기본 "시작 전").
-    Priority가 P1/P2이면 **"신규 Task 본격 템플릿(6-필드)" 섹션의 세션 컨텍스트 분석 게이트**를 통과한 뒤 `--body-file`로 본문을 포함해 생성한다. P3이면 `--name`·`--priority`·`--category`만으로 즉시 생성한다.
+  - **1 선택** → 맥락에서 category를 추정해 생성한다(곧 완료할 작업이므로 due는 생략, 상태는 기본 "해야할 것").
+    "신규 Task 본격 템플릿(6-필드)" 섹션의 본격 판정 기준에 해당하면 **세션 컨텍스트 분석 게이트**를 통과한 뒤 `--body-file`로 본문을 포함해 생성한다. 단순 메모 수준이면 `--name`·`--category`만으로 즉시 생성한다.
     ```bash
-    # P3 단순 생성
+    # 단순 생성
     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
-      --name "..." --priority "P2" --category WORK [--roi Medium]
-    # P1/P2 본격 생성은 위 섹션의 --body 형식 참조
+      --name "..." --category WORK
+    # 본격 생성은 위 섹션의 --body 형식 참조
     ```
     응답의 `page_id`를 확보한 뒤 그 값으로 **2단계(체크)로 이어간다**. 완료 처리는 게이트의 4단계가 담당하므로 여기서 미리 완료로 바꾸지 않는다(체크를 건너뛰지 않기 위함).
   - **0 선택** → 게이트를 보류한다(아무것도 생성·변경하지 않음).
@@ -1281,14 +1204,14 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py task
 - (D-day 미착수 또는 진행 중 D-1 있으면 한두 줄. 없으면 "특이사항 없습니다.")
 
 진행 중 (N건)
-- [개인][ROI High][P1] {Task명} (due MM/DD)
+- [개인] {Task명} (due MM/DD)
 
-마감 임박: 이번 주 due, 시작 전 (N건)
-- [회사][ROI High][P1] {Task명} (due MM/DD, D-day)
-- [개인][ROI Med][P2] {Task명} (due MM/DD, D-1)
+마감 임박: 이번 주 due, 해야할 것 (N건)
+- [회사] {Task명} (due MM/DD, D-day)
+- [개인] {Task명} (due MM/DD, D-1)
 
-시작 전: 이번 주 due 없음 (N건)
-- [회사][ROI High][P2] {Task명}
+해야할 것: 이번 주 due 없음 (N건)
+- [회사] {Task명}
   (3건 이상이면 상위 3건만 노출, "외 N건")
 
 완료 (N건)
@@ -1297,7 +1220,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py task
 - 한 줄 권고: 지금 어디에 집중하면 이번 주가 안심되는지.
 ```
 
-- Task 정렬: ROI desc → Priority asc → due 임박 순 (각 버킷 내).
+- Task 정렬: 이미 상태별 버킷으로 나뉘어 있으므로, 각 버킷 내에서는 due 임박 순(없는 항목은 뒤)으로만 정렬한다.
 - **회사/개인 라벨**: 각 줄 앞에 `[개인]`(MY)/`[회사]`(WORK)를 붙여 구분한다(표시만, 정렬 불변).
 - 완료 버킷은 이름만 나열 (세부 정보 불필요).
 
@@ -1308,16 +1231,15 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py task
 **상태 변경**:
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status \
-  --page-id <id> --status "진행 중"|"시작 전"|"완료"|"대기"
+  --page-id <id> --status "진행 중"|"해야할 것"|"완료"|"대기"
 ```
 - 실행 후 1줄 보고: "'{Task명}' → 진행 중으로 변경했습니다."
-- 복구 방법 병기: "되돌리려면 `/alfred task {명} 상태를 시작 전으로`"
+- 복구 방법 병기: "되돌리려면 `/alfred task {명} 상태를 해야할 것으로`"
 
 **신규 Task 생성**:
-- priority 매핑: P1 → "P1", P2 → "P2", P3 → "P3" (3단계, 명시 없으면 P3 추천)
-- **본격 Task(P1/P2)이면** "신규 Task 본격 템플릿(6-필드)" 섹션의 세션 컨텍스트 분석 게이트를 먼저 통과한 뒤, `--body-file`로 6-필드 본문을 함께 전달한다.
-- **P3/P4 단순 메모**이면 `--body` 없이 `--name`·`--priority`·`--category`만으로 즉시 생성한다.
-- 생성 후 1줄 보고: "'{Task명}' Task를 생성했습니다 (P2, due MM/DD)."
+- **본격 판정 기준에 해당하면** "신규 Task 본격 템플릿(6-필드)" 섹션의 세션 컨텍스트 분석 게이트를 먼저 통과한 뒤, `--body-file`로 6-필드 본문을 함께 전달한다.
+- **단순 메모**이면 `--body` 없이 `--name`·`--category`만으로 즉시 생성한다.
+- 생성 후 1줄 보고: "'{Task명}' Task를 생성했습니다 (due MM/DD)."
 
 **완료된 작업 등록** (이미 끝낸 작업을 완료 상태로 기록):
 
@@ -1325,10 +1247,10 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
 Task로 남길 때는 생성 → 완료 → 작업 내용 기록을 한 번에 처리한다. 생성 시 due는 생략하되,
 2번 완료 처리(`update-status --status "완료"`)에서 스크립트가 비어있는 due를 완료일(오늘)로 자동 기록한다.
 
-1. 생성(ROI는 맥락 추정, due 생략, 완료 시 자동 기록됨):
+1. 생성(due 생략, 완료 시 자동 기록됨):
    ```bash
    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
-     --name "..." --priority "P2" --category WORK [--roi Medium]
+     --name "..." --category WORK
    ```
 2. 생성 응답의 `page_id`로 즉시 완료 처리:
    ```bash
@@ -1338,9 +1260,9 @@ Task로 남길 때는 생성 → 완료 → 작업 내용 기록을 한 번에 �
 3. **작업 내용 노트**를 본문에 기록한다(gate 5단계 "작업 내용 노트" 절차와 동일: 합성 → 1회 확인 → append).
    `page_id`만 위 2번 것으로 치환한다. 완료된 작업 등록은 **작업 내용이 핵심**이므로 노트를 생략하지
    않고 항상 합성·제안한다.
-4. 1줄 보고: "'{Task명}'을 완료로 등록하고 작업 내용을 본문에 기록했습니다 (P2)."
+4. 1줄 보고: "'{Task명}'을 완료로 등록하고 작업 내용을 본문에 기록했습니다."
 
-> **단순 메모와 구분**: 단순 캡처(`tasks:capture`)는 *앞으로 할 일*을 시작 전 상태로 담는다.
+> **단순 메모와 구분**: 단순 캡처(`tasks:capture`)는 *앞으로 할 일*을 해야할 것 상태로 담는다.
 > 완료된 작업 등록은 *이미 끝낸 일*을 완료 상태 + 작업 내용으로 남기는 별개 경로다.
 
 ---
@@ -1379,7 +1301,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-
 ```
 🎩 {Task명}: Todo 현황
 
-Task 정보: [{ROI}][{Priority}] 상태: {상태} / due: {MM/DD 또는 없음}
+Task 정보: 상태: {상태} / due: {MM/DD 또는 없음}
 
 TUI Todos ({완료N}/{전체N})
 - [ ] {Todo 제목} (id: {id})   ← 시작전·진행중
@@ -1393,10 +1315,10 @@ Daily Note Todos: 오늘 (2026-MM-DD)
 - 무엇을 추가하거나 완료 처리할까요?
 ```
 
-### 3.5단계: 착수 전이 가드 ('시작 전' → '진행 중', 단방향·멱등)
+### 3.5단계: 착수 전이 가드 ('해야할 것' → '진행 중', 단방향·멱등)
 
 1단계 `search-tasks` 결과의 `status`를 그대로 쓴다(추가 조회 없음).
-- `status == "시작 전"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
+- `status == "해야할 것"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
   ```bash
   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <page_id> --status "진행 중"
   ```
@@ -1429,7 +1351,7 @@ python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "텍�
 
 ### task 모드 경계
 
-- Task 자체의 상태·ROI·Priority 변경은 이 모드에서도 가능하다 (`update-status`, `set-roi` 자율 실행).
+- Task 자체의 상태 변경은 이 모드에서도 가능하다 (`update-status` 자율 실행).
 - Task 삭제는 실행하지 않는다. 영구성 리스크. 필요 시 `대기` 상태로 변경.
 - Daily Note 파일이 없으면 TUI Todo만 관리하고 Daily Note 항목은 건너뛴다.
 
@@ -1459,7 +1381,7 @@ python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "텍�
 
 ### 2단계: "할 것들" 수집
 
-`notion-task.py search-tasks --status active`로 활성 Task를 가져온다(ROI desc > Priority asc > due 임박 순). 오늘/이번 주에 손댈 항목 위주로 추린다.
+`notion-task.py search-tasks --status active`로 활성 Task를 가져온다(상태 → due 임박 순). 오늘/이번 주에 손댈 항목 위주로 추린다.
 
 ### 3단계: 팀 포맷으로 합성
 

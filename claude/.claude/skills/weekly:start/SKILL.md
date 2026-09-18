@@ -75,7 +75,7 @@ Agent(description="이번 주 현황 수집", prompt="""
 2. python3 /Users/changhwan/.claude/skills/weekly:start/scripts/notion-weekly.py quarterly-goals
 
 반환 형식:
-- 이번 주 Task 현황 (진행 중/시작 전/대기/완료 각 개수 + 목록)
+- 이번 주 Task 현황 (진행 중/해야할 것/대기/완료 각 개수 + 목록)
 - 분기 목표 Task 목록 (상태별)
 - 원본 JSON
 """)
@@ -198,7 +198,7 @@ Top 3에 `[실행]`/`[탐색]` 태그가 없는 날이 전부이면 (아직 새 
 - [Task 이름] (P{N}, ~MM/DD)
 - ...
 
-시작 전 (N개)
+해야할 것 (N개)
 - [Task 이름] (P{N}, ~MM/DD)
 - ...
 

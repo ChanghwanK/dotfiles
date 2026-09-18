@@ -42,7 +42,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carr
 
 🔄 진행 중
   - [P1] Task이름 (기존 due: MM/DD)
-⏳ 시작 전
+⏳ 해야할 것
   - [P2] Task이름 (기존 due: MM/DD)
 ```
 

@@ -142,15 +142,14 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py \
 - `[검토]`: 그 외 전부. 애매하면 `[검토]`.
 
 **우선순위 가중치 (비-필수 항목 순위 계산용):**
-- 어제 "내일 해야할 것"에 명시됨: +4 / `[진행]` 타입: +3 / P1: +3, P2: +1 / Notion status 진행 중: +2 / `due == 내일`: +2 / 어제 `[ ]` carry-over: +1
-- **Backlog Todo는 P-level이 없으므로 P 가중치를 적용하지 않는다** (due 기반 가중치만).
+- 어제 "내일 해야할 것"에 명시됨: +4 / `[진행]` 타입: +3 / Notion status 진행 중: +2 / `due == 내일`: +2 / `due ≤ 이번 주`: +1 / 어제 `[ ]` carry-over: +1
 
 **Top 3 선정 알고리즘 (하드 캡 3 + 마감 강제 + 전략 보호):**
 1. **마감 강제 티어 F** = `[필수]`(due == 오늘) 항목 전체.
-2. `|F| >= 3`이면 → Top 3 = F 중 상위 3개. 정렬: Notion 먼저(P1 > P2), 그다음 Backlog. 전략 보호는 자리가 없어 생략.
+2. `|F| >= 3`이면 → Top 3 = F 중 상위 3개. 정렬: Notion 먼저(Due 임박순), 그다음 Backlog. 전략 보호는 자리가 없어 생략.
 3. `|F| < 3`이면:
    - F 전체를 Top 3에 고정(pin)한다.
-   - **전략 #1 보호**: F에 들지 않은 후보 중 점수가 가장 높은 **Notion daily 항목 1개**를 반드시 한 자리 배정한다 (P1·진행중 전략 항목이 마감 항목에 밀려 사라지는 것 방지).
+   - **전략 #1 보호**: F에 들지 않은 후보 중 점수가 가장 높은 **Notion daily 항목 1개**를 반드시 한 자리 배정한다 (진행중 전략 항목이 마감 항목에 밀려 사라지는 것 방지).
    - 남는 자리는 비-F 후보를 점수 내림차순으로 채운다 (동점이면 `[진행]` 우선).
 4. **오버듀 Backlog(`due < 오늘`)는 Top 3에 절대 넣지 않는다.** Todos에서만 노출한다.
 
@@ -298,14 +297,13 @@ options:
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "항목명" --priority "P3" --category "WORK" \
+  create-task --name "항목명" --category "WORK" \
   --due "오늘 날짜(YYYY-MM-DD)"
 ```
 
-- Priority: 기본 P3. Top 3에 포함된 항목은 해당 주간 Task의 priority를 따름.
 - Due Date: 오늘 날짜.
 - Category: WORK.
-- 성공 시 `📥 등록 완료: [P3] 항목명 (~YYYY-MM-DD)` 형식으로 출력.
+- 성공 시 `📥 등록 완료: 항목명 (~YYYY-MM-DD)` 형식으로 출력.
 
 ### 6. Notion Todo's 업데이트 확인 (선택)
 

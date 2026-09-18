@@ -24,7 +24,7 @@ allowed-tools:
 | 소스 | 역할 | 언제 |
 |------|------|------|
 | **Obsidian Daily Note** | 오늘 Todo/Progress **단일 진실 소스** | 일중 실시간 |
-| **Notion Task DB** | 주간 계획 정의 (이름, P1/P2, due date) | 참고용 |
+| **Notion Task DB** | 주간 계획 정의 (이름, due date) | 참고용 |
 | **Notion → 아카이빙** | EOD `daily:review` 때 task status 업데이트 | 하루 마무리 |
 
 - **Notion task status는 EOD 전까지 지연된 상태가 정상**: 오류로 오해 금지
@@ -80,10 +80,10 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 🚀 이번 주 Tasks
 
   🔄 진행 중 (N개)
-    - [P1] Task이름 (WORK, due: MM/DD)
+    - Task이름 (WORK, due: MM/DD)
 
-  ⏳ 시작 전 (N개)
-    - [P1] Task이름 (due: MM/DD)
+  ⏳ 해야할 것 (N개)
+    - Task이름 (due: MM/DD)
 
   ✅ 완료 (N개)
     - Task이름
@@ -107,9 +107,9 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 
 💡 우선순위 제안
-  1. [P1] Task이름: 근거 설명. due D-N.
-  2. [P1] Task이름: 근거 설명. due D-N.
-  3. [P1] Task이름: 근거 설명. due D-N.
+  1. Task이름: 근거 설명. due D-N.
+  2. Task이름: 근거 설명. due D-N.
+  3. Task이름: 근거 설명. due D-N.
 
   💬 제안 근거:
   - (실제 데이터 기반 분석 내용)
@@ -119,7 +119,7 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 
 ⚠️ 놓친 것들
-  - [P1] Task이름: 지난 주 due: MM/DD (상태, 미이월)
+  - Task이름: 지난 주 due: MM/DD (상태, 미이월)
   → 이번 주 Tasks에 없음. 필요하면 `/tasks:carry-over`로 이월하세요.
   없으면 이 섹션 생략.
 
@@ -194,11 +194,11 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py tasks 
 완료 ✅ (N개) | 미완료 ⏳ (N개) | 진행 중 🔄 (N개)
 
 🔄 진행 중
-  - [P1] Task이름 (due: MM/DD)
-⏳ 시작 전
-  - [P2] Task이름 (due: MM/DD)
+  - Task이름 (due: MM/DD)
+⏳ 해야할 것
+  - Task이름 (due: MM/DD)
 ✅ 완료
-  - [P1] Task이름 (due: MM/DD)
+  - Task이름 (due: MM/DD)
 ```
 
 완료율 요약 1줄 추가:

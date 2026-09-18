@@ -2,9 +2,9 @@
 name: tasks:capture
 description: |
   작업 중 떠오른 아이디어/할 일을 Notion Task DB에 즉시 캡처하는 스킬.
-  긴 입력은 제목을 합성하고 원본을 description으로 자동 분리. priority/due date 파싱 시 즉시 생성, 누락 시 추천값과 함께 1회 질문.
+  긴 입력은 제목을 합성하고 원본을 description으로 자동 분리. due date 파싱 시 즉시 생성, 누락 시 추천 due와 함께 1회 질문.
   사용 시점: (1) 작업 중 갑자기 떠오른 아이디어 기록, (2) 나중에 할 일 빠르게 메모,
-  (3) P3/P4 백로그 아이디어 적재.
+  (3) 백로그 아이디어 적재.
   트리거 키워드: "캡처", "capture", "나중에 할 일", "아이디어", "메모해 둬",
   "tasks:capture", "할 일 메모", "잊기 전에",
   "Task 추가", "새 Task", "할 일 추가", "Task 만들어줘", "태스크 추가".
@@ -26,7 +26,7 @@ GTD Inbox 원칙: 캡처 ≠ 의사결정. 일단 담고, 나중에 `/tasks:mana
 
 - **Fast-capture 우선**: 모든 속성이 파싱되면 즉시 생성. 질문은 누락 시에만.
 - **추천 기반 질문**: 누락 속성을 물을 때 추천값을 제시하여 빠른 선택 가능.
-- **최대 1회 질문**: priority + due date 모두 누락이어도 한 번의 질문으로 묶어서 처리.
+- **최대 1회 질문**: due date 누락이어도 한 번의 질문으로 묶어서 처리.
 - **단일 출력**: 완료 메시지 1줄만 출력.
 
 ---
@@ -38,13 +38,11 @@ GTD Inbox 원칙: 캡처 ≠ 의사결정. 일단 담고, 나중에 `/tasks:mana
 | 속성 | 추출 방법 | 기본값 |
 |------|-----------|--------|
 | **이름** (필수) | 아래 "제목 추출 원칙" 참조. 반드시 Claude가 합성 | 없음 |
-| **Priority** | 아래 Priority 매핑 참조 | 누락으로 처리 |
 | **Category** | "개인", "MY", "personal", "사적" → MY; 그 외 모두 → WORK | `WORK` |
 | **Due Date** | YYYY-MM-DD 또는 "오늘"/"내일"/"이번 주 금요일"/"다음 주" → 절대 날짜 변환 (KST 기준) | 누락으로 처리 |
 | **Description** | 아래 "Description 추출 원칙" 참조 | 없음 (선택) |
 | **Images** | 파일 경로 또는 URL 목록 (아래 "이미지 파싱" 참조) | 없음 (선택) |
-| **ROI** | 아래 "ROI 자동 분류 (질문 없음)" 참조. 사용자에게 묻지 않음 | 10문항 순회 결과 전부 No일 때만 미설정 |
-| **Type** | "Task"/"Project" 명시 또는 문맥상 명확(예: "여러 단계로 나눠서", "설계+구현+배포"). 명시적으로 선언되지 않으면 **Priority/Due Date와 묶어 질문**(아래 "Type 확인" 참조) | `Task` |
+| **Type** | "Task"/"Project" 명시 또는 문맥상 명확(예: "여러 단계로 나눠서", "설계+구현+배포"). 명시적으로 선언되지 않으면 **Due Date와 묶어 질문**(아래 "Type 확인" 참조) | `Task` |
 
 ### 이미지 파싱
 
@@ -60,19 +58,11 @@ GTD Inbox 원칙: 캡처 ≠ 의사결정. 일단 담고, 나중에 `/tasks:mana
 - 로컬 경로는 Notion 페이지에 callout 텍스트로 기록 (경로 보존)
 - 이미지 없으면 플래그 생략
 
-**Priority 매핑:**
-
-| 키워드 | Priority 값 |
-|--------|-------------|
-| P1, 긴급, urgent, 무조건 | `P1` |
-| P2, 중요, important | `P2` |
-| P3 (명시), 나중에, 언젠가 | `P3` |
-
 ### 제목 추출 원칙
 
 **입력 전체를 제목으로 쓰지 않는다.** 반드시 핵심만 뽑아 합성한다.
 
-- **단순 짧은 입력**: 메타데이터 키워드(P1~P4, "개인" 등)만 제거하고 나머지를 제목으로 사용
+- **단순 짧은 입력**: 메타데이터 키워드("개인" 등)만 제거하고 나머지를 제목으로 사용
 - **추가 정보가 있는 입력**: Claude가 핵심 동작/목표를 담은 **20~40자 제목**을 합성
   - 추가 정보 = 조건·이유·배경·상세 요구사항 (예: "window는 7일", "왜냐하면", 쉼표 이후 설명)
   - `[카테고리 태그]`가 있으면 제목 앞에 유지
@@ -88,22 +78,16 @@ GTD Inbox 원칙: 캡처 ≠ 의사결정. 일단 담고, 나중에 `/tasks:mana
 
 ---
 
-## Priority / Due Date 추천 로직
+## Due Date 추천 로직
 
-Priority가 파싱되지 않은 경우 아래 규칙으로 추천값을 계산한다.
+Due Date가 파싱되지 않은 경우 아래 규칙으로 추천값을 계산한다.
 
-| 입력 신호 | Priority 추천 |
+| 입력 신호 | Due Date 추천 |
 |-----------|--------------|
-| "긴급", "프로덕션", "장애", "OOM", "크리티컬" 등 | P1 |
-| 업무 키워드 + 구체적 액션 (분석, 구현, 배포, 검토 등) | P2 |
-| 기본 (대부분 아이디어/메모) | P3 |
-| "나중에", "언젠가", "시간 되면", "여유 될 때" | P4 |
-
-| Priority | Due Date 추천 |
-|----------|---------------|
-| P1 | 이번 주 금요일 |
-| P2 | 이번 주 금요일 또는 다음 주 금요일 |
-| P3 / P4 | 없음 |
+| "긴급", "프로덕션", "장애", "OOM", "크리티컬" 등 | 이번 주 금요일 |
+| 업무 키워드 + 구체적 액션 (분석, 구현, 배포, 검토 등) | 다음 주 금요일 |
+| 기본 (대부분 아이디어/메모) | 없음 |
+| "나중에", "언젠가", "시간 되면", "여유 될 때" | 없음 |
 
 ### Type 확인
 
@@ -111,19 +95,6 @@ Notion Task DB의 `Type` 속성은 `Task`/`Project` 두 값뿐이다. 기본값�
 
 - **본격 Task(6-필드 본문 적용 대상, 아래 "본문 템플릿" 참조)**: 여러 단계(설계→검증→배포 등)로 나뉘는 상위 작업으로 보이면 Step 2-A 확인 화면에 `Type: Task [추천]`을 함께 보여주고, 사용자가 "2. 수정"으로 `Project`를 선택할 수 있게 한다. Type을 명시적으로 선언한 입력("이건 프로젝트로")이면 질문 없이 바로 반영한다.
 - **단순 메모(Step 2-B, 템플릿 미적용)**: 한 줄 메모는 Project 범위가 될 수 없으므로 질문하지 않고 기본값 `Task`를 그대로 적용한다(GTD 캡처 원칙 유지, 불필요한 질문으로 fast-capture를 해치지 않기 위함).
-
----
-
-## ROI 자동 분류 (질문 없음)
-
-**GTD Inbox 원칙("캡처 ≠ 의사결정")을 지키기 위해 이 분류는 사용자에게 묻지 않는다.** Priority/Due Date와 달리 확인 게이트가 없다. Claude가 제목·description만으로 조용히 추정해 확신이 서면 즉시 반영하고, 진짜 보류 케이스에만 미설정으로 남겨 `/alfred groom`이 나중에 처리하게 한다.
-
-1. [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 **판단 순서(10문항)를 실제로 1번부터 순회한다.** "제목이 복잡해 보인다", "조사·설계가 필요해 보인다"는 인상만으로 이 순회를 생략하지 않는다. 순회 없이 미설정 처리하는 것이 과거에 발생한 미스 케이스였다.
-2. 10문항 중 **하나라도 Yes**가 나오면 그 시점에서 멈추고 해당 유형의 레벨(L1/L2/L3)로 확정한다. 조사·설계·마이그레이션처럼 착수 규모가 크다는 사실은 유형 판단 자체와 무관한 별개의 축(Quick-Win 상향 여부에만 영향)이므로, 규모가 크다는 이유로 유형 확정을 건너뛰지 않는다.
-3. 같은 문서의 "Quick-Win 상향 규칙"을 적용한다: 파일 1개 이하의 단일 값/설정/문구 교체, 오타·링크·주석 수정, 명령어 한 번으로 끝나는 수정형 작업이면 L3→Medium, L2→High로 한 단계 올린다. (조사·설계가 필요한 규모면 이 상향만 건너뛴다. 유형 레벨 자체는 2번에서 이미 확정됨)
-4. "Notion Task ROI 매핑" 표로 레벨을 High/Medium/Low로 변환한다.
-5. **미설정(생략)은 10문항 전부를 순회했는데 전부 No로 확인된 진짜 "보류" 케이스에만 적용한다.** 유형이 여러 개에 걸쳐 보이는 경우는 생략 사유가 아니다. 판단 순서가 정한 우선순위(질문 번호가 빠른 유형 우선)를 그대로 따라 먼저 Yes가 나온 유형으로 확정한다.
-6. 단순 한 줄 메모(P3/P4 + description 없음)라도 이 분류는 동일하게 적용한다: 본문 템플릿 여부와 무관하다.
 
 ---
 
@@ -136,12 +107,12 @@ GTD Inbox 원칙상 **모든 캡처에 템플릿을 강제하지 않는다.** �
 
 아래 중 **하나라도** 해당하면 본격 Task로 보고 본문 템플릿을 적용한다.
 
-- 최종 Priority가 **P1 또는 P2**. 사용자가 명시한 경우뿐 아니라 **자동 추천된 P2도 포함**한다.
 - Description이 합성됨 (= 제목 외 추가 정보가 있음)
+- Due Date가 있는 업무 항목 (배경·목적을 합성할 맥락이 있는 실제 업무 항목)
 
-P3/P4 이면서 description도 없는 **단순 한 줄 메모**는 템플릿을 적용하지 않는다 (기존 경로 유지).
+Description도 없고 Due Date도 없는 **단순 한 줄 메모**는 템플릿을 적용하지 않는다 (기존 경로 유지).
 
-> 자동 추천 P2는 키워드만으로 붙어 정보량이 부족할 수 있다. 이 경우 6-필드를 추정으로 채우지 말고
+> Due만 있고 배경 정보가 부족한 항목은 6-필드를 추정으로 채우지 말고
 > Step 1.5 게이트에서 조회·측정(1.5-A)으로 먼저 해소하고, 그래도 불명확하면 질문하여 확인 후
 > 합성한다. 게이트가 가드 역할을 한다.
 
@@ -248,13 +219,12 @@ Non-Goals
 
 ### Step 1 - 입력 파싱
 
-사용자 입력을 분석하여 이름, Priority, Category, Due Date, Description을 추출한다.
+사용자 입력을 분석하여 이름, Category, Due Date, Description을 추출한다.
 - 추출 과정은 내부적으로만 처리.
 - "오늘"/"내일"/"이번 주" → KST 기준 절대 날짜(YYYY-MM-DD)로 변환.
 - **제목 합성 (반드시)**: "제목 추출 원칙"을 적용. 입력 전체를 제목으로 사용하지 않는다.
 - **Description 추출**: "Description 추출 원칙"을 적용. 추가 정보가 있으면 description을 생성한다.
-- Priority와 Due Date가 파싱되었는지 여부를 확인한다.
-- **ROI 분류 (질문 없음)**: "ROI 자동 분류" 섹션의 10문항을 실제로 순회해 값을 정한다. 전부 No로 확인된 진짜 보류 케이스만 미설정으로 둔다. 이 단계는 사용자에게 묻지 않는다.
+- Due Date가 파싱되었는지 여부를 확인한다.
 - **본격 판정**: "본문 템플릿 (본격 Task)" 섹션의 판정 기준을 적용한다.
   본격이면 Step 1.5를 거쳐 6-필드 초안을 합성한다.
 
@@ -303,7 +273,7 @@ Non-Goals
 > 정오탐 판정을 그대로 Task의 해결 이유로 옮겨 적었다. A2를 어겨 알럿 단위(노드 21건)로만 셌고,
 > A4를 어겨 노드 1대의 관찰을 일반화했다. 파드 단위로 다시 세니 30일 68개 파드 중 31개가
 > 제품 워크로드(퍼블릭 인그레스 게이트웨이 포함)였고, 시작 지연은 65초 중 33초였다.
-> ROI도 L3(가시성)에서 L2(기술 부채)로 바뀌었다. 데이터는 처음부터 있었고 질문만 없었다.
+> 데이터는 처음부터 있었고 질문만 없었다.
 
 #### Step 1.5-B - 정보 충분성 확인
 
@@ -333,18 +303,14 @@ Task를 생성하기 전에 두 가지를 확인할게요.
 
 #### Step 2-A - 본격 Task (6-필드 본문 적용)
 
-합성한 6-필드 초안 + 확정될 속성(Priority/Due/Type/ROI)을 **한 번에** 보여주고 단일 확인한다.
+합성한 6-필드 초안 + 확정될 속성(Due/Type)을 **한 번에** 보여주고 단일 확인한다.
 (추천값을 그대로 제시. "1회 확인 후 생성" 원칙)
 
-ROI는 묻지 않지만, **어떤 유형으로 판정했는지 한 줄 근거는 확인 화면 앞에 밝힌다**
-(10문항 순회 결과를 사용자가 검산할 수 있어야 오분류가 드러난다).
-추천 Due가 템플릿 기본값(P2 → 이번 주 금요일)과 다르면 **왜 다른지 한 줄로 적는다**
+추천 Due가 기본값(이번 주 금요일)과 다르면 **왜 다른지 한 줄로 적는다**
 (예: 3단계 환경 검증에 하루는 부족하므로 다음 주 금요일).
 
 ```
-ROI 판정: Q1~Q7 No, Q8(가시성 확보형) Yes → L3 → Low. Quick-Win 상향은 3개 환경에 걸쳐 제외.
-
-다음 내용으로 Task를 생성할까요? (P2 · Type: Task [추천] · ~2026-03-27 · ROI Low)
+다음 내용으로 Task를 생성할까요? (Type: Task [추천] · ~2026-03-27)
 
 ## 00. Summary
 - ...
@@ -395,65 +361,35 @@ Non-Goals
 
 파싱 결과에 따라 아래 케이스로 분기한다. **모든 선택지 마지막에 "0. 취소" 포함.**
 
-**Case D (질문 없음)**: Priority, Due Date 모두 파싱됨 → Step 3으로 즉시 진행.
+**Case A (질문 없음)**: Due Date가 파싱됨 → Step 3으로 즉시 진행.
 
-**Case A (Priority만 누락)**:
-
-```
-"GPU Memory Pressure 알아보기"의 우선순위를 선택해 주세요.
-추천: P3 (일반 조사 태스크)
-
-1. P1 (긴급)
-2. P2 (중요)
-3. P3 (일반/나중에) [추천]
-0. 취소
-```
-
-**Case B (Due Date만 누락)**:
+**Case B (Due Date 누락)**: 추천값과 함께 1회 질문한다.
 
 ```
 마감일을 설정할까요?
-Priority P2 기준 추천: 이번 주 금요일 (2026-03-20)
+추천: 이번 주 금요일 (2026-03-20)
 
 1. 이번 주 금요일 (2026-03-20) [추천]
 2. 다음 주 금요일 (2026-03-27)
 3. 마감일 없음
+4. 직접 입력 (예: 내일)
 0. 취소
 ```
 
-**Case C (Priority + Due Date 모두 누락)**: 조합 선택지로 **1회** 질문한다.
-
-```
-"GPU Memory Pressure 알아보기" 속성을 선택해 주세요.
-추천: P3, 마감일 없음
-
-1. P3, 마감일 없음 [추천]
-2. P2, 이번 주 금요일
-3. P2, 다음 주 금요일
-4. P1, 이번 주 금요일
-5. P4, 마감일 없음
-6. 직접 입력 (예: P2 내일)
-0. 취소
-```
-
-"6. 직접 입력" 선택 후 파싱 실패 → P3, 마감일 없음으로 fallback 후 완료 메시지에 ⚠️ 표시.
+"4. 직접 입력" 선택 후 파싱 실패 → 마감일 없음으로 fallback 후 완료 메시지에 ⚠️ 표시.
 
 ### Step 3 - Notion Task 생성
 
 파싱 + 질문 응답으로 확정된 속성으로 `notion-task.py create-task`를 호출한다.
 
 ```bash
-# 단순 메모 (P3/P4, 본문 템플릿 없음, ROI 애매 → 미설정)
+# 단순 메모 (본문 템플릿 없음)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P3" --category "WORK"
-
-# ROI가 확신 서면 즉시 반영 (예: 단일 값 수정 → Quick-Win 상향 후 High)
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P3" --category "WORK" --roi "High"
+  create-task --name "Task 이름" --category "WORK"
 
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P2" --due "2026-03-20" \
-  --category "WORK" --description "배경 및 이유 설명" --roi "Medium"
+  create-task --name "Task 이름" --due "2026-03-20" \
+  --category "WORK" --description "배경 및 이유 설명"
 
 # 본격 Task: 6-필드 본문 템플릿 전달 (본문 내용은 위 "6-필드 템플릿" 섹션이 단일 출처)
 # description은 짧은 한 줄 요약, 본문은 6-필드 전체.
@@ -463,13 +399,13 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 #   백틱·따옴표·체크박스가 섞인 6-필드 본문에서 셸 인용 사고를 원천 차단한다.
 #   (--body-file 과 --body 를 함께 주면 파일이 우선한다)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P2" --due "2026-03-27" \
-  --category "WORK" --type "Task" --roi "Low" --description "한 줄 요약" \
+  create-task --name "Task 이름" --due "2026-03-27" \
+  --category "WORK" --type "Task" --description "한 줄 요약" \
   --body-file "/path/to/scratchpad/task-body.md"
 
 # 대안: 짧은 본문은 --body 인라인 Markdown으로 전달해도 된다
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P2" --category "WORK" \
+  create-task --name "Task 이름" --category "WORK" \
   --body '## 00. Summary
 - 대상
 - 현재 상태
@@ -477,7 +413,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 # 이미지 포함 (URL: Notion에 이미지 블록 삽입, 로컬 경로: callout 텍스트로 기록)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P2" --category "WORK" \
+  create-task --name "Task 이름" --category "WORK" \
   --image "https://example.com/diagram.png" \
   --image "/Users/changhwan/Desktop/screenshot.png"
 ```
@@ -499,7 +435,7 @@ Task DB에는 `Related Task`라는 self-relation 프로퍼티가 있다 (양방�
 ```bash
 # 생성 시점에 바로 연결 (기존 Task의 page ID를 알고 있을 때)
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
-  create-task --name "Task 이름" --priority "P3" --category "WORK" \
+  create-task --name "Task 이름" --category "WORK" \
   --related-task "<기존-task-page-id>"
 
 # 이미 존재하는 두 Task를 사후에 연결
@@ -523,17 +459,15 @@ JSON의 `url` 필드(Notion 페이지 URL)를 제목 텍스트 자체의 markdow
 제목/링크 줄을 빠뜨리는 실수가 있었으므로, 최종 답변을 보내기 전에 이 줄이 있는지 반드시 확인한다.
 
 ```
-📥 캡처 완료: [P3]
+📥 캡처 완료
 제목: [Task 이름](https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
 
-📥 캡처 완료: [P2][ROI Medium] (~2026-03-20)
+📥 캡처 완료 (~2026-03-20)
 제목: [Task 이름](https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
 
-📥 캡처 완료 ⚠️: [P3] (직접 입력 파싱 실패 → P3 기본값 적용)
+📥 캡처 완료 ⚠️ (직접 입력 파싱 실패 → 마감일 없음 기본값 적용)
 제목: [Task 이름](https://www.notion.so/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
 ```
-
-ROI가 미설정(애매해서 생략)이면 `[ROI ...]` 태그 자체를 붙이지 않는다(불필요한 "미설정" 노이즈 방지).
 
 **실패** (`"success": false`): JSON의 `error` 필드를 추출하여 사람 친화적으로 출력한다.
 

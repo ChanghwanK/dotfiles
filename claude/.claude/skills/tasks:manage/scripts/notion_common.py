@@ -22,12 +22,11 @@ NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2025-09-03"
 TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
-VALID_STATUSES = {"시작 전", "진행 중", "완료", "대기"}
-PRIORITY_OPTIONS = {
-    "P1",
-    "P2",
-    "P3",
-}
+VALID_STATUSES = {"해야할 것", "진행 중", "완료", "대기"}
+# notion-task.py STATUS_RANK와 같은 규칙: 상태(진행 중 → 해야할 것 → 대기) → Due.
+# Task DB의 Priority 속성은 2026-09-18 의도적으로 제거되었다.
+STATUS_RANK = {"진행 중": 0, "해야할 것": 1, "대기": 2, "완료": 3}
+_NO_DUE = "9999-12-31"
 CATEGORY_OPTIONS = {"WORK", "MY"}
 
 KST = timezone(timedelta(hours=9))
@@ -155,9 +154,7 @@ def parse_page(page):
     notion-task.py:_parse_page와 동일 스키마에 sync 비교용 notion_last_edited 추가.
     """
     props = page.get("properties", {})
-    name = rich_text_to_plain(props.get("이름", {}).get("title", []))
-    priority_sel = props.get("Priority", {}).get("select")
-    priority = priority_sel.get("name", "") if priority_sel else ""
+    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
     status_obj = props.get("상태", {}).get("status")
     status = status_obj.get("name", "") if status_obj else ""
     due = props.get("Due Date", {}).get("date") or {}
@@ -170,7 +167,6 @@ def parse_page(page):
     return {
         "page_id": page["id"],
         "name": name,
-        "priority": priority,
         "status": status,
         "due_date": due.get("start", ""),
         "category": category,
@@ -246,10 +242,14 @@ def query_active_tasks(token):
     """완료 제외 모든 활성 Task 조회: notion-task.py와 동일 필터/정렬."""
     body = {
         "filter": {"property": "상태", "status": {"does_not_equal": "완료"}},
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        "sorts": [
+            {"property": "Due Date", "direction": "ascending"},
+            {"property": "Created At", "direction": "descending"},
+        ],
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
-    return [parse_page(p) for p in resp.get("results", [])]
+    tasks = [parse_page(p) for p in resp.get("results", [])]
+    return sorted(tasks, key=lambda t: (STATUS_RANK.get(t["status"], 1), t["due_date"] or _NO_DUE))
 
 
 # 완료 Task는 Notion에 영구 누적되므로, 전부 가져오면 로컬 캐시가 무한히 커지고

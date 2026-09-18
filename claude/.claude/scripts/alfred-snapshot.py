@@ -8,7 +8,7 @@ Notion Task DB에는 completed_at 속성이 없어 "지난 브리핑 이후 무�
 스키마:
   {
     "taken_at": ISO8601(local tz),
-    "active": [ { page_id, name, priority, roi, due_date, status }, ... ]
+    "active": [ { page_id, name, due_date, status }, ... ]
   }
 
 차분 규칙(page_id 기준):
@@ -37,7 +37,7 @@ import tempfile
 STATE_PATH = os.path.expanduser("~/.claude/alfred-snapshot.json")
 
 # 스냅샷에 보관할 필드(완료 보고 렌더에 필요한 최소 집합)
-_KEEP_FIELDS = ("page_id", "name", "priority", "roi", "due_date", "status")
+_KEEP_FIELDS = ("page_id", "name", "due_date", "status")
 
 
 def _load(path):

@@ -33,31 +33,27 @@ Tech Spec 생성 시작 전, 다음 질문을 사용자에게 한다:
 1. Tech Spec 제목을 먼저 결정한다 (모드 분기 이전에 제목 파악).
    - Quick mode: 대화 맥락에서 제목 추출
    - Standard mode: 사용자에게 간단히 주제/제목 확인
-2. **Notion Task 생성은 여기서 바로 하지 않는다**. ROI 레벨이 아직 안 나왔기 때문. Standard mode는 Phase 2 목표 확정 직후, Quick mode는 Step 3에서 ROI 분류가 끝난 직후에 아래 "Notion Task 생성" 커맨드를 실행한다(제목은 지금 정한 값 그대로 사용).
+2. **제목이 정해지면 Notion Task를 바로 생성한다.** 아래 "Notion Task 생성" 커맨드를 지금 실행한다(제목은 지금 정한 값 그대로 사용).
 
 ### No 선택 시
 
 바로 아래 모드 분기로 진행 (Tech Spec만 생성).
 
-### Notion Task 생성 (지연 실행, Phase 2 / Quick Step 3에서 호출)
+### Notion Task 생성 (제목 확정 시 즉시 실행)
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
   --name "<Tech Spec과 동일한 제목>" \
-  --priority P2 \
-  --category WORK \
-  --roi <High|Medium|Low, 보류면 생략>
+  --category WORK
 ```
 
-- ROI는 [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 "Notion Task ROI 매핑" 표로 변환한 값을 그대로 넣는다. 프레임워크 판정이 "보류"면 `--roi`를 생략한다(미설정 유지, `alfred groom` 재검토 대상으로 남김).
-- 생성 완료 확인 후 Tech Spec 생성 플로우(저장 워크플로우 등) 계속 진행.
+- 생성 완료 확인 후 Tech Spec 생성 플로우(모드 분기 등) 계속 진행.
 
 ### 제목 통일 규칙
 
 - Notion Task `이름` = Tech Spec `title` (동일 문자열 필수)
 - 이를 통해 사용자가 두 문서를 개념적으로 연결할 수 있다.
 - 검색 시 동일 제목으로 Notion Task와 Tech Spec을 함께 찾을 수 있다.
-- ROI는 Phase 2(Standard) / Step 3(Quick)에서 산출된 프레임워크 레벨을 매핑 표로 변환해 자동 반영한다. 사용자가 Phase 2를 확정하는 과정 자체가 승인이므로 별도 groom 승인 게이트를 거치지 않는다.
 
 ---
 
@@ -119,7 +115,7 @@ Quick mode는 사용자 확인 단계가 없어 잘못된 문제 정의가 그�
 대화형 질문 없이 진행하되, `## 현재 상태와 목표` 섹션의 Non-Goals 또는 성공 기준 작성 시 아래를 자동으로 반영한다:
 
 - 대화 맥락에서 ROI가 불명확하면 → 성공 기준에 "왜 이 수치인가?" 근거 한 줄 추가
-- **ROI 분류**: [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 6유형 중 하나로 분류 + L1/L2/L3/보류 레벨을 산출해 성공 기준 옆에 괄호로 표기 (예: "latency -30% (L2·기술 부채형)"). Step 0에서 Notion Task 생성이 대기 중이면, 이 레벨을 매핑 표로 변환해 `--roi`에 반영하여 지금 생성한다.
+- **ROI 분류**: [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 6유형 중 하나로 분류 + L1/L2/L3/보류 레벨을 산출해 성공 기준 옆에 괄호로 표기 (예: "latency -30% (L2·기술 부채형)").
 - 비가역적 변경(삭제, 마이그레이션)이 포함되면 → Non-Goals에 롤백 시나리오 명시
 - 네트워크/비용 영향이 감지되면 → Diff 테이블에 해당 항목 행 추가
 - Quick mode 완료 후 출력 하단에 제안이 있으면 `> 💡 참고:` 블록으로 1-2개 병기
@@ -219,8 +215,6 @@ correctness 가드)이 아니다. 안정성은 목적이고 가용성 수준은 
 ```
 
 사용자가 응답/수정 완료 → 목표 확정 → Phase 3으로 진행.
-
-Step 0에서 Notion Task 생성이 대기 중이면(y 선택), 여기서 확정된 레벨을 "Notion Task ROI 매핑" 표로 변환해 지금 `create-task --roi <값>`을 실행한다(보류면 `--roi` 생략).
 
 ---
 

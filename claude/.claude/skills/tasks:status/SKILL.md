@@ -2,7 +2,7 @@
 name: tasks:status
 description: |
   기존 Notion Task의 상태 변경 및 삭제 스킬.
-  상태 변경: 시작 전/진행 중/완료/대기 간 전환.
+  상태 변경: 해야할 것/진행 중/완료/대기 간 전환.
   삭제: Notion 아카이브 (복구 가능).
   트리거 키워드: "상태 변경", "완료 처리", "시작 처리", "Task 삭제", "Task 제거",
   "할 일 삭제", "완료로 변경", "진행 중으로 변경".
@@ -47,7 +47,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py task
 사용자 발화에서 대상 Task와 목표 상태를 파악한다. 불명확한 경우 AskUserQuestion으로 확인.
 
 **유효한 상태값:**
-- `시작 전`
+- `해야할 것`
 - `진행 중`
 - `완료`
 - `대기`
@@ -70,7 +70,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
 
 ```
 ✅ 상태 변경 완료
-  - Task이름: 시작 전 → 진행 중
+  - Task이름: 해야할 것 → 진행 중
 ```
 
 ---

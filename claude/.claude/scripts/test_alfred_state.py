@@ -56,7 +56,7 @@ class _Args:
 
 
 a = _Args()
-a.page_id, a.name, a.priority, a.source = "pp", "현재작업", "P1", "tui"
+a.page_id, a.name, a.source = "pp", "현재작업", "tui"
 m.cmd_record(a)
 data = json.load(open(m.STATE_PATH))
 chk("record 후 current_task", data["current_task"]["page_id"], "pp")

@@ -209,16 +209,15 @@ def cmd_read_weekly(args):
                 {"property": "Due Date", "date": {"on_or_before": next_sunday}},
             ]
         },
-        "sorts": [{"property": "Priority", "direction": "ascending"}]
+        # Task DB의 Priority 속성은 2026-09-18 제거됨: 마감 임박순으로 받는다.
+        "sorts": [{"property": "Due Date", "direction": "ascending"}]
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
     tasks = []
     for page in resp.get("results", []):
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
-        priority_sel = props.get("Priority", {}).get("select")
-        priority = priority_sel.get("name", "") if priority_sel else ""
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         status_obj = props.get("상태", {}).get("status")
         status = status_obj.get("name", "") if status_obj else ""
         due = props.get("Due Date", {}).get("date") or {}
@@ -228,7 +227,6 @@ def cmd_read_weekly(args):
         tasks.append({
             "page_id": page["id"],
             "name": name,
-            "priority": priority,
             "status": status,
             "due_start": due.get("start", ""),
             "due_end": due_end,

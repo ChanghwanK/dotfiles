@@ -246,7 +246,7 @@ PAAR은 성과를 과장하기 위한 포맷이 아니라, 문제 해결의 맥�
 - [ ] 대안을 최소 2개 이상 비교했는가?
 - [ ] "6개월 후" 관점의 2차 효과를 고려했는가?
 - [ ] 되돌리기 어려운 결정(one-way door)을 명시했는가?
-- [ ] [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 유형/레벨 판단과 Notion ROI가 일치하는가? (비용·운영 부담 포함)
+- [ ] [work-definition-framework.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/work-definition-framework.md)의 유형/레벨 판단이 명확한가? (비용·운영 부담 포함)
 - [ ] 이 설계가 야기할 기술 부채를 정량화했는가?
 
 ### Development 타입 점검 항목

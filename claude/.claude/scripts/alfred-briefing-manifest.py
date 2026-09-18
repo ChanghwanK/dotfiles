@@ -2,7 +2,7 @@
 """alfred-briefing-latest.json 생성 — 브리핑 ↔ resume 픽업을 잇는 다리.
 
 브리핑은 Slack 평문으로 끝나서, 나중에 "그 작업을 골라 새 세션을 열기"가 불가능했다.
-이 스크립트는 브리핑이 띄운 우선순위 Task에 결정론적 번호(n)를 매기고, 각 Task에
+이 스크립트는 브리핑이 띄운 Task에 결정론적 번호(n)를 매기고, 각 Task에
 하위 Todo와 작업 디렉터리 단서(repo)를 join해 매니페스트로 남긴다. resume picker는
 이 파일을 읽어 동일한 번호로 작업을 고르고, repo로 세션을 띄운다.
 
@@ -13,14 +13,15 @@
   {
     "generated_at": ISO8601(local tz),
     "items": [
-      { "n": 1, "page_id", "name", "category", "priority", "roi", "due_date",
+      { "n": 1, "page_id", "name", "category", "status", "due_date",
         "repo": "<repo>|null",
         "todos": [ { "id", "title", "done" }, ... ] },
       ...
     ]
   }
 
-정렬(브리핑과 동일): ROI desc(High>Medium>Low>없음) → Priority asc(P1>P4) → due 임박 순.
+정렬(브리핑과 동일): 상태(진행 중 > 해야할 것 > 대기) → due 임박 순(due 없음은 뒤).
+Task DB의 Priority/ROI 속성은 2026-09-18 의도적으로 제거되었다.
 repo: 그 Task의 todos 중 repo 필드가 채워진 첫 값(없으면 null).
 
 Usage:
@@ -45,11 +46,11 @@ STATE_PATH = os.path.expanduser("~/.claude/alfred-briefing-latest.json")
 DEFAULT_TOP = 7
 
 # 정렬 랭크 — 작을수록 위로(ascending sort). 브리핑 합성 규칙과 동일하게 유지한다.
-_ROI_RANK = {"High": 0, "Medium": 1, "Low": 2, "": 3}
+_STATUS_RANK = {"진행 중": 0, "해야할 것": 1, "대기": 2}
 _FAR_DUE = "9999-12-31"  # due 없는 항목을 맨 뒤로
 
 # 매니페스트 Task 항목에 보관할 필드(picker·launcher가 쓰는 최소 집합)
-_TASK_FIELDS = ("page_id", "name", "category", "priority", "roi", "due_date")
+_TASK_FIELDS = ("page_id", "name", "category", "status", "due_date")
 
 
 def _load(path):
@@ -106,19 +107,11 @@ def _extract_todos(blob):
     return []
 
 
-def _priority_rank(priority):
-    """'P1' → 1 … 'P4' → 4. 비정형/없음은 맨 뒤(99)."""
-    p = (priority or "").strip().upper()
-    if p.startswith("P") and p[1:].isdigit():
-        return int(p[1:])
-    return 99
-
-
 def _sort_key(task):
-    roi = _ROI_RANK.get(task.get("roi", ""), 3)
-    prio = _priority_rank(task.get("priority"))
+    # 알 수 없는 상태는 '해야할 것'과 같은 순위로 둔다(대기보다 앞, 누락 방지).
+    status = _STATUS_RANK.get(task.get("status", ""), 1)
     due = task.get("due_date") or _FAR_DUE
-    return (roi, prio, due)
+    return (status, due)
 
 
 def _todos_by_task(todos):

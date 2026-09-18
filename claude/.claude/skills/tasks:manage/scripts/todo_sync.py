@@ -23,12 +23,12 @@
   느리다. 그래서 본문 fetch를 "필요할 때만"으로 분리한다.
     - sync-meta : Task 목록(메타)만 pull + push. 본문 reconcile 없음 → 빠름.
     - pull-task : 특정 Task 한 개의 본문만 reconcile (드릴인 시).
-    - sync      : 메타 + 전체 본문(또는 --priority 범위) + push (full).
+    - sync      : 메타 + 전체 본문 + push (full).
   메타만 갱신할 때 기존 body_md 캐시는 보존한다(preview가 깨지지 않게).
 
 Usage:
-  todo_sync.py sync       [--priority P1] [--dry-run]  # 메타+본문+push (full)
-  todo_sync.py sync-meta  [--dry-run]                  # 메타+push (본문 스킵, 빠름)
+  todo_sync.py sync       [--dry-run]  # 메타+본문(전체)+push (full)
+  todo_sync.py sync-meta  [--dry-run]  # 메타+push (본문 스킵, 빠름)
   todo_sync.py pull-task  --page-id <id> [--dry-run]   # 단일 Task 본문+push
   todo_sync.py pull       [--dry-run]                  # Notion → 로컬만 (full)
   todo_sync.py push       [--dry-run]                  # 로컬 → Notion만
@@ -208,7 +208,7 @@ def pull_task_bodies(token, doc, conflicts, dry_run, tasks_list, page_ids=None):
     """각 Task 페이지의 to_do 블록을 reconcile + 본문 preview 캐시 갱신.
 
     page_ids=None이면 tasks_list 전체, 아니면 그 집합에 속한 Task만 처리한다
-    (lazy: 드릴인한 Task 또는 우선순위 범위만). get_all_children이 Task당 1회라
+    (lazy: 드릴인한 Task 하나만). get_all_children이 Task당 1회라
     여기서 처리하는 Task 수가 곧 본문 fetch 비용이다.
 
     tasks_list는 메모리 리스트(pull_meta 산출물 또는 load_tasks 결과)이며,
@@ -292,11 +292,6 @@ def pull(token, doc, conflicts, dry_run):
     mstats, new_tasks = pull_meta(token, conflicts, dry_run)
     bstats = pull_task_bodies(token, doc, conflicts, dry_run, new_tasks, None)
     return {**mstats, **bstats}
-
-
-def _priority_page_ids(tasks, priority):
-    """우선순위 라벨에 해당하는 page_id 집합 (sync --priority 범위 제한용)."""
-    return {t["page_id"] for t in tasks if t.get("priority") == priority}
 
 
 def _todo_from_remote(page_id, rb):
@@ -399,7 +394,7 @@ def _backup():
         shutil.copy2(store.TODOS_FILE, BACKUP_FILE)
 
 
-def run(mode, dry_run, page_id=None, priority=None):
+def run(mode, dry_run, page_id=None):
     token = nc.get_token()
     state = load_sync_state()
     conflicts = state.get("conflicts", [])
@@ -411,7 +406,6 @@ def run(mode, dry_run, page_id=None, priority=None):
     doc = store.load_todos()
     result = {"mode": mode, "dry_run": dry_run}
     # 전체 본문을 빠짐없이 당긴 경우만 "full 본문 동기화"로 본다(헤더 stale 표시용).
-    # --priority로 일부만 당긴 sync는 부분이므로 제외한다.
     did_full_bodies = False
 
     try:
@@ -421,11 +415,9 @@ def run(mode, dry_run, page_id=None, priority=None):
             result["pull"] = mstats
         elif mode in ("sync", "pull"):
             mstats, new_tasks = pull_meta(token, conflicts, dry_run)
-            page_ids = (_priority_page_ids(new_tasks, priority)
-                        if (mode == "sync" and priority) else None)
-            bstats = pull_task_bodies(token, doc, conflicts, dry_run, new_tasks, page_ids)
+            bstats = pull_task_bodies(token, doc, conflicts, dry_run, new_tasks, None)
             result["pull"] = {**mstats, **bstats}
-            did_full_bodies = page_ids is None
+            did_full_bodies = True
         elif mode == "pull-task":
             # 메타는 갱신하지 않는다(드릴인 대상은 이미 목록에 보였음).
             # 현재 캐시에서 해당 Task의 본문만 reconcile한다.
@@ -468,16 +460,11 @@ def main():
     for name in ("sync", "sync-meta", "pull-task", "pull", "push"):
         sp = sub.add_parser(name)
         sp.add_argument("--dry-run", action="store_true")
-        if name == "sync":
-            sp.add_argument("--priority", default=None,
-                            help="본문 reconcile을 이 우선순위(P1/P2/P3) Task로 제한")
         if name == "pull-task":
             sp.add_argument("--page-id", required=True,
                             help="본문을 reconcile할 Task의 Notion page_id")
     args = p.parse_args()
-    run(args.command, args.dry_run,
-        page_id=getattr(args, "page_id", None),
-        priority=getattr(args, "priority", None))
+    run(args.command, args.dry_run, page_id=getattr(args, "page_id", None))
 
 
 if __name__ == "__main__":

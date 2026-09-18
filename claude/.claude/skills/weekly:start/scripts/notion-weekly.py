@@ -107,27 +107,24 @@ def query_tasks_in_range(token, start_date, end_date):
                 {"property": "Due Date", "date": {"on_or_before": end_date.isoformat()}},
             ]
         },
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        "sorts": [{"property": "Due Date", "direction": "ascending"}],
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
     tasks = []
     for page in resp.get("results", []):
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
-        priority_sel = props.get("Priority", {}).get("select")
-        priority = priority_sel.get("name", "") if priority_sel else ""
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         status_obj = props.get("상태", {}).get("status")
         status = status_obj.get("name", "") if status_obj else ""
         due = props.get("Due Date", {}).get("date") or {}
-        category_sel = props.get("Category", {}).get("select")
+        category_sel = props.get("Group", {}).get("select")
         category = category_sel.get("name", "") if category_sel else ""
         tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
 
         tasks.append({
             "page_id": page["id"],
             "name": name,
-            "priority": priority,
             "status": status,
             "due_date": due.get("start", ""),
             "category": category,
@@ -204,7 +201,7 @@ def cmd_weekly_daily_summary(args):
 
     for page in pages:
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         due = props.get("Due Date", {}).get("date") or {}
         due_date = due.get("start", "")
 
@@ -332,27 +329,24 @@ def cmd_quarterly_goals(args):
             "property": "Tag",
             "multi_select": {"contains": quarter},
         },
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        "sorts": [{"property": "Due Date", "direction": "ascending"}],
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
     tasks = []
     for page in resp.get("results", []):
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
-        priority_sel = props.get("Priority", {}).get("select")
-        priority = priority_sel.get("name", "") if priority_sel else ""
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         status_obj = props.get("상태", {}).get("status")
         status = status_obj.get("name", "") if status_obj else ""
         due = props.get("Due Date", {}).get("date") or {}
-        category_sel = props.get("Category", {}).get("select")
+        category_sel = props.get("Group", {}).get("select")
         category = category_sel.get("name", "") if category_sel else ""
         tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
 
         tasks.append({
             "page_id": page["id"],
             "name": name,
-            "priority": priority,
             "status": status,
             "due_date": due.get("start", ""),
             "category": category,
@@ -362,7 +356,7 @@ def cmd_quarterly_goals(args):
     # 상태별 분류
     by_status = {
         "in_progress": [t for t in tasks if t["status"] == "진행 중"],
-        "upcoming": [t for t in tasks if t["status"] in ("시작 전", "")],
+        "upcoming": [t for t in tasks if t["status"] in ("해야할 것", "")],
         "waiting": [t for t in tasks if t["status"] == "대기"],
         "completed": [t for t in tasks if t["status"] == "완료"],
     }

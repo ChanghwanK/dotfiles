@@ -130,7 +130,8 @@ def query_tasks(token, start_date, end_date):
                 },
             ]
         },
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        # Priority 속성은 2026-09-18 제거됨. 상태별 버킷 안에서 마감 임박순으로 보인다.
+        "sorts": [{"property": "Due Date", "direction": "ascending"}],
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
@@ -142,21 +143,18 @@ def query_tasks(token, start_date, end_date):
         seen_ids.add(page["id"])
 
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
-        priority_sel = props.get("Priority", {}).get("select")
-        priority = priority_sel.get("name", "") if priority_sel else ""
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         status_obj = props.get("상태", {}).get("status")
         status = status_obj.get("name", "") if status_obj else ""
         due = props.get("Due Date", {}).get("date") or {}
         started_at = (props.get("started_at", {}).get("date") or {}).get("start", "")
-        category_sel = props.get("Category", {}).get("select")
+        category_sel = props.get("Group", {}).get("select")
         category = category_sel.get("name", "") if category_sel else ""
         tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
 
         task = {
             "page_id": page["id"],
             "name": name,
-            "priority": priority,
             "status": status,
             "due_date": due.get("start", ""),
             "started_at": started_at,
@@ -166,7 +164,7 @@ def query_tasks(token, start_date, end_date):
 
         if status == "진행 중":
             tasks["in_progress"].append(task)
-        elif status in ("시작 전", ""):
+        elif status in ("해야할 것", ""):
             tasks["upcoming"].append(task)
         elif status == "대기":
             tasks["waiting"].append(task)
@@ -180,25 +178,22 @@ def query_all_in_progress(token):
     """진행 중인 모든 Task를 조회한다 (Due Date 유무 무관)."""
     body = {
         "filter": {"property": "상태", "status": {"equals": "진행 중"}},
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        "sorts": [{"property": "Due Date", "direction": "ascending"}],
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
     tasks = []
     for page in resp.get("results", []):
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
-        priority_sel = props.get("Priority", {}).get("select")
-        priority = priority_sel.get("name", "") if priority_sel else ""
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         due = props.get("Due Date", {}).get("date") or {}
-        category_sel = props.get("Category", {}).get("select")
+        category_sel = props.get("Group", {}).get("select")
         category = category_sel.get("name", "") if category_sel else ""
         tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
 
         tasks.append({
             "page_id": page["id"],
             "name": name,
-            "priority": priority,
             "status": "진행 중",
             "due_date": due.get("start", ""),
             "category": category,
@@ -229,7 +224,7 @@ def query_daily_progress(token, monday, sunday):
 
     for page in resp.get("results", []):
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         due = props.get("Due Date", {}).get("date") or {}
         due_date = due.get("start", "")
 
@@ -517,7 +512,7 @@ def query_tasks_by_status(token, status_equals=None, status_not=None):
     out = []
     for page in resp.get("results", []):
         props = page.get("properties", {})
-        name = rich_text_to_plain(props.get("이름", {}).get("title", []))
+        name = rich_text_to_plain(props.get("Title", {}).get("title", []))
         status_obj = props.get("상태", {}).get("status")
         status = status_obj.get("name", "") if status_obj else ""
         if name:

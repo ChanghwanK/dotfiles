@@ -12,10 +12,7 @@ Usage:
   python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료: 캘린더 동기화 대상
 
   # 생성
-  python3 notion-task.py create-task --name "이름" --priority "P3" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--roi High|Medium|Low] [--description "설명"] [--body "Markdown" | --body-file PATH]
-
-  # ROI 설정 (Alfred groom, 사용자 승인 후)
-  python3 notion-task.py set-roi --page-id <id> --roi High|Medium|Low
+  python3 notion-task.py create-task --name "이름" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--description "설명"] [--body "Markdown" | --body-file PATH]
 
   # 상태 변경
   python3 notion-task.py update-status --page-id <id> --status "진행 중"
@@ -58,16 +55,12 @@ NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 
 VALID_STATUSES = {"해야할 것", "진행 중", "완료", "대기"}
-PRIORITY_OPTIONS = {
-    "P1",
-    "P2",
-    "P3",
-}
 CATEGORY_OPTIONS = {"WORK", "MY"}
 TYPE_OPTIONS = {"Task", "Project"}
-# ROI = 가치/노력 판단 버킷. Alfred groom 모드가 기록, 브리핑이 정렬 키로 사용.
-# 판단 기준 SSOT: devops-wiki/01-decisions/work-definition-framework.md (L1/L2/L3/보류 → High/Medium/Low/미설정 매핑)
-ROI_OPTIONS = {"High", "Medium", "Low"}
+# 목록 정렬의 1차 축. 지금 손대고 있는 일이 먼저 보이고, 막혀 있는(대기) 일은 뒤로 간다.
+# Notion API의 status 정렬은 DB 옵션 정의 순서에 의존하므로 이 규칙은 코드에서 적용한다.
+STATUS_RANK = {"진행 중": 0, "해야할 것": 1, "대기": 2, "완료": 3}
+_NO_DUE = "9999-12-31"
 
 
 # ─────────────────────────────────────────────
@@ -131,6 +124,23 @@ def ds_property_names(token, db_id):
     return _DS_PROPS_CACHE[db_id]
 
 
+# Task DB는 2026-09-18 Priority/ROI 속성을 의도적으로 제거했다. 정렬은 상태 → 마감일
+# 하나로 통일한다(브리핑·week·TUI가 같은 순서를 본다). API에는 Due Date 순만 맡기고
+# 상태 순위는 sort_tasks_by_status_then_due가 stable sort로 덮는다.
+TASK_API_SORTS = [
+    {"property": "Due Date", "direction": "ascending"},
+    {"property": "Created At", "direction": "descending"},
+]
+
+
+def sort_tasks_by_status_then_due(tasks):
+    """상태(진행 중 → 해야할 것 → 대기 → 완료) → Due 오름차순, Due 없음은 뒤."""
+    return sorted(
+        tasks,
+        key=lambda t: (STATUS_RANK.get(t.get("status", ""), 1), t.get("due_date") or _NO_DUE),
+    )
+
+
 def rich_text_to_plain(rich_text_list):
     return "".join(item.get("plain_text", "") for item in rich_text_list)
 
@@ -172,24 +182,18 @@ def _exit_error(message):
 def _parse_page(page):
     props = page.get("properties", {})
     name = rich_text_to_plain(props.get("Title", {}).get("title", []))
-    priority_sel = props.get("Priority", {}).get("select")
-    priority = priority_sel.get("name", "") if priority_sel else ""
     status_obj = props.get("상태", {}).get("status")
     status = status_obj.get("name", "") if status_obj else ""
     due = props.get("Due Date", {}).get("date") or {}
     category_sel = props.get("Group", {}).get("select")
     category = category_sel.get("name", "") if category_sel else ""
-    roi_sel = props.get("ROI", {}).get("select")
-    roi = roi_sel.get("name", "") if roi_sel else ""
     tags = [t.get("name", "") for t in props.get("Tag", {}).get("multi_select", [])]
     return {
         "page_id": page["id"],
         "name": name,
-        "priority": priority,
         "status": status,
         "due_date": due.get("start", ""),
         "category": category,
-        "roi": roi,
         "tags": tags,
     }
 
@@ -207,7 +211,7 @@ def query_tasks_by_period(token, start_date, end_date):
                 {"property": "Due Date", "date": {"on_or_before": end_date}},
             ]
         },
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        "sorts": TASK_API_SORTS,
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
 
@@ -234,10 +238,10 @@ def query_active_tasks(token):
             "property": "상태",
             "status": {"does_not_equal": "완료"},
         },
-        "sorts": [{"property": "Priority", "direction": "ascending"}],
+        "sorts": TASK_API_SORTS,
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
-    return [_parse_page(page) for page in resp.get("results", [])]
+    return sort_tasks_by_status_then_due(_parse_page(page) for page in resp.get("results", []))
 
 
 def query_calendar_pending(token):
@@ -278,10 +282,10 @@ def cmd_search_tasks(args):
 
     if status_filter == "all":
         body = {
-            "sorts": [{"property": "Priority", "direction": "ascending"}],
+            "sorts": TASK_API_SORTS,
         }
         resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
-        results = [_parse_page(page) for page in resp.get("results", [])]
+        results = sort_tasks_by_status_then_due(_parse_page(page) for page in resp.get("results", []))
     else:
         results = query_active_tasks(token)
 
@@ -330,17 +334,9 @@ def cmd_create_task(args):
     if not name:
         _exit_error("--name is required and cannot be empty")
 
-    priority = args.priority
-    if priority not in PRIORITY_OPTIONS:
-        _exit_error(f"Invalid priority '{priority}'. Valid: {sorted(PRIORITY_OPTIONS)}")
-
     category = args.category
     if category not in CATEGORY_OPTIONS:
         _exit_error(f"Invalid category '{category}'. Valid: {sorted(CATEGORY_OPTIONS)}")
-
-    roi = getattr(args, "roi", None)
-    if roi and roi not in ROI_OPTIONS:
-        _exit_error(f"Invalid ROI '{roi}'. Valid: {sorted(ROI_OPTIONS)}")
 
     task_type = getattr(args, "task_type", None) or "Task"
     if task_type not in TYPE_OPTIONS:
@@ -368,9 +364,6 @@ def cmd_create_task(args):
         "Title": {
             "title": [{"text": {"content": name}}]
         },
-        "Priority": {
-            "select": {"name": priority}
-        },
         "Group": {
             "select": {"name": category}
         },
@@ -384,9 +377,6 @@ def cmd_create_task(args):
 
     if args.due:
         properties["Due Date"] = {"date": {"start": args.due}}
-
-    if roi:
-        properties["ROI"] = {"select": {"name": roi}}
 
     if args.description:
         properties["Description"] = {
@@ -489,35 +479,8 @@ def cmd_create_task(args):
         "page_id": page_id,
         "url": page_url,
         "name": name,
-        "priority": priority,
         "category": category,
         "due_date": args.due or "",
-        "roi": roi or "",
-    }, ensure_ascii=False, indent=2))
-
-
-# ─────────────────────────────────────────────
-# ROI 설정 (Alfred groom 모드, 게이트된 자율성: 사용자 승인 후 호출)
-# ─────────────────────────────────────────────
-
-def cmd_set_roi(args):
-    """Task의 ROI 버킷을 설정한다. Alfred groom이 사용자 승인을 받은 뒤 호출."""
-    token = get_token()
-
-    if args.roi not in ROI_OPTIONS:
-        _exit_error(f"Invalid ROI '{args.roi}'. Valid: {sorted(ROI_OPTIONS)}")
-
-    body = {"properties": {"ROI": {"select": {"name": args.roi}}}}
-    result = notion_request(token, "PATCH", f"/pages/{args.page_id}", body)
-
-    props = result.get("properties", {})
-    name = rich_text_to_plain(props.get("Title", {}).get("title", []))
-
-    print(json.dumps({
-        "success": True,
-        "page_id": args.page_id,
-        "name": name,
-        "roi": args.roi,
     }, ensure_ascii=False, indent=2))
 
 
@@ -1051,15 +1014,10 @@ def main():
     # create-task
     ct = subparsers.add_parser("create-task", help="새 Task 생성")
     ct.add_argument("--name", required=True, help="Task 이름")
-    ct.add_argument("--priority", required=True,
-                    choices=sorted(PRIORITY_OPTIONS),
-                    help="우선순위")
     ct.add_argument("--category", required=True, choices=["WORK", "MY"], help="카테고리")
     ct.add_argument("--type", dest="task_type", default="Task", choices=sorted(TYPE_OPTIONS),
                     help="Task/Project 구분 (기본값 Task)")
     ct.add_argument("--due", default=None, help="마감일 (YYYY-MM-DD)")
-    ct.add_argument("--roi", default=None, choices=sorted(ROI_OPTIONS),
-                    help="ROI 버킷 (선택). 미지정 시 groom 대상으로 남음")
     ct.add_argument("--description", default=None, help="부연 설명 (Description 속성)")
     ct.add_argument("--body", dest="body", default=None,
                     help="본문 템플릿 Markdown 문자열 (Summary/Why/기대효과/Non-Goals). "
@@ -1076,12 +1034,6 @@ def main():
                                 help="두 Task를 Related Task 프로퍼티로 연결 (self-relation, 양방향 sync)")
     lr.add_argument("--page-id", required=True, help="Notion page ID")
     lr.add_argument("--related-page-id", required=True, help="연결할 상대방 Task의 page ID")
-
-    # set-roi
-    sr = subparsers.add_parser("set-roi", help="Task ROI 버킷 설정 (groom)")
-    sr.add_argument("--page-id", required=True, help="Notion page ID")
-    sr.add_argument("--roi", required=True, choices=sorted(ROI_OPTIONS),
-                    help="ROI 버킷")
 
     # update-status
     us = subparsers.add_parser("update-status", help="Task 상태 변경")
@@ -1119,7 +1071,6 @@ def main():
         "tasks": cmd_tasks,
         "calendar-pending": cmd_calendar_pending,
         "create-task": cmd_create_task,
-        "set-roi": cmd_set_roi,
         "update-status": cmd_update_status,
         "link-related-task": cmd_link_related_task,
         "delete-task": cmd_delete_task,
