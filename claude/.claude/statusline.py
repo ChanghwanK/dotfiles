@@ -6,9 +6,11 @@ Reads JSON from stdin and outputs a formatted multi-line statusline.
 JSON fields used:
   workspace.current_dir               - current working directory
   model.display_name / model.id       - model name
+  model.reasoning_effort / effort     - reasoning effort level
   version                             - CLI version
   output_style.name                   - profile name
   context_window.remaining_percentage - context remaining %
+  context_window.remaining_tokens     - context tokens left
   vim.mode                            - vim mode (optional)
   cost.session_total / session_cost_usd / total_cost  - session cost
   cost.hourly / hourly_cost           - hourly cost estimate
@@ -163,6 +165,18 @@ def ctx_bar(pct, width=10):
     return "[" + "=" * filled + "-" * (width - filled) + "]"
 
 
+def format_tokens(tokens):
+    """Format token count as '12.3k' or '1.2m'."""
+    if tokens is None:
+        return ""
+    tokens = int(tokens)
+    if tokens >= 1_000_000:
+        return f"{tokens / 1_000_000:.1f}m"
+    elif tokens >= 1_000:
+        return f"{tokens / 1_000:.1f}k"
+    return str(tokens)
+
+
 def main():
     raw = sys.stdin.read()
     try:
@@ -183,8 +197,15 @@ def main():
 
     profile = (data.get("output_style") or {}).get("name") or ""
 
-    ctx_window    = data.get("context_window") or {}
-    ctx_remaining = ctx_window.get("remaining_percentage") or ctx_window.get("used_percentage")
+    ctx_window      = data.get("context_window") or {}
+    ctx_remaining   = ctx_window.get("remaining_percentage") or ctx_window.get("used_percentage")
+    ctx_tokens      = ctx_window.get("remaining_tokens")
+
+    effort = (
+        model_obj.get("reasoning_effort")
+        or data.get("effort")
+        or data.get("reasoning_effort")
+    )
 
     vim_mode = (data.get("vim") or {}).get("mode") or ""
 
@@ -227,7 +248,10 @@ def main():
 
     meta = []
     if model_display:
-        meta.append(f"🤖 {co(M, model_display)}")
+        model_str = co(M, model_display)
+        if effort:
+            model_str += f" {co(Y, effort)}"
+        meta.append(f"🤖 {model_str}")
     if version:
         meta.append(f"📦 {co(B, version)}")
 
@@ -243,7 +267,10 @@ def main():
     if ctx_remaining is not None:
         pct = float(ctx_remaining)
         bar = ctx_bar(pct)
-        line2_parts.append(f"🧠 Context Remaining: {co(ctx_color(pct), f'{pct:.0f}%')} {co(DIM + W, bar)}")
+        ctx_display = co(ctx_color(pct), f'{pct:.0f}%')
+        if ctx_tokens:
+            ctx_display += f" {co(DIM + W, f'({format_tokens(ctx_tokens)} left)')}"
+        line2_parts.append(f"🧠 Context: {ctx_display} {co(DIM + W, bar)}")
     else:
         line2_parts.append(f"🧠 {co(DIM + W, 'ctx: TBD')}")
 
