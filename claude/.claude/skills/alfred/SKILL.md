@@ -5,7 +5,7 @@ description: |
   ※ 라우팅: 대화 중 "알프레드/alfred/비서" 호명이나 일정·Task 위임은 alfred "에이전트"가 받는다.
      이 스킬은 그 에이전트가 절차 실행을 위해 호출할 때 실행된다.
      대화형 호명에 직접 발동하지 말 것. 에이전트로 위임한다. 인격·톤은 ~/.claude/agents/alfred.md.
-  오늘 일정 + 우선순위 Task + 이월 후보를 모아 격식체로 브리핑한다(사용자 호출형).
+  오늘 일정 + 주요 Task + 이월 후보를 모아 격식체로 브리핑한다(사용자 호출형).
   PDS 운영 모델(Pick·Adjust·Deliver·Sustain)로 하루 전체 '일잘'을 돕는다.
   하루 시작(daily)은 daily:start 스킬로 인계해 어제 회고 + Top3 + Obsidian Daily Note 생성까지 잇는다.
   작업 완료 선언 시 done 전 "완료 게이트"(안심 핵심 2체크·점수화, 리스크/추가작업은 신호 있을 때만)로 '끝남'과 '동작함'을 구분한다.
@@ -151,7 +151,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 | 구분 | 무엇 | 쓰기 | 산출물 | 책임 |
 |------|------|------|--------|------|
-| `briefing` (모드) | 현황 스냅샷: 일정·우선순위 Task·이월·완료 보고·후속 액션 | 읽기 전용 | 화면 출력(선택적 `--push` Slack) | alfred 스킬 |
+| `briefing` (모드) | 현황 스냅샷: 일정·주요 Task·이월·완료 보고·후속 액션 | 읽기 전용 | 화면 출력(선택적 `--push` Slack) | alfred 스킬 |
 | `daily` (모드) | 하루 셋업 진입점: daily:start로 인계 | 인계만 | (daily:start 산출물) | alfred 스킬(호출자) |
 | `daily:start` (스킬) | 절차 본체: 어제 Obsidian+Transcript 회고 → Top3 선정 → Obsidian Daily Note 생성/병합 → Gmail 요약 | Obsidian/Notion 쓰기(자체 게이트) | Obsidian Daily Note | daily:start 스킬 |
 
@@ -167,7 +167,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 | 인자 | 모드 | 설명 |
 |------|------|------|
-| (없음) / `briefing` | 아침 브리핑 | 일정 + 우선순위 Task + 이월 후보 종합 |
+| (없음) / `briefing` | 아침 브리핑 | 일정 + 주요 Task + 이월 후보 종합 |
 | `daily` | 하루 시작 (Pick) | `Skill(daily:start)` 인계: 어제 회고 + Top3 선정 + Obsidian Daily Note 생성. briefing(현황)과 짝을 이루는 하루 셋업 |
 | `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (선택적 수동 발송) |
 | `briefing --refresh` | 캘린더 강제 갱신 | 당일 캐시를 무시하고 캘린더를 다시 조회 (회의 추가/취소 반영) |
@@ -200,7 +200,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 - **신선도 표기**: 캐시를 재사용한 경우 일정 섹션에 "(캘린더: 오늘 HH:MM 조회 기준)"을 덧붙여, 그 사이 추가/취소된 일정은 `/alfred briefing --refresh`로 갱신할 수 있음을 알린다.
 - **MCP 도구가 없거나 실패하면** → 일정 섹션(오늘·이번 주 모두)을 "조회 불가(인터랙티브 세션에서 확인 권장)"로 표기하고 다음 단계로 넘어간다. 캐시 파일은 만들지 않는다(소비자가 자연히 폴백). 중단하지 않는다.
 
-**(B) 우선순위 Task: Notion (스크립트)**
+**(B) 주요 Task: Notion (스크립트)**
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
@@ -257,7 +257,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
   --todos-json  /tmp/alfred-todos.json
 ```
 - `/tmp/alfred-active.json`(B/E)·`/tmp/alfred-todos.json`(D)을 재사용한다. 추가 Notion 호출 없음. **읽기 기반 join이라 Notion 상태를 변경하지 않는다**(브리핑 읽기 전용 원칙 유지).
-- 출력 `items[].n`이 "우선순위 Task" 섹션의 줄 번호가 된다(2단계에서 이 번호를 그대로 매긴다). 각 항목은 `~/workspace/riiid/<repo>` 단서(repo)와 하위 Todo를 담아, 나중에 `/alfred resume`가 동일 번호로 작업을 고르고 세션을 띄울 수 있게 한다.
+- 출력 `items[].n`이 "주요 Task" 섹션의 줄 번호가 된다(2단계에서 이 번호를 그대로 매긴다). 각 항목은 `~/workspace/riiid/<repo>` 단서(repo)와 하위 Todo를 담아, 나중에 `/alfred resume`가 동일 번호로 작업을 고르고 세션을 띄울 수 있게 한다.
 - **실패 격리**: 비-0 종료여도 브리핑은 계속한다(매니페스트가 없으면 resume picker가 자체 재생성한다).
 
 **(F) 후속 액션 (follow-up): TUI todo_store (스크립트)**
@@ -296,7 +296,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - ⊘ {종료/이동 추정 Task명}        ← 차분 closed_unknown (아카이브·이동 가능성, 확인 권고)
   (completed+closed_unknown 0건이면 "지난 브리핑 이후 종료된 항목 없습니다." / first_run이면 "기준 스냅샷을 생성했습니다(다음 브리핑부터 완료 보고).")
 
-우선순위 Task (상태→due 순, 상위 {N}건 / 활성 {전체}건 · `/alfred resume`로 번호 선택)
+주요 Task (상태→due 순, 상위 {N}건 / 활성 {전체}건 · `/alfred resume`로 번호 선택)
 1. [개인][진행 중] {이름} (due {MM/DD})  · 안 하면: {한 줄, 무엇이 막히나}
 2. [회사][해야할 것] {이름} (due {없음})
 3. [회사][해야할 것] {이름} (due {MM/DD})
@@ -322,7 +322,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다. **due ≤ 오늘 항목은 Notion·TUI 두 소스를 합쳐(union) 점검**한다. 한 소스에만 있어도 누락하지 않는다.
 - **소스 중복 제거**: 같은 항목이 Notion(B)·TUI(D)에 모두 있으면 한 번만 노출하되, 둘 중 due가 있는 쪽을 채택한다(이름 유사 매칭). 로컬 Todo 섹션은 TUI 고유 항목 위주로 보여 중복 노이즈를 줄인다.
 - **Pick(옳은 일)**: Task는 **상태(진행 중 → 해야할 것 → 대기) → due 임박 순**으로 줄 세운다(due 없는 항목은 그룹 내 맨 뒤). 최상단 1건에만 "안 하면 무엇이 막히나"를 한 줄 단다(푸시 DM 과부하 방지). 권고 시 '본질 해결 vs 증상 대응'을 구분해 말한다.
-- **번호 = 매니페스트 `n`**: "우선순위 Task" 줄 번호는 (E)에서 만든 `alfred-briefing-latest.json`의 `items[].n`과 동일 순서·동일 번호여야 한다. 매니페스트 빌더가 같은 정렬 키를 쓰므로 그대로 1, 2, 3…으로 매긴다. 사용자는 이 번호를 `/alfred resume`에서 그대로 골라 작업 세션을 연다.
+- **번호 = 매니페스트 `n`**: "주요 Task" 줄 번호는 (E)에서 만든 `alfred-briefing-latest.json`의 `items[].n`과 동일 순서·동일 번호여야 한다. 매니페스트 빌더가 같은 정렬 키를 쓰므로 그대로 1, 2, 3…으로 매긴다. 사용자는 이 번호를 `/alfred resume`에서 그대로 골라 작업 세션을 연다.
 - **회사/개인 구분**: 각 Task 줄 앞에 `[개인]`(Group=MY) / `[회사]`(Group=WORK) 라벨을 붙여 성격을 드러낸다(정렬 키는 상태→due 그대로, 라벨은 표시만). 개인 Task는 `/alfred calendar`로 캘린더에 동기화할 수 있음을 권고 줄에서 가볍게 환기할 수 있다.
 - **이번 주 일정(B)**: 오늘은 상세(시간·제목), 내일~일요일은 날짜별 헤드라인으로 압축한다(하루 2건+초과는 "외 N건"). 이번 주 안의 **준비가 필요한 회의·외부 일정**이나 **오늘 일정과의 충돌**이 보이면 본문이 아니라 [주의]로 끌어올린다.
 - **완료 보고(E)**: 차분 `completed`는 "✓ 끝남"으로 단정하되, `closed_unknown`은 "⊘ 종료/이동 추정"으로 **확정하지 않고** 확인을 권한다(아카이브·주간 이동일 수 있음). `first_run`이면 완료 보고 대신 "기준 스냅샷 생성" 한 줄만 남긴다.

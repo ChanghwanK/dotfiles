@@ -43,8 +43,7 @@ Notion Task 링크 하나로 "지금까지 뭘 했는지"와 "지금 상태"를 
 python3 /Users/changhwan/.claude/skills/task:resume/scripts/resolve_task.py resolve --url "<사용자가 준 노션 링크 또는 page_id>"
 ```
 
-출력 JSON: `page_id`, `is_task_db`, `name`, `status`, `priority`, `due_date`,
-`category`, `roi`.
+출력 JSON: `page_id`, `is_task_db`, `name`, `status`, `due_date`, `category`.
 
 - `success: false` → 에러 메시지를 그대로 사용자에게 보여주고 종료.
 - `is_task_db: false` → Task DB 페이지가 아닌 것으로 보인다는 점을 한 줄
@@ -92,7 +91,7 @@ mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
 아래 형식으로 정리해 응답한다(짧고 핵심만, 표 대신 목록):
 
 ```
-이어서 진행: {name} ({priority}, {category}) · due {due_date}
+이어서 진행: {name} ({category}) · due {due_date}
 상태: {변경 전} -> {변경 후} (전환됨 / 변경 없음)
 
 지금까지
