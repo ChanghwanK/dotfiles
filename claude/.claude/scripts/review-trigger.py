@@ -7,7 +7,7 @@ inject an instruction telling Claude to invoke the `review` skill before answeri
 Description-based skill matching is probabilistic; this hook makes the trigger
 deterministic, which is the whole point of a "put 검토 at the end" convention.
 
-Invariants (same as detect-future-todo.py):
+Invariants (same as the other UserPromptSubmit hooks):
   - Exit code is always 0. Exit 2 would block the prompt, and a trigger bug must
     never block the user's input.
   - Only the trailing "검토" family triggers ("검토", "검토 해", "검토 한다", "검토해줘").

@@ -9,8 +9,8 @@ description: |
   PDS 운영 모델(Pick·Adjust·Deliver·Sustain)로 하루 전체 '일잘'을 돕는다.
   하루 시작(daily)은 daily:start 스킬로 인계해 어제 회고 + Top3 + Obsidian Daily Note 생성까지 잇는다.
   작업 완료 선언 시 done 전 "완료 게이트"(안심 핵심 2체크·점수화, 리스크/추가작업은 신호 있을 때만)로 '끝남'과 '동작함'을 구분한다.
-  이번 주 Task 전체 조회·상태 변경·신규 생성과 Task 하위 Todo(로컬 TUI) + Daily Note Todos 통합 관리를 지원한다.
-  모드: briefing(아침 브리핑) / daily(하루 시작: daily:start 인계) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운+Todo) / syncup(팀 Tech Daily 데일리 스크럼 작성).
+  이번 주 Task 전체 조회·상태 변경·신규 생성과 특정 Task 드릴다운(오늘 Daily Note Todos 조회 포함)을 지원한다.
+  모드: briefing(아침 브리핑) / daily(하루 시작: daily:start 인계) / resume(브리핑 작업 픽업→새 세션) / gate(완료 게이트) / review(저녁 일잘 리뷰) / week(주간 Task) / task(Task 드릴다운) / syncup(팀 Tech Daily 데일리 스크럼 작성).
   직접 호출(슬래시): "/alfred", "/alfred briefing", "/alfred daily", "/alfred resume", "/alfred gate", "/alfred review", "/alfred week", "/alfred task", "/alfred syncup".
 model: sonnet
 allowed-tools:
@@ -21,16 +21,13 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py today*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py reconcile-progress*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py record*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py *)
-  - Bash(python3 /Users/changhwan/.claude/scripts/alfred-nudge-state.py *)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py *)
   - Bash(bash /Users/changhwan/.claude/scripts/alfred-resume-launch.sh *)
-  - Bash(python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
   - Bash(bash /Users/changhwan/.claude/scripts/notify-slack.sh *)
   - mcp__claude_ai_Google_Calendar__list_events
@@ -56,7 +53,7 @@ allowed-tools:
 
 - **인격 고정**: 모든 출력은 `agents/alfred.md`의 톤(격식체 집사)·판단 기준을 따른다. 위험을 먼저, 결론 먼저.
 - **읽기 전용 기본 (briefing·check·review)**: 브리핑 계열은 조회만 한다. 일정 생성/수정/삭제는 여전히 별도 스킬로 위임.
-- **week·task 모드는 자율 실행**: Task 상태 변경·신규 생성·Todo 추가·완료 처리는 사용자 확인 없이 즉시 실행한다. 실수 시 수동 복구(`update-status`, `toggle --id`)로 원복.
+- **week·task 모드는 자율 실행**: Task 상태 변경·신규 생성·완료 처리는 사용자 확인 없이 즉시 실행한다. 실수 시 수동 복구(`update-status`)로 원복.
 - **Notion은 스크립트만 (단, syncup 예외)**: 개인 Task DB는 Notion MCP 도구를 쓰지 않고(토큰 효율) 정규 스크립트 `tasks:manage/scripts/notion-task.py`를 쓴다. **예외**: 팀 `Tech Daily` DB는 다른 workspace라 그 통합 토큰으로 닿지 않으므로, `syncup` 모드에서만 `mcp__claude_ai_Notion` 커넥터를 쓴다.
 - **그레이스풀 디그레이드**: 캘린더 MCP가 없으면(헤드리스 가능성) 그 섹션만 "조회 불가"로 표기하고 나머지는 정상 진행한다. 전체 실패시키지 않는다.
 - **상대 날짜 절대화**: 모든 날짜는 오늘 기준 절대 날짜로 환산해 말한다.
@@ -151,7 +148,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 | 구분 | 무엇 | 쓰기 | 산출물 | 책임 |
 |------|------|------|--------|------|
-| `briefing` (모드) | 현황 스냅샷: 일정·주요 Task·이월·완료 보고·후속 액션 | 읽기 전용 | 화면 출력(선택적 `--push` Slack) | alfred 스킬 |
+| `briefing` (모드) | 현황 스냅샷: 일정·주요 Task·이월·완료 보고 | 읽기 전용 | 화면 출력(선택적 `--push` Slack) | alfred 스킬 |
 | `daily` (모드) | 하루 셋업 진입점: daily:start로 인계 | 인계만 | (daily:start 산출물) | alfred 스킬(호출자) |
 | `daily:start` (스킬) | 절차 본체: 어제 Obsidian+Transcript 회고 → Top3 선정 → Obsidian Daily Note 생성/병합 → Gmail 요약 | Obsidian/Notion 쓰기(자체 게이트) | Obsidian Daily Note | daily:start 스킬 |
 
@@ -171,13 +168,13 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 | `daily` | 하루 시작 (Pick) | `Skill(daily:start)` 인계: 어제 회고 + Top3 선정 + Obsidian Daily Note 생성. briefing(현황)과 짝을 이루는 하루 셋업 |
 | `briefing --push` | 브리핑 + Slack 푸시 | 위 브리핑을 본인 Slack DM으로 발송 (선택적 수동 발송) |
 | `briefing --refresh` | 캘린더 강제 갱신 | 당일 캐시를 무시하고 캘린더를 다시 조회 (회의 추가/취소 반영) |
-| `resume` | 작업 픽업 → 새 세션 | 브리핑된 Task를 번호로 골라 올바른 repo에 새 세션을 띄움 (인터랙티브 전용) |
-| `resume --task <page_id>` | 이어가기 로더 | 새 세션이 자동 실행: Task+Todo+claude-mem 기억 요약 후 첫 액션 제안 |
+| `resume` | 작업 픽업 → 새 세션 | 브리핑된 Task를 번호로 골라 작업 디렉터리에 새 세션을 띄움 (인터랙티브 전용) |
+| `resume --task <page_id>` | 이어가기 로더 | 새 세션이 자동 실행: Task+claude-mem 기억 요약 후 첫 액션 제안 |
 | `check` | 중간 점검 | 오늘 진행률만 가볍게 |
 | `gate` / `done` | 완료 게이트 (Deliver) | "끝났다" 선언 시 done 전 안심 핵심 2체크·점수화 |
 | `review` | 저녁 일잘 리뷰 (Sustain) | 가시성·레버리지·소진 3점검 후 `daily:review`로 인계 |
 | `week` | 주간 Task 관리 | 이번 주 Task 전체 뷰 + 상태 변경·신규 생성 자율 실행 |
-| `task <Task명>` | Task 드릴다운 + Todo 관리 | 특정 Task의 TUI Todo + Daily Note Todos 통합 조회·추가·완료 처리 자율 실행 |
+| `task <Task명>` | Task 드릴다운 | 특정 Task의 상태·due + 오늘 Daily Note Todos 조회, 상태 변경 자율 실행 |
 | `calendar` | 개인 Task 캘린더 동기화 | 개인(MY)+Due+미완료 Task를 Google Calendar 종일 이벤트로 reconcile (확인 후 쓰기) |
 | `syncup` / `scrum` | 팀 Tech Daily 작성 | 팀 데일리 스크럼 테이블 본인 셀에 한 것들/할 것들 작성 (확인 후 쓰기) |
 
@@ -185,9 +182,9 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
 
 ## 워크플로우: briefing (기본)
 
-### 1단계: 데이터 수집 (6개 소스, 실패는 개별 격리)
+### 1단계: 데이터 수집 (4개 소스, 실패는 개별 격리)
 
-> **실행 강제 (합성 금지)**: 아래 6개 소스는 **매 briefing 호출마다 반드시 실제 스크립트/도구로 수집**한다. 첫 호출이든 같은 세션 내 재호출/resume이든 동일하다. 직전 브리핑 출력·transcript 기억·대화 맥락으로 **합성하지 않는다**. 특히 소스 (D) 로컬 Todo(`list-all-todos`)는 Notion(B)에 없는 Backlog 마감 항목이 들어오는 유일한 경로이므로, 이를 건너뛰면 오늘 마감 Backlog가 통째로 누락된다(2026-06-26 PgBouncer due-today 드롭 재발 방지). 캘린더(A)만 당일 캐시 재사용이 허용되고, 나머지(B~F)는 매번 다시 돌린다. **(D)의 `list-all-todos`를 한 번도 실행하지 않은 채로는 브리핑을 출력하지 않는다.**
+> **실행 강제 (합성 금지)**: 아래 4개 소스는 **매 briefing 호출마다 반드시 실제 스크립트/도구로 수집**한다. 첫 호출이든 같은 세션 내 재호출/resume이든 동일하다. 직전 브리핑 출력·transcript 기억·대화 맥락으로 **합성하지 않는다**. 캘린더(A)만 당일 캐시 재사용이 허용되고, 나머지(B~D)는 매번 다시 돌린다.
 
 **(A) 일정: 캘린더 오늘 + 이번 주 (당일 캐시 우선, best-effort)**
 
@@ -216,19 +213,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py carr
 ```
 - 지난 주 미완료 = 오늘 챙겨야 할 잔여 작업. **dry-run만** 한다(적용 금지).
 
-**(D) 로컬 Todo: TUI todo_store (스크립트)**
-
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-tasks --format json
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json
-```
-- **Notion(B)와 별개 소스다.** TUI store에만 있거나 Notion에서 누락된 due 항목을 여기서 보강한다. (B)만 보면 오늘 마감 항목이 통째로 빠질 수 있다. 반드시 둘 다 수집한다.
-- `list-tasks` → `tasks[]`: 각 항목 `name`/`status`/`due_date`/`todo_done`/`todo_count`. `page_id == "__backlog__"`(name `📥 Todos`)는 Backlog 버킷 집계.
-- `list-all-todos` → `todos[]`: Backlog + Task-scoped 개별 Todo. 각 항목 `title`/`done`/`due`/`status`/`task_page_id`/`repo`.
-- **추출 규칙**: `done == false`인 항목 중 **`due`(또는 `due_date`)가 오늘(`Asia/Seoul`) 이하**인 것은 **전부** 수집한다(만료 포함). due 없는 항목은 진행중(`status`) 우선으로 요약.
-- **실패 격리**: 비-0 종료면 로컬 Todo 섹션을 "조회 불가"로 표기하고 다음 단계로 넘어간다. 중단하지 않는다.
-
-**(E) 이번 주 Task 버킷 + 완료 보고 차분: Notion (스크립트)**
+**(D) 이번 주 Task 버킷 + 완료 보고 차분: Notion (스크립트)**
 
 먼저 이번 주 Task 전체를 조회한다(완료 버킷 = 차분의 "완료 확정" 소스 + 주간 맥락용):
 ```bash
@@ -249,27 +234,14 @@ python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py update \
 - `first_run == true`이면 직전 기준이 없으므로 완료 보고를 생략한다("기준 스냅샷 생성됨"으로만 표기).
 - **실패 격리**: 비-0 종료면 완료 보고 섹션을 "조회 불가"로 표기하고 진행한다.
 
-이어서 **resume 픽업용 매니페스트**를 생성한다(브리핑 본문 번호 ↔ `/alfred resume` 번호가 항상 일치하도록 번호·repo를 결정론적으로 고정):
+이어서 **resume 픽업용 매니페스트**를 생성한다(브리핑 본문 번호 ↔ `/alfred resume` 번호가 항상 일치하도록 번호를 결정론적으로 고정):
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json > /tmp/alfred-todos.json
 python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
-  --active-json /tmp/alfred-active.json \
-  --todos-json  /tmp/alfred-todos.json
+  --active-json /tmp/alfred-active.json
 ```
-- `/tmp/alfred-active.json`(B/E)·`/tmp/alfred-todos.json`(D)을 재사용한다. 추가 Notion 호출 없음. **읽기 기반 join이라 Notion 상태를 변경하지 않는다**(브리핑 읽기 전용 원칙 유지).
-- 출력 `items[].n`이 "주요 Task" 섹션의 줄 번호가 된다(2단계에서 이 번호를 그대로 매긴다). 각 항목은 `~/workspace/riiid/<repo>` 단서(repo)와 하위 Todo를 담아, 나중에 `/alfred resume`가 동일 번호로 작업을 고르고 세션을 띄울 수 있게 한다.
+- `/tmp/alfred-active.json`(B/D)을 재사용한다. 추가 Notion 호출 없음. **읽기 기반 빌드라 Notion 상태를 변경하지 않는다**(브리핑 읽기 전용 원칙 유지).
+- 출력 `items[].n`이 "주요 Task" 섹션의 줄 번호가 된다(2단계에서 이 번호를 그대로 매긴다). 각 항목은 `n`/`page_id`/`name`/`category`/`status`/`due_date`를 담아, 나중에 `/alfred resume`가 동일 번호로 작업을 고르고 세션을 띄울 수 있게 한다.
 - **실패 격리**: 비-0 종료여도 브리핑은 계속한다(매니페스트가 없으면 resume picker가 자체 재생성한다).
-
-**(F) 후속 액션 (follow-up): TUI todo_store (스크립트)**
-
-소스 (D)에서 이미 받은 `list-all-todos` 결과를 재사용한다(추가 호출 없음). `repo == "follow-up"` & `done == false` 항목을 후속 액션으로 추린다.
-- 각 후속 항목에 대해 경과일수·노출횟수를 부여한다(알림 피로 방지):
-  ```bash
-  python3 /Users/changhwan/.claude/scripts/alfred-nudge-state.py bump --id "<todo id>"
-  ```
-  반환 `days_since_first`/`shown_count`로 "(N일째 미처리)"·정리 권장 플래그를 만든다(2단계 참조).
-- 후속 항목이 0건이면 nudge bump도 호출하지 않고 해당 섹션을 생략한다.
-- **실패 격리**: bump 실패는 무시하고 항목만 경과일수 없이 노출한다.
 
 ### 2단계: 합성 (Alfred 톤 브리핑)
 
@@ -280,8 +252,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 
 [주의]
 - (일정 충돌 / 오늘 마감(D-day) / 준비 임박 회의가 있으면 여기 한두 줄. 없으면 "특이사항 없습니다.")
-- **due ≤ 오늘인 항목(Notion·TUI 어느 소스든)은 정렬과 무관하게 여기 최상단에 무조건 올린다**. 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
-  - Notion Task든 로컬 Backlog Todo(`__backlog__`)든 예외 없이, due ≤ 오늘이면 무조건 [주의]에 올린다(2026-06-26 PgBouncer due-today 드롭 재발 방지).
+- **due ≤ 오늘인 Task는 정렬과 무관하게 여기 최상단에 무조건 올린다**. 본문에서 누락 금지(2026-06-23 Grafana 비용정산 드롭 재발 방지).
 
 오늘 일정 ({N}건){캐시 재사용 시 끝에: ` · 캘린더 오늘 HH:MM 조회 기준 (--refresh로 갱신)`}
 - HH:MM–HH:MM  {제목}
@@ -302,16 +273,6 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 3. [회사][해야할 것] {이름} (due {MM/DD})
   (… 외 {M}건)
 
-로컬 Todo (TUI todo_store)
-- [D-day] {title} (due {MM/DD})  · {Backlog / Task: 상위Task명}
-- [진행중] {title} ({repo})
-  (오늘 이하 due 미완료는 전부 노출. 그 외는 진행중 우선 요약. 조회 불가 시: "로컬 Todo 조회 불가")
-
-후속 액션 리마인드 ({M}건)
-- {title}  ({N}일째 미처리)
-- {title}  ({N}일째, 아직 유효합니까? 정리 권합니다)   ← days_since_first ≥ 5 일 때
-  (0건이면 이 섹션 전체를 생략한다)
-
 이월 후보 ({M}건)
 - {이름} (기존 due {MM/DD})
   (0건이면 "지난 주 미완료 없습니다.")
@@ -319,14 +280,12 @@ python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build \
 - 무엇부터 손대실지 한 줄 권고 (생산성 우선, 트레이드오프 명시). 끝에 "Daily Note를 만들까요?" 유도.
 ```
 
-- **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다. **due ≤ 오늘 항목은 Notion·TUI 두 소스를 합쳐(union) 점검**한다. 한 소스에만 있어도 누락하지 않는다.
-- **소스 중복 제거**: 같은 항목이 Notion(B)·TUI(D)에 모두 있으면 한 번만 노출하되, 둘 중 due가 있는 쪽을 채택한다(이름 유사 매칭). 로컬 Todo 섹션은 TUI 고유 항목 위주로 보여 중복 노이즈를 줄인다.
+- **위험 우선**: 충돌·마감·임박 회의를 "먼저 보실 것"에 올린다. **due ≤ 오늘 Task는 상위 N건 노출 컷과 무관하게 전부 점검**한다.
 - **Pick(옳은 일)**: Task는 **상태(진행 중 → 해야할 것 → 대기) → due 임박 순**으로 줄 세운다(due 없는 항목은 그룹 내 맨 뒤). 최상단 1건에만 "안 하면 무엇이 막히나"를 한 줄 단다(푸시 DM 과부하 방지). 권고 시 '본질 해결 vs 증상 대응'을 구분해 말한다.
-- **번호 = 매니페스트 `n`**: "주요 Task" 줄 번호는 (E)에서 만든 `alfred-briefing-latest.json`의 `items[].n`과 동일 순서·동일 번호여야 한다. 매니페스트 빌더가 같은 정렬 키를 쓰므로 그대로 1, 2, 3…으로 매긴다. 사용자는 이 번호를 `/alfred resume`에서 그대로 골라 작업 세션을 연다.
+- **번호 = 매니페스트 `n`**: "주요 Task" 줄 번호는 (D)에서 만든 `alfred-briefing-latest.json`의 `items[].n`과 동일 순서·동일 번호여야 한다. 매니페스트 빌더가 같은 정렬 키를 쓰므로 그대로 1, 2, 3…으로 매긴다. 사용자는 이 번호를 `/alfred resume`에서 그대로 골라 작업 세션을 연다.
 - **회사/개인 구분**: 각 Task 줄 앞에 `[개인]`(Group=MY) / `[회사]`(Group=WORK) 라벨을 붙여 성격을 드러낸다(정렬 키는 상태→due 그대로, 라벨은 표시만). 개인 Task는 `/alfred calendar`로 캘린더에 동기화할 수 있음을 권고 줄에서 가볍게 환기할 수 있다.
 - **이번 주 일정(B)**: 오늘은 상세(시간·제목), 내일~일요일은 날짜별 헤드라인으로 압축한다(하루 2건+초과는 "외 N건"). 이번 주 안의 **준비가 필요한 회의·외부 일정**이나 **오늘 일정과의 충돌**이 보이면 본문이 아니라 [주의]로 끌어올린다.
-- **완료 보고(E)**: 차분 `completed`는 "✓ 끝남"으로 단정하되, `closed_unknown`은 "⊘ 종료/이동 추정"으로 **확정하지 않고** 확인을 권한다(아카이브·주간 이동일 수 있음). `first_run`이면 완료 보고 대신 "기준 스냅샷 생성" 한 줄만 남긴다.
-- **후속 액션(F)**: `repo==follow-up` 미처리 항목을 경과일수와 함께 리마인드한다. `days_since_first ≥ 5`면 "아직 유효합니까? 정리 권합니다"로 격상해 **방치된 후속을 정리하도록** 민다(쌓이기만 하는 백로그 방지). 항목이 0건이면 섹션을 생략해 잔소리를 줄인다.
+- **완료 보고(D)**: 차분 `completed`는 "✓ 끝남"으로 단정하되, `closed_unknown`은 "⊘ 종료/이동 추정"으로 **확정하지 않고** 확인을 권한다(아카이브·주간 이동일 수 있음). `first_run`이면 완료 보고 대신 "기준 스냅샷 생성" 한 줄만 남긴다.
 - **권고는 1줄**: 단정하지 않고 "권합니다 / ~하시는 편이 좋겠습니다"로. 결정은 주인에게.
 
 ### 하루 시작 인계 (동의 게이트 → daily 모드)
@@ -379,7 +338,7 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 ## 워크플로우: resume (작업 픽업 → 새 세션, Pick → Deliver)
 
 브리핑(Pick)과 실제 착수(Deliver) 사이의 단절을 잇는다. 브리핑이 남긴 매니페스트에서 작업을
-**번호로 고르면**, 그 작업의 올바른 repo에 **새 Claude 세션을 띄우고** Task·Todo·과거 기록을
+**번호로 고르면**, 그 작업의 디렉터리에 **새 Claude 세션을 띄우고** Task·과거 기록을
 요약해 "여기서부터 이어갑니다"를 제시한다. 인자 유무로 두 단계를 가른다.
 
 ### picker 단계: `/alfred resume` (인자 없음)
@@ -388,24 +347,23 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
    - 비었거나(`items` 없음) `generated_at`이 **16시간 초과**(오늘 아침 브리핑이 없었음)면 fresh 질의로 재생성한다:
      ```bash
      python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active > /tmp/alfred-active.json
-     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-all-todos --format json > /tmp/alfred-todos.json
-     python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build --active-json /tmp/alfred-active.json --todos-json /tmp/alfred-todos.json
+     python3 /Users/changhwan/.claude/scripts/alfred-briefing-manifest.py build --active-json /tmp/alfred-active.json
      ```
 2. **비대화형 가드**: `--push` 등 무인 호출이면 picker를 띄우지 않는다. "인터랙티브 세션에서 `/alfred resume`를 실행하세요" 한 줄만 출력하고 종료(무인 상태에서 세션 launch를 시도하지 않는다).
 3. **번호 목록 출력**(🎩 톤, 결론 먼저):
    ```
    🎩 오늘 브리핑된 작업: 어느 것을 이어가시겠습니까?
-    1  [회사][진행 중] GPU Operator 이관      · due 06/24  · repo: kubernetes
-    2  [개인][해야할 것] 온콜 SOP 정리           · due 06/30  · repo: (미지정)
-    3  [회사][해야할 것] VictoriaMetrics 릴리스   · due 06/30  · repo: kubernetes
-   번호를 말씀해 주시면 해당 repo에 새 세션을 띄웁니다.
+    1  [회사][진행 중] GPU Operator 이관      · due 06/24
+    2  [개인][해야할 것] 온콜 SOP 정리           · due 06/30
+    3  [회사][해야할 것] VictoriaMetrics 릴리스   · due 06/30
+   번호를 말씀해 주시면 작업 디렉터리를 여쭌 뒤 새 세션을 띄웁니다.
    ```
 4. **선택 → launch**: 사용자가 번호를 고르면 그 항목의 `page_id`로 런처를 호출한다:
    ```bash
    bash /Users/changhwan/.claude/scripts/alfred-resume-launch.sh <page_id>
    ```
-   - 런처가 repo→`~/workspace/riiid/<repo>`를 해석해 새 cmux 세션을 띄우고 초기 프롬프트 `/alfred resume --task <page_id>`를 주입한다.
-   - **exit 2(`AMBIGUOUS_DIR`)**: repo 단서가 없다(흔한 경우, Notion Task엔 repo 필드가 없고, repo는 Task-scoped Todo에 달린 경우에만 자동 해석된다). 이때 **1회** `AskUserQuestion`으로 작업 디렉터리를 묻되, **무료 입력이 아니라 알려진 repo를 원클릭 선택**으로 제시한다:
+   - 런처가 작업 디렉터리에 새 cmux 세션을 띄우고 초기 프롬프트 `/alfred resume --task <page_id>`를 주입한다.
+   - **exit 2(`AMBIGUOUS_DIR`)**: repo 단서 없음(Notion Task엔 repo 필드가 없으므로 `--dir` 없이 호출하면 항상 이 경로다). picker가 디렉터리를 **1회** `AskUserQuestion`으로 묻되, **무료 입력이 아니라 알려진 repo를 원클릭 선택**으로 제시한다:
      - 옵션: `kubernetes`(추천, 가장 흔한 작업 repo) / `k8s-on-premise` / `terraform` / `.claude`. (그 외는 "Other"로 경로 직접 입력)
      - 선택 repo를 경로로 환산해(`kubernetes`→`~/workspace/riiid/kubernetes`, `.claude`→`~/.claude`) 재호출한다:
        ```bash
@@ -416,19 +374,13 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 
 ### loader 단계: `/alfred resume --task <page_id>` (새 세션이 자동 실행)
 
-런처가 띄운 새 세션의 첫 입력으로 들어온다. 컨텍스트를 모아 보여주고, **착수 시점이므로 '해야할 것' Task만 1회 확인 후 '진행 중'으로 전이**한다(그 외 상태·Todo는 건드리지 않는다).
+런처가 띄운 새 세션의 첫 입력으로 들어온다. 컨텍스트를 모아 보여주고, **착수 시점이므로 '해야할 것' Task만 1회 확인 후 '진행 중'으로 전이**한다(그 외 상태는 건드리지 않는다).
 
 1. **Task 메타 회수**: 매니페스트(`alfred-briefing-manifest.py get`)에서 `page_id` 항목의 name/status/due_date를 꺼낸다(추가 Notion 호출 없음).
-2. **최신 Todo 재로드**: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos --task <page_id>` 로 그 사이 바뀌었을 수 있는 Todo를 최신화한다.
-3. **과거 기록: claude-mem**: `mcp__plugin_claude-mem_mcp-search__timeline` 또는 검색으로 Task명 키워드 관련 과거 작업 **3~5건**을 추린다(지난번 어디까지 했는지). 결과가 없으면 "이전 작업 기록 없음"으로 생략.
-4. **출력**(🎩 톤):
+2. **과거 기록: claude-mem**: `mcp__plugin_claude-mem_mcp-search__timeline` 또는 검색으로 Task명 키워드 관련 과거 작업 **3~5건**을 추린다(지난번 어디까지 했는지). 결과가 없으면 "이전 작업 기록 없음"으로 생략.
+3. **출력**(🎩 톤):
    ```
    🎩 이어갑니다: {Task명} ({status}, due {MM/DD})
-
-   할 일 (TUI Todo)
-   □ {미완료 todo}
-   □ {미완료 todo}
-   ✓ {완료 todo}
 
    지난 기록 (claude-mem)
    · {YYYY-MM-DD} {요약}
@@ -436,20 +388,20 @@ briefing은 현황 스냅샷(읽기 전용)이고, daily는 하루 셋업(어제
 
    → 첫 손댈 곳: {한 줄 권고, 생산성 우선, 트레이드오프 명시}
    ```
-5. **착수 전이 가드: '해야할 것' → '진행 중'** (단방향·멱등):
-   - 현재 상태 확인: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active` 결과에서 `page_id` 항목의 `status`를 읽는다(매니페스트엔 status가 없으므로 이 호출로 확인).
+4. **착수 전이 가드: '해야할 것' → '진행 중'** (단방향·멱등):
+   - 현재 상태 확인: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active` 결과에서 `page_id` 항목의 `status`를 읽는다(매니페스트 status는 브리핑 시점 값이므로 최신 상태를 이 호출로 확인).
    - `status == "해야할 것"` 인 경우에만 1회 확인(`AskUserQuestion`: "이 작업을 '진행 중'으로 표시할까요?"). 동의 시:
      ```bash
      python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <page_id> --status "진행 중"
      ```
    - `status`가 "진행 중"/"완료"/"대기"면 묻지 않고 건너뛴다(이미 손댄 상태를 덮지 않는다).
    - update-status가 실패해도 멈추지 않는다: 한 줄 경고만 남기고 이어간다.
-6. 끝에 "막히는 부분이 있으면 말씀해 주십시오." 한 줄. 이후부터는 일반 작업 세션으로 전환된다(메인 Claude가 실제 작업 수행).
+5. 끝에 "막히는 부분이 있으면 말씀해 주십시오." 한 줄. 이후부터는 일반 작업 세션으로 전환된다(메인 Claude가 실제 작업 수행).
 
 ### resume 경계
 
 - picker의 **launch는 인터랙티브에서만** 한다(헤드리스 가드). 새 세션을 띄우는 것은 사용자 명시 선택(번호 입력) 뒤에만 발생하는 부수효과다.
-- loader의 자동 쓰기는 **'해야할 것' → '진행 중' 단방향 전이 하나로 제한**한다(1회 확인 필수, 다른 상태는 건드리지 않음). Todo 완료 처리·완료/대기 전환 등 그 외 상태 변경은 하지 않는다(그건 `/alfred task`·`gate`의 몫).
+- loader의 자동 쓰기는 **'해야할 것' → '진행 중' 단방향 전이 하나로 제한**한다(1회 확인 필수, 다른 상태는 건드리지 않음). 완료/대기 전환 등 그 외 상태 변경은 하지 않는다(그건 `/alfred task`·`gate`의 몫).
 - 디렉터리가 모호하면 **임의로 추측하지 않고** 1회 확인한다(엉뚱한 repo에서 세션이 열리는 것 방지).
 
 ---
@@ -484,7 +436,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py to
 
 **(A) alfred-state.json 기반 감지 (0단계 `recent_tasks` 재사용)**
 - `recent_tasks` **각 Task**에 대해 Notion 상태를 대조한다:
-  - Notion 상태가 "해야할 것"이면 → **상태 불일치**로 분류 (정확도 높음, TUI 경로).
+  - Notion 상태가 "해야할 것"이면 → **상태 불일치**로 분류 (정확도 높음, state 파일 경로).
   - Notion 상태가 "진행 중"이면 → 정상 (이미 동기화됨).
 
 **(B) claude-mem timeline 보조 감지 (state 파일 없을 때)**
@@ -521,7 +473,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py re
 
 [상태 동기화 필요]
 # A-1) Notion 뒤처짐 (2단계 A·B):
-- '{Task명}': Notion은 '해야할 것'이지만 {TUI 선택 / 오늘 세션 관찰}에서 작업이 감지됐습니다.
+- '{Task명}': Notion은 '해야할 것'이지만 {resume 착수 기록 / 오늘 세션 관찰}에서 작업이 감지됐습니다.
   → '진행 중'으로 변경할까요? 또는 완료됐다면 '/alfred gate'로 마무리를 권합니다.
 # A-2) Daily Note 뒤처짐 (2단계 C):
 - '{Task명}': Notion은 '{완료/진행 중}'인데 Daily Note는 미완료 표기입니다.
@@ -618,7 +570,7 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 - **1. 동작 확인**, **2. 실패 케이스**: 세션에서 실제로 실행한 명령/로그/출력을 가리켜 채운다. 가리킬 근거가 전혀 없으면(대화 없이 파일만 수정된 경우 등) "세션 근거 없음"으로 초안에 그대로 포함한다. 질문으로 끊지 않고 단일 확인 화면에 함께 넣는다.
 
 **세부 계획 대조 (1단계에서 `05. 세부 계획`을 로드했을 때만)**: 각 체크박스 항목이 세션에서 실제로 수행됐는지 Claude가 대조해 완료/미완료로 분류한다. 항목별로 사용자에게 되묻지 않고, 세션 근거로 판단한 결과를 초안에 그대로 싣는다. **세션 근거가 없는 항목은 미완료로 둔다**(완료로 낙관 처리하지 않는다).
-- 이 항목은 **핵심 2항목 점수의 분모에 포함하지 않는다**(2체크 설계 유지). 미완료가 있으면 경고로 병기하고 후속은 4단계의 Backlog 후속 등록으로 넘긴다.
+- 이 항목은 **핵심 2항목 점수의 분모에 포함하지 않는다**(2체크 설계 유지). 미완료가 있으면 경고로 병기하고 후속은 7단계의 후속 액션 기록으로 넘긴다.
 - 미완료 항목이 남은 채 완료 처리하는 것은 허용된다(점수 무관 완료 원칙). 단 **침묵하지 않는다.**
 - Task 페이지의 체크박스를 대신 체크해 주지는 않는다(본문 덮어쓰기 위험). 대조 결과만 보고한다.
 
@@ -645,8 +597,8 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 판정: 핵심 2항목 충족 수 기준 (점수는 **정보/경고용**이며, 완료 처리는 점수와 무관하게 항상 실행한다):
 - 2개 ✓ → **안심** → 클로징 실행 (4단계)
 - 1개 ✓ → **경계** → 클로징 실행 (4단계). 미언급 1개는 보완 권고로 병기
-- 0개 ✓ → **보류** → 클로징 **여전히 실행** (사용자 지시: 점수 무관 항상 완료). 단 미충족 항목을 경고로 병기하고, 남는 후속은 (D) 보고 + Backlog 후속 등록으로 넘긴다
-- 조건부 플래그가 노출되어 미해결(리스크 미공유·상대 추가 작업 존재)로 확인되면, 핵심 2항목 점수와 별개로 경고 줄로 병기하고 후속은 Backlog 후속 등록으로 넘긴다(점수 분모에는 포함하지 않음).
+- 0개 ✓ → **보류** → 클로징 **여전히 실행** (사용자 지시: 점수 무관 항상 완료). 단 미충족 항목을 경고로 병기하고, 남는 후속은 (B) 보고 + 7단계 후속 액션 기록으로 넘긴다
+- 조건부 플래그가 노출되어 미해결(리스크 미공유·상대 추가 작업 존재)로 확인되면, 핵심 2항목 점수와 별개로 경고 줄로 병기하고 후속은 7단계 후속 액션 기록으로 넘긴다(점수 분모에는 포함하지 않음).
 
 > **주의(설계 트레이드오프)**: 원래 gate는 보류 시 완료를 막아 '동작함'과 '끝남'을 구분했다. 사용자 지시로 이 게이팅을 해제했으므로, 점수가 낮아도 Task는 완료로 닫힌다. 체크는 완료를 막는 게이트가 아니라 **끝내기 전 자기점검 체크리스트**로만 기능한다. 미충족 항목은 반드시 경고로 남겨 침묵하지 않는다.
 
@@ -668,7 +620,7 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 ### 4단계: 완료 클로징 시퀀스 (항상 실행)
 
 판정 점수와 무관하게 **항상 실행**한다(사용자 지시: 보류여도 완료 처리). 사용자 재확인 없이 즉시 실행한다.
-점수가 보류(0점)여도 (A) Task 완료를 건너뛰지 않는다. 대신 미충족 항목을 경고로 병기하고 남는 후속은 Backlog에 등록한다.
+점수가 보류(0점)여도 (A) Task 완료를 건너뛰지 않는다. 대신 미충족 항목을 경고로 병기하고 남는 후속은 7단계에서 기록한다.
 
 실행 순서: 실패는 개별 격리, 나머지는 계속 진행한다:
 
@@ -680,95 +632,26 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
    ```bash
    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
    ```
-   - 단일 후보로 특정되면 그 page_id를 쓴다. 후보가 여럿이거나 0건이면 완료 전환을 멈추고 (D) 보고에서 그 사실을 명시한다("대상 Task 미해결, 수동 완료 필요").
+   - 단일 후보로 특정되면 그 page_id를 쓴다. 후보가 여럿이거나 0건이면 완료 전환을 멈추고 (B) 보고에서 그 사실을 명시한다("대상 Task 미해결, 수동 완료 필요").
 2. **완료 전환 실행**:
    ```bash
    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status \
      --page-id <page_id> --status "완료"
    ```
-3. **완료 검증 (필수)**: 응답 JSON에서 `"status": "완료"` **및** `"done": true`를 모두 확인한다. 이 스크립트는 상태와 Done 체크박스를 함께 세팅한다(둘 중 하나만 되면 DONE 뷰에 안 보임). 둘 다 true가 아니면 실패로 간주하고 (D) 보고에 명시한다.
+3. **완료 검증 (필수)**: 응답 JSON에서 `"status": "완료"` **및** `"done": true`를 모두 확인한다. 이 스크립트는 상태와 Done 체크박스를 함께 세팅한다(둘 중 하나만 되면 DONE 뷰에 안 보임). 둘 다 true가 아니면 실패로 간주하고 (B) 보고에 명시한다.
 - 실패 시: "Notion 상태 변경 실패 (수동 처리 필요)" 1줄 출력 후 계속.
 - **Resolution Date 자동 채움**: 완료 전환 시 스크립트가 `Resolution Date`(완료 처리 날짜)를 오늘(KST)로 박는다(이미 값이 있으면 보존, 멱등). 이 속성이 완료일 리포팅·리드타임 분석의 기준 축이다. 응답 JSON의 `resolution_date_backfilled`에 채워진 날짜가 온다. 별도 인자는 필요 없다.
 - **due 자동 채움**: 완료 전환 시 Due Date가 비어 있으면 스크립트가 완료일(오늘, KST)을 자동으로 박는다(이미 due가 있으면 보존). 응답 JSON의 `due_backfilled`에 채워진 날짜가 온다. 비어있지 않으면 보고에 한 줄 병기한다.
 - **보고 필수**: 클로징 요약에 "Task 완료 처리됨 (상태=완료, Done=true, Resolution Date={날짜})" 또는 실패/미해결 사유를 반드시 한 줄로 남긴다. 통과했는데 완료로 못 바꾼 경우 침묵하지 않는다.
 
-**(B) Daily Note 완료 Todo 기록**
-```bash
-python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "{Task명}" --done
-```
-- Daily Note 없으면: skip + "(Daily Note 없음: `daily:start`로 생성 후 직접 기록 권합니다)" 안내.
-
-> 로컬 TUI store는 여기서 건드리지 않는다. (A)가 Notion(= source of truth) 상태를 직접 바꾸므로,
-> 로컬 store는 다음 sync(ctrl-r/ctrl-u 또는 드릴인 fetch)로 완료 상태를 pull해 반영한다.
-> store에 별도 쓰기를 하면 같은 source에 이중 쓰기(meta_dirty → push)가 되어 중복이다.
-> **단, 아래 (C)의 Backlog Todo(`__backlog__`)는 예외다**. Notion Task가 없어(notion_block_id: null) sync로 pull될 source 자체가 없으므로, 직접 store에 완료를 써야 한다.
-
-**(C) 로컬 Backlog Todo 정리 (강제, 이번 세션 완료분 + overdue 스윕)**
-
-Backlog Todo(`__backlog__`)는 Notion Task가 없어 (A)/sync로 절대 완료 처리되지 않는다. 작업하며 곁다리로 끝낸 Backlog 항목이 `시작전`으로 방치되면, 다음 아침 브리핑이 due 초과로 계속 리마인드한다(2026-06-26 APM #4626·Alloy OOM Todo 재발 방지). gate 클로징마다 이 체크를 **건너뛰지 않는다**. 두 단계(Phase 1·2)로 실행한다.
-
-1. **미완료 Backlog 전체 조회** (읽기 전용):
-   ```bash
-   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos --task __backlog__ --format json
-   ```
-
-**[Phase 1] 이번 세션 완료 동기화**
-
-2. **후보 추림**: 위 목록 중 이번 gate의 대상 작업과 동일하거나, 세션 대화에서 명시적으로 "했다/끝냈다"가 확인된 항목만 후보로 좁힌다(전체 Backlog를 덤프하지 않는다, 잔소리 방지).
-3. **1회 확인**: 후보가 1건 이상이면 목록으로 보여주고 한 번만 확인받는다(어느 것을 완료로 처리할지는 store가 알 수 없으므로 자율 토글하지 않는다):
-   ```
-   🎩 이번 세션에서 끝난 것으로 보이는 Backlog Todo입니다. 완료 처리할까요?
-     1. {title} (due {MM/DD})
-     2. {title} (due {MM/DD})
-
-     1. 전체 완료 [추천]   ·   번호 선택   ·   0. 건너뜀
-   ```
-4. **완료 설정 (결정론적, toggle 금지)**: 선택된 각 항목을 `edit --status 완료`로 설정한다. `toggle`은 `시작전→진행중→완료` 3-state 순환이라 1회로 완료에 닿지 못할 수 있으므로 쓰지 않는다.
-   ```bash
-   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py edit --id <todo_id> --status 완료
-   ```
-   - `edit --status 완료`는 store에서 `done=true`를 함께 박는다(결정론적).
-5. **후보 0건 또는 0 선택**: store를 건드리지 않고 보고에 "이번 세션과 매칭되는 미완료 Backlog Todo 없음" 한 줄만 남긴다.
-
-**[Phase 2] Overdue Backlog 스윕 (Phase 1 미처리 항목)**
-
-gate를 여는 김에 밀린 Backlog를 함께 정리할 수 있게 한다(2026-07-01 개선: 아침 브리핑에서만 보이던 overdue Backlog를 gate에서도 처리 가능). Phase 1 처리 대상에서 제외된 항목 중 `due ≤ 오늘(Asia/Seoul)` 인 미완료 Backlog를 대상으로 한다.
-
-6. **overdue 항목 추림**: Phase 1 처리 목록에 없는 미완료 Backlog 중 `due ≤ today`. 0건이면 이 단계 전체를 생략한다.
-7. **1회 확인**: 해당 항목이 1건 이상이면 compact하게 보여주고 액션을 한 번에 받는다:
-   ```
-   🎩 만료된 Backlog Todo가 {N}건 있습니다. 정리하시겠습니까?
-
-     1. {title} (due {MM/DD}, {N}일 초과)
-     2. {title} (due {MM/DD}, {N}일 초과)
-     3. {title} (due {MM/DD})
-
-     a. 전체 완료   ·   번호 선택(완료)   ·   r{번호}. due 재설정   ·   0. 나중에
-   ```
-   - `a` 또는 번호 → 해당 항목 완료 처리 (`edit --status 완료`)
-   - `r{번호}` → 해당 항목 due date 입력받아 갱신 (`edit --id <id> --due <YYYY-MM-DD>`)
-   - `0. 나중에` → 건드리지 않음(잔소리 방지)
-8. **처리**:
-   ```bash
-   # 완료 처리
-   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py edit --id <todo_id> --status 완료
-   # due 재설정
-   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py edit --id <todo_id> --due <YYYY-MM-DD>
-   ```
-
-9. **실패 격리**: Phase 1·2 어느 단계든 비-0 종료면 "Backlog 동기화 실패: 수동 처리 필요(`edit --id <id> --status 완료`)" 1줄 출력 후 계속.
-
-**클로징 완료 보고 포맷:**
+**(B) 클로징 완료 보고 포맷:**
 ```
 🎩 완료 처리: {Task명}
 
 ✓ Notion: 완료 (Resolution Date {MM/DD} 자동 기록 · due 비어있었으면: · due {MM/DD} 자동 기록)
-✓ Daily Note: [x] {Task명} 기록
-✓ Backlog Phase 1: {N}건 완료 ({title …})   ← 처리한 게 있을 때만
-✓ Backlog Phase 2: {M}건 정리 ({완료 title …} / {재설정 title → MM/DD …})   ← 처리한 게 있을 때만
 (실패 항목은 ✗와 원인 1줄)
 
-복구: update-status --page-id {id} --status "진행 중" (Notion) · edit --id {todo_id} --status 시작전 (Backlog Todo)
+복구: update-status --page-id {id} --status "진행 중" (Notion)
 ```
 
 ### 5단계: 작업 내용 → Engineering Note 기록 (자율 합성 + 1회 확인)
@@ -901,7 +784,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 
 > **건너뛰기 금지 (하드룰)**: task:review는 **완료/마일스톤/설계 산출물 여부와 무관하게 gate가 열릴 때마다 항상 실행**한다. "이번은 완료가 아니라 마일스톤이라 회고 대상이 아니다" 같은 자의적 판단으로 생략하지 않는다(2026-07-15 설계 gate에서 task:review를 자의적으로 skip한 재발 방지). Task가 완료로 닫히지 않고 진행 중이어도, 이번 세션에서 한 작업을 PAAR + 이력서 bullet로 남기는 것이 목적이므로 항상 수행한다.
 >
-> **병렬 실행**: task:review 합성은 세션 컨텍스트가 필요하므로 Alfred가 인라인으로 하되(step 1), 그 결과의 **저장(append)은 background agent로 띄워 7단계(후속 등록)와 병렬로 진행**한다. 리뷰 저장이 끝날 때까지 gate 흐름을 막지 않으며, 완료 알림이 오면 결과만 1줄 보고한다.
+> **병렬 실행**: task:review 합성은 세션 컨텍스트가 필요하므로 Alfred가 인라인으로 하되(step 1), 그 결과의 **저장(append)은 background agent로 띄워 7단계(후속 기록)와 병렬로 진행**한다. 리뷰 저장이 끝날 때까지 gate 흐름을 막지 않으며, 완료 알림이 오면 결과만 1줄 보고한다.
 >
 > **저장 위치 정책**: task:review 결과는 Task에 연결된 Engineering Note에 누적한다(Task 페이지도 개인 Obsidian도 아니다). `note_page_id`는 기존 노트 경로면 5단계에서 확보한 값, 신규 생성 경로면 아래 2-(a)의 create 응답으로 확보한다. 성과·회고가 해당 노트에 묶여 나중에 그 Task의 Engineering 링크를 열면 바로 보이게 하기 위함이다.
 
@@ -975,20 +858,12 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
    → 파생 액션 (즉시): {Step 8 결과 중 즉시 항목 1~2건}
    ```
 
-### 7단계: 후속 액션 등록 (자율 실행)
+### 7단계: 후속 액션 기록 (자율 실행)
 
-완료 처리 과정에서 **이번에 끝내지 못하고 남는 후속 작업**(파생 액션 중 *지연* 항목, 보완 권고, "나중에 확인" 류)이 있으면 휘발시키지 않고 Backlog에 후속 액션으로 등록한다. gate는 이미 자율 쓰기 모드이므로 확인 없이 등록하되, 등록 사실은 보고한다.
+완료 처리 과정에서 **이번에 끝내지 못하고 남는 후속 작업**(파생 액션 중 *지연* 항목, 보완 권고, "나중에 확인" 류)이 있으면 휘발시키지 않고 완료 Task 본문에 체크리스트로 남긴다. gate는 이미 자율 쓰기 모드이므로 확인 없이 기록하되, 기록 사실은 보고한다.
 
-- *즉시* 처리할 액션(6단계에서 이미 한 것)은 등록하지 않는다. **남는 것만** 등록한다.
-- 각 후속 항목:
-  ```bash
-  python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
-    --task __backlog__ --title "<후속 한 줄>" --repo follow-up \
-    [--due YYYY-MM-DD] [--description "출처: <완료 Task명>"]
-  ```
-  - `--repo follow-up` 라벨이 **아침 브리핑의 "후속 액션 리마인드" 섹션으로 떠오르게 하는 키**다. 반드시 붙인다.
-  - 구체 시점이 있으면 `--due`로, 없으면 생략(브리핑이 경과일수로 추적한다).
-- **Notion Task 본문에 체크리스트로도 추가 (필수)**: 같은 후속 항목을 완료 Task 페이지 본문에 Notion 체크박스(to_do)로 남긴다. 로컬 Backlog는 아침 브리핑 리마인드용이고, Notion 체크리스트는 Task를 열었을 때 남은 일이 바로 보이게 하는 용도다(이중 기록 의도). 후속이 1건 이상일 때만 실행한다.
+- *즉시* 처리할 액션(6단계에서 이미 한 것)은 기록하지 않는다. **남는 것만** 기록한다.
+- **Notion Task 본문에 체크리스트로 추가**: 후속 항목을 완료 Task 페이지 본문에 Notion 체크박스(to_do)로 남긴다. Task를 열었을 때 남은 일이 바로 보이게 하는 용도다. 후속이 1건 이상일 때만 실행한다.
   ```bash
   cat > /tmp/gate-followup-<slug>.md << 'EOF'
   ## 후속 액션
@@ -1001,17 +876,17 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
   - `<slug>` = 완료 Task명 소문자·하이픈 변환. `<page_id>` = 4단계 (A)에서 확보한 완료 Task의 page_id.
   - `- [ ]` 마크다운은 append-content가 Notion `to_do`(체크박스) 블록으로 변환한다(미완료 상태 `- [ ]`로 남긴다).
   - 하드룰 준수: 체크리스트 항목에 em dash·이모지를 쓰지 않는다(콜론·괄호로 대체). append-content가 위반 시 거부한다.
-  - 실패 시: "Notion 체크리스트 추가 실패(수동 처리 필요)" 1줄 후 계속. 로컬 Backlog 등록은 이미 됐으므로 리마인드는 유지된다.
-- 등록 결과 1줄 보고:
+  - 실패 시: "Notion 체크리스트 추가 실패(수동 처리 필요)" 1줄 후 계속하고, 후속 항목을 보고 본문에 텍스트로 남긴다.
+- 기록 결과 1줄 보고:
   ```
-  → 후속 액션 {N}건을 Backlog 등록 + Task 본문 체크리스트로 추가했습니다 (브리핑에서 리마인드됩니다).
-  복구: todo_store.py toggle --id <id> 또는 delete.
+  → 후속 액션 {N}건을 Task 본문 체크리스트로 추가했습니다.
   ```
+- 독립 Task로 추적할 만한 후속(별도 due·담당이 필요한 것)은 자동 생성하지 않고 "`tasks:capture`로 별도 Task 등록을 권합니다" 한 줄로 제안만 한다.
 - 후속이 없으면 이 단계를 생략한다(잔소리 방지).
 
 ### 게이트 경계
 
-- **보류** 판정이어도 클로징 시퀀스(4단계)를 실행한다(사용자 지시: 점수 무관 항상 완료). 미충족 항목은 경고로 병기하고 남는 후속은 7단계에서 Backlog + Task 체크리스트로 넘긴다.
+- **보류** 판정이어도 클로징 시퀀스(4단계)를 실행한다(사용자 지시: 점수 무관 항상 완료). 미충족 항목은 경고로 병기하고 남는 후속은 7단계에서 Task 체크리스트로 넘긴다.
 - Task 삭제는 이 모드에서 하지 않는다. 완료 처리는 상태를 "완료"로 변경하는 것이다.
 - 미등록 작업은 1단계에서 1회 동의를 받아 생성만 하고 진행한다. 동의 없이는 생성하지 않으며, 생성 시점에 완료로 찍지 않는다(완료는 체크 통과 후 4단계가 처리).
 - 조건부 플래그가 뜨지 않는 한 핵심 2체크 외 항목은 묻지 않는다. 잔소리꾼이 되지 않는 것이 목적이다.
@@ -1030,15 +905,11 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 | 축 | 질문 | Alfred 액션 |
 |----|------|------------|
 | **가시성** | 오늘 "막은 일 / 흡수한 복잡도"가 보이지 않게 묻혔나 | 1줄 기록 유도(평가 시즌 자산). "남겨둘까요?" |
-| **레버리지** | 같은 문제를 N번째 또 손댔나 | 반복 감지 시 "일회성 수정 말고 표준화/문서화"를 제안하고, 동의 시 **후속 액션으로 등록** |
+| **레버리지** | 같은 문제를 N번째 또 손댔나 | 반복 감지 시 "일회성 수정 말고 표준화/문서화"를 제안하고, 동의 시 **Notion Task로 캡처** |
 | **소진** | 연속 야간작업·과부하 신호가 있나 | 감지 시 "내일은 의도적으로 가볍게"를 권한다 |
 
-> **레버리지 → 후속 액션 등록**: 표준화/문서화 제안에 주인이 동의하면(또는 "후속으로 남겨줘") 휘발시키지 말고 Backlog에 등록한다(`gate` 7단계와 동일 명령). 이렇게 등록한 항목은 아침 브리핑의 "후속 액션 리마인드"로 떠오른다.
-> ```bash
-> python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
->   --task __backlog__ --title "<표준화/후속 한 줄>" --repo follow-up --description "출처: <오늘 반복 작업>"
-> ```
-> review는 읽기 전용이 기본이나, 후속 등록은 **사용자 동의 후에만** 하는 가벼운 쓰기다(제안→동의→등록).
+> **레버리지 → Task 캡처**: 표준화/문서화 제안에 주인이 동의하면(또는 "후속으로 남겨줘") 휘발시키지 말고 `Skill(tasks:capture)`로 Notion Task DB에 캡처한다(출처: 오늘 반복 작업). 캡처된 Task는 아침 브리핑의 "주요 Task"로 떠오른다.
+> review는 읽기 전용이 기본이나, 후속 캡처는 **사용자 동의 후에만** 하는 가벼운 쓰기다(제안→동의→캡처).
 
 ### 데이터 수집
 
@@ -1101,7 +972,7 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$REVIEW_TEXT"
 ### 리뷰 경계
 
 - 상태를 바꾸지 않는다. 기록(wiki/note)·회고(daily:review)는 전용 스킬로 위임한다. 회고 위임은 **인터랙티브 동의 게이트를 거쳐 `Skill(daily:review)`로 인라인 인계**한다(위 "깊은 회고 인계" 참조). Alfred가 회고 본문을 직접 쓰지 않는다.
-- **예외**: 레버리지 축에서 표준화/후속을 **사용자 동의 후** Backlog 후속 액션으로 등록하는 것은 허용한다(가벼운 쓰기, 제안→동의 게이트 필수). 동의 없이 등록하지 않는다. **헤드리스(--push)에서는 등록하지 않는다.**
+- **예외**: 레버리지 축에서 표준화/후속을 **사용자 동의 후** `tasks:capture`로 Notion Task에 캡처하는 것은 허용한다(가벼운 쓰기, 제안→동의 게이트 필수). 동의 없이 등록하지 않는다. **헤드리스(--push)에서는 등록하지 않는다.**
 - 3축 외로 캐묻지 않는다. 하루의 끝을 무겁게 만들지 않는 것이 목적이다.
 
 ---
@@ -1267,9 +1138,9 @@ Task로 남길 때는 생성 → 완료 → 작업 내용 기록을 한 번에 �
 
 ---
 
-## 워크플로우: task <Task명> (Task 드릴다운 + Todo 관리, Deliver)
+## 워크플로우: task <Task명> (Task 드릴다운, Deliver)
 
-특정 Task 하나에 집중해 **TUI Todo 하위 항목 + Daily Note Todos**를 통합 조회·관리한다.
+특정 Task 하나에 집중해 **Task 상태·due + 오늘 Daily Note Todos**를 함께 보여주고 상태를 관리한다.
 
 ### 1단계: Task 특정
 
@@ -1280,39 +1151,28 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py sear
 - 이름 부분 일치로 후보를 추린다. 후보가 2건 이상이면 번호 목록으로 보여주고 선택을 받는다(AskUserQuestion).
 - 1건이면 바로 진행한다.
 
-### 2단계: 데이터 수집 (2개 소스)
+### 2단계: 데이터 수집 (읽기 전용)
 
-**(A) TUI Todo 하위 항목**
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py list-todos \
-  --task <page_id> --format json --include-done
-```
-- 각 Todo에: id, title, status(시작전/진행중/완료), due 포함.
-
-**(B) Daily Note Todos: 오늘 날짜**
+**Daily Note Todos: 오늘 날짜**
 
 `Read` 도구로 오늘 Daily Note를 직접 읽는다:
 - 경로: `~/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home/01. Daily/YYYY-MM-DD.md`
 - `## Todos` 섹션에서 `- [ ]` (미완료) / `- [x]` (완료) 항목만 추출한다.
-- 파일이 없거나 `## Todos` 섹션이 없으면 "(Daily Note 없음: `daily:start`로 생성)"으로 표기하고 (A)만 진행.
+- 파일이 없거나 `## Todos` 섹션이 없으면 "(Daily Note 없음: `daily:start`로 생성)"으로 표기하고 Task 정보만 보여준다.
 
-### 3단계: 통합 뷰 출력
+### 3단계: 드릴다운 뷰 출력
 
 ```
-🎩 {Task명}: Todo 현황
+🎩 {Task명}: 현황
 
 Task 정보: 상태: {상태} / due: {MM/DD 또는 없음}
-
-TUI Todos ({완료N}/{전체N})
-- [ ] {Todo 제목} (id: {id})   ← 시작전·진행중
-- [x] {Todo 제목}              ← 완료
 
 Daily Note Todos: 오늘 (2026-MM-DD)
 - [ ] {항목}
 - [x] {항목}
 (없으면: "Daily Note Todos 없음")
 
-- 무엇을 추가하거나 완료 처리할까요?
+- 상태를 바꾸거나 완료 처리할까요? (완료는 `/alfred gate` 권장)
 ```
 
 ### 3.5단계: 착수 전이 가드 ('해야할 것' → '진행 중', 단방향·멱등)
@@ -1322,38 +1182,13 @@ Daily Note Todos: 오늘 (2026-MM-DD)
   ```bash
   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status --page-id <page_id> --status "진행 중"
   ```
-- "진행 중"/"완료"/"대기"면 묻지 않고 건너뛴다. 전이 로직은 resume loader 5단계와 동일(단방향·멱등, 실패해도 멈추지 않음).
-
-### 4단계: Todo 조작 (자율 실행)
-
-**TUI Todo 추가**:
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py add \
-  --task <page_id> --title "..." [--due YYYY-MM-DD] [--status 시작전]
-```
-
-**TUI Todo 완료 토글**:
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py toggle --id <todo_id>
-```
-
-**Daily Note Todo 추가 (미완료)**:
-```bash
-python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "텍스트"
-```
-
-**Daily Note Todo 완료 기록**:
-```bash
-python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "텍스트" --done
-```
-
-실행 후 1줄 보고만 한다. 복구는 `toggle --id <id>` (TUI) 또는 Daily Note 파일 직접 편집임을 첫 조작 시에만 한 번 안내한다.
+- "진행 중"/"완료"/"대기"면 묻지 않고 건너뛴다. 전이 로직은 resume loader 4단계와 동일(단방향·멱등, 실패해도 멈추지 않음).
 
 ### task 모드 경계
 
 - Task 자체의 상태 변경은 이 모드에서도 가능하다 (`update-status` 자율 실행).
 - Task 삭제는 실행하지 않는다. 영구성 리스크. 필요 시 `대기` 상태로 변경.
-- Daily Note 파일이 없으면 TUI Todo만 관리하고 Daily Note 항목은 건너뛴다.
+- Daily Note는 읽기만 한다. 체크박스 추가·체크는 Obsidian에서 직접 편집한다.
 
 ---
 
@@ -1375,9 +1210,9 @@ python3 /Users/changhwan/.claude/skills/task:add-todo/scripts/add_todo.py "텍�
 ### 1단계: "한 것들" 수집
 
 지난 브리핑 이후 완료된 것을 모은다. briefing 섹션의 완료 diff 로직을 재사용한다.
-- 1차: `alfred-snapshot.py` 기반 완료 diff(briefing 1단계 (B) 참조) 또는 `notion-task.py tasks --week current --status all`의 완료 버킷.
+- 1차: `alfred-snapshot.py` 기반 완료 diff(briefing 1단계 (D) 참조) 또는 `notion-task.py tasks --week current --status all`의 완료 버킷.
 - 보강: `mcp__plugin_claude-mem_mcp-search__timeline`로 오늘 세션 작업(PR·배포·트러블슈팅)을 끌어와 설명·링크를 풍부하게 한다.
-- 보강: 오늘 Daily Note `## Todos`의 `- [x]` 항목(경로는 task 모드 (B) 참조).
+- 보강: 오늘 Daily Note `## Todos`의 `- [x]` 항목(경로는 task 모드 2단계 참조).
 
 ### 2단계: "할 것들" 수집
 

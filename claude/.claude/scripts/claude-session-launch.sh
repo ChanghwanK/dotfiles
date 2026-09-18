@@ -2,7 +2,7 @@
 #
 # claude-session-launch.sh — repo 컨텍스트에서 Claude Code 세션을 여는 공유 런처.
 #
-# source 전용 라이브러리(직접 실행 X). task-tui.sh와 Raycast Script Command가
+# source 전용 라이브러리(직접 실행 X). Raycast Script Command 등이
 # 함께 source하여 cmux 호출 방식을 단일 SoT로 유지한다.
 #
 # 공개 함수:

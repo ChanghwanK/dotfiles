@@ -36,11 +36,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $HOME/.claude/scripts/detect-future-todo.py",
-            "timeout": 10
-          },
-          {
-            "type": "command",
             "command": "python3 $HOME/.claude/scripts/return-briefing.py prompt",
             "timeout": 5
           },

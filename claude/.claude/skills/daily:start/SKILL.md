@@ -12,7 +12,6 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:start/scripts/notion-daily.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py *)
   - Read
   - Write
   - Agent
@@ -113,31 +112,14 @@ Agent A의 반환 결과를 다음 로직으로 분석한다 (파싱 규칙은 a
 
 Notion 주간 Task와 어제 Obsidian 컨텍스트를 종합해 오늘 가장 임팩트 큰 3가지를 선정한다.
 
-**⚠️ 0단계: 로컬 Backlog due 항목 수집 (가장 먼저 실행):**
-
-Notion 주간 Task에 없는 Backlog 마감 항목을 누락하지 않기 위해, 후보 풀 구성 전 반드시 로컬 Backlog Todo를 수집한다.
-
-```bash
-# alfred daily 모드 진입 시 /tmp/alfred-todos.json이 오늘자면 재사용 (중복 호출 방지).
-# 단독 /daily:start 실행이거나 캐시가 없으면 아래를 직접 실행한다.
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py \
-  list-all-todos --format json --status-filter active
-```
-
-- 반환 `todos[]`에서 `task_page_id == "__backlog__"` & `done == false` & `due` 비어있지 않은 항목만 추린다.
-- 이 수집을 한 번도 실행하지 않은 채 Top 3를 선정하지 않는다 (2026-06-26 PgBouncer due-today 드롭 재발 방지).
-
-**⚠️ 1단계: 후보 풀 결정:**
+**⚠️ 후보 풀 결정:**
 - **`level: "weekly_project"` Task는 반드시 후보에서 제외한다.** (due_end 있음 + 진행 중 = 주간 프로젝트 목표. 별도 섹션에서만 표시)
-- **Obsidian `completed` 목록(어제 `[x]` 항목)과 매칭되는 항목(Notion·Backlog 무관)은 반드시 후보에서 제외한다.** 매칭 기준: 항목명 부분 문자열 일치 (대소문자 무관).
+- **Obsidian `completed` 목록(어제 `[x]` 항목)과 매칭되는 항목은 반드시 후보에서 제외한다.** 매칭 기준: 항목명 부분 문자열 일치 (대소문자 무관).
 - Notion `status: 완료`인 항목도 제외한다.
-- **Backlog 중복 제거**: Backlog Todo 제목이 후보 Notion Task와 부분 문자열 일치하면 Notion 쪽만 남기고 Backlog는 버린다 (예: realmate RCA가 양쪽에 있으면 Notion 우선).
-- 후보 풀 구성:
-  - (a) Notion weekly_tasks 중 `level: "daily"`이고 위 제외 조건에 안 걸린 항목
-  - (b) 0단계 Backlog Todo 중 **`due == 오늘` 또는 `due == 내일`인 항목**. **오버듀(`due < 오늘`)는 후보에서 제외**하고 remaining_tasks(→ Todos)로만 흘린다.
+- 후보 풀 구성: Notion weekly_tasks 중 `level: "daily"`이고 위 제외 조건에 안 걸린 항목
 
 **태그 부여 ([필수]/[진행]/[검토]):**
-- `[필수]`: **`due == 오늘`인 항목 (Notion·Backlog 무관).** 마감 강제 티어.
+- `[필수]`: **`due == 오늘`인 항목.** 마감 강제 티어.
 - `[진행]`: `[필수]`가 아니면서, 어제 Obsidian `[ ]` 미완료 + 어제 transcript에 관련 분석/설계 작업이 있던 항목 (분석 완료, 실행만 남음).
 - `[검토]`: 그 외 전부. 애매하면 `[검토]`.
 
@@ -146,16 +128,15 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py \
 
 **Top 3 선정 알고리즘 (하드 캡 3 + 마감 강제 + 전략 보호):**
 1. **마감 강제 티어 F** = `[필수]`(due == 오늘) 항목 전체.
-2. `|F| >= 3`이면 → Top 3 = F 중 상위 3개. 정렬: Notion 먼저(Due 임박순), 그다음 Backlog. 전략 보호는 자리가 없어 생략.
+2. `|F| >= 3`이면 → Top 3 = F 중 상위 3개. 정렬: Due 임박순. 전략 보호는 자리가 없어 생략.
 3. `|F| < 3`이면:
    - F 전체를 Top 3에 고정(pin)한다.
    - **전략 #1 보호**: F에 들지 않은 후보 중 점수가 가장 높은 **Notion daily 항목 1개**를 반드시 한 자리 배정한다 (진행중 전략 항목이 마감 항목에 밀려 사라지는 것 방지).
    - 남는 자리는 비-F 후보를 점수 내림차순으로 채운다 (동점이면 `[진행]` 우선).
-4. **오버듀 Backlog(`due < 오늘`)는 Top 3에 절대 넣지 않는다.** Todos에서만 노출한다.
 
-**Top 3 표시 순서:** `[진행]`(전략 보호 항목) → `[필수]`(마감 가까운 순, 동일 날짜는 Notion 먼저) → `[검토]`.
+**Top 3 표시 순서:** `[진행]`(전략 보호 항목) → `[필수]`(마감 가까운 순) → `[검토]`.
 
-**remaining_tasks 정의:** 후보 풀에서 Top 3로 선정되지 않은 항목 전체 + 오버듀/익일 Backlog due 항목.
+**remaining_tasks 정의:** 후보 풀에서 Top 3로 선정되지 않은 항목 전체.
 due가 있으면 항목 끝에 `(~MM-DD)` 마커를 붙인다. 이 목록을 Step 4(콘솔 `📋 오늘 할 일 전체`) 및 Step 5(Obsidian `## Todos`)에서 사용한다.
 
 **완료 조건 작성 규칙:** 각 Top 3 항목에 "완료 조건"을 1줄 추가한다. 관찰 가능한 상태 변화로 정의한다 (예: "ArgoCD Synced + Pod healthy", "PR merged", "테스트 통과").

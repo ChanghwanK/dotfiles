@@ -2,37 +2,33 @@
 """alfred-briefing-latest.json 생성 — 브리핑 ↔ resume 픽업을 잇는 다리.
 
 브리핑은 Slack 평문으로 끝나서, 나중에 "그 작업을 골라 새 세션을 열기"가 불가능했다.
-이 스크립트는 브리핑이 띄운 Task에 결정론적 번호(n)를 매기고, 각 Task에
-하위 Todo와 작업 디렉터리 단서(repo)를 join해 매니페스트로 남긴다. resume picker는
-이 파일을 읽어 동일한 번호로 작업을 고르고, repo로 세션을 띄운다.
+이 스크립트는 브리핑이 띄운 Task에 결정론적 번호(n)를 매겨 매니페스트로 남긴다.
+resume picker는 이 파일을 읽어 동일한 번호로 작업을 고른다. 작업 디렉터리 단서(repo)는
+로컬 Todo에서 가져왔으나 2026-09-18 로컬 Todo 시스템 삭제로 없어졌고, picker가 1회 묻는다.
 
-번호·정렬·repo 해석을 LLM이 즉흥 생성하지 않도록 alfred-snapshot.py와 같은
+번호·정렬 해석을 LLM이 즉흥 생성하지 않도록 alfred-snapshot.py와 같은
 결정론적 스크립트로 분리한다 (브리핑 본문의 번호와 picker 번호가 항상 일치해야 함).
 
 스키마:
   {
     "generated_at": ISO8601(local tz),
     "items": [
-      { "n": 1, "page_id", "name", "category", "status", "due_date",
-        "repo": "<repo>|null",
-        "todos": [ { "id", "title", "done" }, ... ] },
+      { "n": 1, "page_id", "name", "category", "status", "due_date" },
       ...
     ]
   }
 
 정렬(브리핑과 동일): 상태(진행 중 > 해야할 것 > 대기) → due 임박 순(due 없음은 뒤).
 Task DB의 Priority/ROI 속성은 2026-09-18 의도적으로 제거되었다.
-repo: 그 Task의 todos 중 repo 필드가 채워진 첫 값(없으면 null).
 
 Usage:
-  alfred-briefing-manifest.py build --active-json <path|-> [--todos-json <path|->] [--top N]
+  alfred-briefing-manifest.py build --active-json <path|-> [--top N]
       매니페스트를 생성해 ~/.claude/alfred-briefing-latest.json 에 원자적 저장 + stdout echo.
   alfred-briefing-manifest.py get
       현재 저장된 매니페스트를 그대로 출력(디버그용).
 
 입력 JSON 허용 형태(유연 파싱):
   active: [ ... ] | {"results":[...]} | {"active":[...]} | {"tasks":[...]}
-  todos:  [ ... ] | {"todos":[...]}
 """
 import argparse
 import datetime
@@ -98,14 +94,6 @@ def _extract_tasks(blob):
     return []
 
 
-def _extract_todos(blob):
-    """list-all-todos 등에서 Todo 리스트를 추출한다."""
-    if isinstance(blob, list):
-        return blob
-    if isinstance(blob, dict) and isinstance(blob.get("todos"), list):
-        return blob["todos"]
-    return []
-
 
 def _sort_key(task):
     # 알 수 없는 상태는 '해야할 것'과 같은 순위로 둔다(대기보다 앞, 누락 방지).
@@ -114,55 +102,22 @@ def _sort_key(task):
     return (status, due)
 
 
-def _todos_by_task(todos):
-    """task_page_id → 그 Task의 활성 Todo 리스트(완료 제외, 원래 순서 유지)."""
-    out = {}
-    for t in todos:
-        if t.get("deleted"):
-            continue
-        pid = t.get("task_page_id")
-        if not pid:
-            continue
-        out.setdefault(pid, []).append(t)
-    return out
-
-
-def _resolve_repo(task_todos):
-    """그 Task의 todos 중 repo 필드가 채워진 첫 값. 없으면 None."""
-    for t in task_todos:
-        repo = t.get("repo")
-        if repo:
-            return repo
-    return None
-
-
-def _build_items(tasks, todos, top):
-    grouped = _todos_by_task(todos)
+def _build_items(tasks, top):
     ordered = sorted(tasks, key=_sort_key)[:top]
-
     items = []
     for i, task in enumerate(ordered, start=1):
-        pid = task.get("page_id")
-        task_todos = grouped.get(pid, [])
         item = {"n": i}
         item.update({k: task.get(k, "") for k in _TASK_FIELDS})
-        item["repo"] = _resolve_repo(task_todos)
-        item["todos"] = [
-            {"id": t.get("id", ""), "title": t.get("title", ""), "done": bool(t.get("done"))}
-            for t in task_todos
-            if not t.get("done")
-        ]
         items.append(item)
     return items
 
 
 def cmd_build(args):
     tasks = _extract_tasks(_read_json_arg(args.active_json))
-    todos = _extract_todos(_read_json_arg(args.todos_json)) if args.todos_json else []
 
     manifest = {
         "generated_at": datetime.datetime.now().astimezone().isoformat(),
-        "items": _build_items(tasks, todos, args.top),
+        "items": _build_items(tasks, args.top),
     }
     _atomic_write(STATE_PATH, manifest)
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
@@ -176,11 +131,9 @@ def main():
     parser = argparse.ArgumentParser(description="alfred-briefing-latest.json 생성 (브리핑→resume 다리)")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    b = sub.add_parser("build", help="active Task + todos를 join해 매니페스트 생성")
+    b = sub.add_parser("build", help="active Task로 번호 매긴 매니페스트 생성")
     b.add_argument("--active-json", required=True,
                    help="search-tasks --status active 출력 (path 또는 '-')")
-    b.add_argument("--todos-json", default="",
-                   help="todo_store list-all-todos 출력 (path 또는 '-')")
     b.add_argument("--top", type=int, default=DEFAULT_TOP,
                    help=f"매니페스트에 담을 상위 Task 수 (기본 {DEFAULT_TOP})")
 
