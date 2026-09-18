@@ -9,7 +9,7 @@ import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_SPEC = importlib.util.spec_from_file_location("nt", os.path.join(_HERE, "notion-task.py"))
+_SPEC = importlib.util.spec_from_file_location("nt", os.path.join(_HERE, "task-progress.py"))
 m = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(m)
 

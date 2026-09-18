@@ -2,7 +2,7 @@
 """
 Notion Task CLI (Write + Query)
 
-공유 라이브러리 스크립트: tasks:capture, tasks:status, tasks:carry-over,
+공유 라이브러리 스크립트: alfred, tasks:capture, tasks:tech-spec,
 daily:start, daily:review 스킬에서 참조한다.
 
 Usage:

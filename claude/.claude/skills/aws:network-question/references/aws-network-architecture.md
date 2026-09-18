@@ -1,1 +1,0 @@
-/Users/changhwan/workspace/riiid/kubernetes/docs/aws-network-architecture.md

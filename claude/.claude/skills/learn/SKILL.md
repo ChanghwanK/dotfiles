@@ -478,7 +478,7 @@ Phase 5 Summary 출력 완료 후 반드시 아래 프롬프트를 출력하고,
    - 이미 알고 있었고 확인만 한 경우 → `learning-note` 선택 가능
 3. `ignorance-note` 선택 시 본문에 `## 이해 점검 질문` 섹션을 포함한다:
    - Phase 0~4에서 사용한 Socratic 질문 중 핵심 3개를 재구성하여 저장
-   - 이 질문들이 `/learn:recall` 재인터뷰의 소재가 된다
+   - 이 질문들이 1달 후 재인터뷰의 소재가 된다
 4. `wiki:note` 스킬을 따라 obsidian-note.py `create` 명령 실행 (`--type ignorance-note` 또는 `learning-note`)
 5. 저장된 파일 경로 출력
 

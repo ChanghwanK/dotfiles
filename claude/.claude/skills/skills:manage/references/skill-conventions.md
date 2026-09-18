@@ -29,7 +29,7 @@
 | 기준 | 형식 | 예시 |
 |------|------|------|
 | 플랫폼에 skill 1개 | flat | `commit`, `learn` |
-| 플랫폼에 skill 2개+ | `platform:action` | `notion:eng`, `slack:search` |
+| 플랫폼에 skill 2개+ | `platform:action` | `notion:eng`, `git:commit` |
 | 워크플로우 단계 | `workflow:phase` | `daily:start`, `daily:review` |
 
 **네임스페이스 = 대상 플랫폼/도메인**:
@@ -43,7 +43,7 @@
 
 | 패턴 | 용도 | 예시 |
 |------|------|------|
-| `namespace:verb` | 단일 액션 | `slack:search`, `slack:send` |
+| `namespace:verb` | 단일 액션 | `git:commit`, `slack:send` |
 | `namespace:noun` | 콘텐츠 타입 | `notion:eng`, `notion:study` |
 | `namespace:verb-noun` | 대상 명시 | `devops:alert-review`, `notion:send-plan` |
 | 단독 `noun` | 범용 도구 | `commit`, `learn` |
@@ -53,9 +53,9 @@
 
 | Namespace | 기준 | 소속 스킬 |
 |-----------|------|-----------|
-| `notion` | Notion 플랫폼 | `notion:add-engineering-note`, `notion:study`, `notion:add-personal-note`, `notion:send-task-plan` |
+| `notion` | Notion 플랫폼 | `notion:add-engineering-note`, `notion:study`, `notion:send-task-plan` |
 | `obsidian` | Obsidian vault | `obsidian:note`, `obsidian:daily` |
-| `slack` | Slack 플랫폼 | `slack:search`, `slack:send` |
+| `slack` | Slack 플랫폼 | `slack:send` |
 | `devops` | DevOps 운영 | `devops:alert-review`, `devops:terraform-request`, `devops:gpu-analysis` |
 | `daily` | 일과 워크플로우 | `daily:start`, `daily:review` |
 | `learn` | 학습/성장 | `learn:interview`, `learn:growth-maker` |

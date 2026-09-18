@@ -3,10 +3,13 @@
 Notion Task CLI (Read-only)
 
 Usage:
-  python3 notion-task.py dashboard [--week previous|current|next]
-  python3 notion-task.py tasks [--week previous|current|next] [--month YYYY-MM] [--status in-progress|upcoming|all]
-  python3 notion-task.py today
-  python3 notion-task.py daily-progress
+  python3 task-progress.py dashboard [--week previous|current|next]
+  python3 task-progress.py tasks [--week previous|current|next] [--month YYYY-MM] [--status in-progress|upcoming|all]
+  python3 task-progress.py today
+  python3 task-progress.py daily-progress
+
+2026-09-18 tasks:show 스킬 삭제 시 tasks:show/scripts/notion-task.py에서 이관.
+Alfred(check·review 모드)와 daily:review가 today/reconcile-progress를 쓴다.
 """
 
 import os

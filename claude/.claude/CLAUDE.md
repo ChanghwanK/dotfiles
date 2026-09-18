@@ -295,7 +295,7 @@ Plan 모드 결과는 ExitPlanMode hook이 자동으로 frontmatter TODO를 부�
 Implementation 단계에서 step 완료 시마다 아래 스킬을 호출하여 진행률을 갱신한다:
 
 - `/plan:check <step-number>`: 해당 step 완료 처리 (statusline 자동 갱신)
-- `/plan:todo`: 남은 작업 확인 (전체 체크리스트 출력)
+- `python3 ~/.claude/scripts/plan-todo.py todo`: 남은 작업 확인 (전체 체크리스트 출력, plan:todo 스킬은 2026-09-18 삭제)
 - `/plan:show [name]`: 플랜 본문 재출력 (frontmatter 제외)
 - `/plan:list`: 전체 플랜 인덱스 (active/completed/abandoned/legacy 그룹)
 

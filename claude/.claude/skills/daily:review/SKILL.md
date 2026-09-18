@@ -11,7 +11,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/extract-work.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/llm-wiki-append.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:review/scripts/obsidian-remind-append.py *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py *)
   - AskUserQuestion
 ---
@@ -42,7 +42,7 @@ allowed-tools:
 python3 /Users/changhwan/.claude/skills/daily:review/scripts/notion-daily.py read --date today
 
 # (2) Obsidian Daily Note todos (primary todos 소스)
-python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py today
 
 # (3) 오늘 Claude 대화 세션 로그 (Obsidian에 없는 작업 포착)
 python3 /Users/changhwan/.claude/skills/daily:review/scripts/extract-work.py --date today

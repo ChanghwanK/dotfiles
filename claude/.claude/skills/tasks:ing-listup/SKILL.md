@@ -18,7 +18,7 @@ allowed-tools:
 
 # tasks:ing-listup
 
-오늘 실제 수행한 작업을 **Claude 세션 데이터 기반**으로 요약한다. "뭘 해야 하는가"(tasks:show)가 아닌 **"뭘 했는가"** 관점.
+오늘 실제 수행한 작업을 **Claude 세션 데이터 기반**으로 요약한다. "뭘 해야 하는가"(Alfred briefing)가 아닌 **"뭘 했는가"** 관점.
 
 ---
 
@@ -35,7 +35,7 @@ allowed-tools:
 
 | 스킬 | 관점 |
 |------|------|
-| `tasks:show` | "뭘 해야 하는가" (계획) |
+| `alfred` (briefing) | "뭘 해야 하는가" (계획) |
 | **`tasks:ing-listup`** | **"뭘 했는가" (실행)** |
 | `daily:review` | "어떻게 했는가" (KPT 회고) |
 | `handoff:pause` | "어디까지 했고 다음은" (저장) |
@@ -135,4 +135,4 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 
 - 데이터 수정/쓰기 절대 금지 (읽기 전용)
 - JSON 원본 데이터 출력 금지
-- `tasks:show`와 혼동 금지: 이 스킬은 "한 일" 조회, tasks:show는 "할 일" 조회
+- Alfred briefing과 혼동 금지: 이 스킬은 "한 일" 조회, briefing은 "할 일" 조회

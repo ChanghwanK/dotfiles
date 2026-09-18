@@ -22,8 +22,8 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/todo_store.py *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today*)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress*)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py today*)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py reconcile-progress*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py record*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-snapshot.py *)
@@ -471,7 +471,7 @@ python3 /Users/changhwan/.claude/scripts/alfred-state.py get --max-age-hours 8
 ### 1단계: Daily Note 기준 진행률
 
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py today
 ```
 - Top 목표·Todos 진행률을 파악한다.
 - **1순위 기준**: Daily Note `top3[0]`을 오늘의 1순위로 간주한다.
@@ -505,7 +505,7 @@ python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py today
 
 fuzzy 매칭·보정은 **코드가 결정론적으로 수행**한다(LLM 판단 아님, 같은 입력엔 같은 결과, 회귀 테스트로 보호):
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py reconcile-progress
 ```
 - 출력 `corrected_progress.{done,total}` 이 **진행률 진실 소스**다. {N}/{M} = done/total을 그대로 쓴다.
 - `corrections[]` 에 보정이 일어난 항목만 담긴다. 각 `correction`: `daily-note-lag`(Notion 완료인데 Daily Note 미완료) / `in-progress`(Notion 진행 중). 케이스 A-2 출력은 이 배열을 근거로 작성한다.
@@ -1025,7 +1025,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 
 ### 점검 3축
 
-오늘 한 일을 읽기 전용으로 파악한 뒤(`tasks:show today` / Daily Note), 아래 3가지를 짚는다:
+오늘 한 일을 읽기 전용으로 파악한 뒤(`task-progress.py today` / Daily Note), 아래 3가지를 짚는다:
 
 | 축 | 질문 | Alfred 액션 |
 |----|------|------------|
@@ -1046,7 +1046,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 
 진행률 보정은 check (C)와 **동일한 결정론적 명령**을 쓴다(LLM fuzzy 판단 아님):
 ```bash
-python3 /Users/changhwan/.claude/skills/tasks:show/scripts/notion-task.py reconcile-progress
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py reconcile-progress
 ```
 - `corrected_progress.{done,total}` 을 진행률·"완료 N건"의 **진실 소스**로 쓴다. `corrections[]` 로 Daily Note 지연 항목을 파악한다.
 - 비-0 종료(Daily Note 없음·스크립트 오류 등) 시 `today` 값으로 폴백하고 "(Notion 미대조)"를 표기한다.
@@ -1109,7 +1109,7 @@ bash /Users/changhwan/.claude/scripts/notify-slack.sh "$REVIEW_TEXT"
 ## 하지 않는 것 (경계)
 
 - Daily Note를 직접 만들지 않는다 → `daily:start`로 유도하거나, briefing 종료 시 동의 게이트로 `Skill(daily:start)` 인라인 인계(직접 작성 아님, 인터랙티브 전용).
-- 이월을 적용하지 않는다(dry-run만) → `tasks:carry-over`로 위임.
+- 이월을 적용하지 않는다(dry-run만) → 사용자가 원하면 `notion-task.py carry-over --apply`로 별도 실행.
 - 일반 일정을 생성/수정/삭제하지 않는다 → `calendar` 스킬로 위임.
   - **예외**: `calendar` 모드는 개인(MY) Task에서 파생된 **마커 이벤트(`notion-task:`)만** reconcile한다. 사용자가 캘린더에 직접 만든 일반 일정은 절대 건드리지 않으며, 쓰기 전 항상 dry-run + 승인 게이트를 거친다.
 - briefing·check·review는 읽기 전용이다. week·task 모드는 자율 실행을 허용하되, 실수 복구 경로를 응답에 명시한다. calendar 모드의 쓰기는 **확인 후**에만 한다.

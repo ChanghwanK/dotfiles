@@ -216,4 +216,4 @@ WebFetch(url="<사례 글 URL>",
 - `WebSearch`는 US 기준 결과를 반환한다. 국내 특화 주제는 결과가 제한될 수 있으니 tier를 유연하게 조정한다. 국내 블로그는 한국어 쿼리 + 국내 seed 도메인/애그리게이터(GeekNews)를 함께 쓴다.
 - `WebFetch`는 인증/비공개 URL에서 실패한다. cross-host redirect는 반환된 URL로 재호출한다.
 - 조사 범위가 넓어 소스가 10개를 넘으면, 서브질문별 상위 소스만 채택해 인용 폭증을 막는다.
-- 이 스킬은 웹 공개 문서 전용이다. 사내 문서는 `slack:search`/`notion:search`/devops-wiki로 라우팅한다.
+- 이 스킬은 웹 공개 문서 전용이다. 사내 문서는 Slack/Notion MCP 검색 도구나 devops-wiki로 라우팅한다.

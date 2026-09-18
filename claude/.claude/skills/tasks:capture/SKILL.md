@@ -480,6 +480,6 @@ JSON의 `url` 필드(Notion 페이지 URL)를 제목 텍스트 자체의 markdow
 
 ## 주의사항
 
-- 이 스킬은 **Task 생성 전담**. Task 상태 변경/삭제는 `/tasks:status`, 이월은 `/tasks:carry-over` 사용.
+- 이 스킬은 **Task 생성 전담**. Task 상태 변경/삭제는 Alfred week·task 모드(`notion-task.py update-status`/`delete-task`), 이월은 `notion-task.py carry-over` 사용.
 - **반드시 1회 질문**으로 속성을 확정한 후 즉시 실행. 추가 확인 절차 없음.
 - 동일 이름 Task가 이미 존재해도 중복 생성됨 (의도적 설계, GTD 원칙). 중복 정리는 `/tasks:manage`에서.
