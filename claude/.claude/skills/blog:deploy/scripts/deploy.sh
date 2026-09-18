@@ -23,6 +23,9 @@ if [ "$UNCOMMITTED" -gt "0" ]; then
   echo "계속 진행합니다..."
 fi
 
+echo "==> gatsby 캐시 정리 (.cache/webpack이 CSS Modules 변경을 놓치는 경우 방지)..."
+npm run clean
+
 echo "==> gatsby build 시작..."
 npm run build
 
