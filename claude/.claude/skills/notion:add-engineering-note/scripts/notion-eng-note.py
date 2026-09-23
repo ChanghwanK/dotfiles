@@ -94,6 +94,65 @@ def notion_request(method, path, body=None):
             return {"object": "error", "message": f"HTTP {e.code}: {err}"}
 
 
+_UPLOAD_CACHE = {}  # 같은 로컬 파일을 여러 번 참조해도 한 번만 올린다 (file_upload id는 재사용 가능)
+IMAGE_CONTENT_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                       ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml"}
+
+
+def upload_file(path):
+    """로컬 파일을 Notion File Upload API로 올리고 file_upload id를 반환한다.
+
+    올린 파일은 1시간 안에 블록에 붙여야 만료되지 않는다. 노트 생성 직전에 호출되므로 충분하다.
+    """
+    path = Path(path).expanduser().resolve()
+    if path in _UPLOAD_CACHE:
+        return _UPLOAD_CACHE[path]
+    if not path.is_file():
+        raise ValueError(f"image not found: {path}")
+    content_type = IMAGE_CONTENT_TYPES.get(path.suffix.lower())
+    if content_type is None:
+        raise ValueError(f"unsupported image type: {path.suffix} (지원: {sorted(IMAGE_CONTENT_TYPES)})")
+
+    created = notion_request("POST", "/file_uploads", {"filename": path.name, "content_type": content_type})
+    if created.get("object") == "error":
+        raise ValueError(f"file upload create failed: {created.get('message', '')}")
+
+    boundary = "----notion-eng-note-upload"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{path.name}"\r\n'
+        f"Content-Type: {content_type}\r\n\r\n"
+    ).encode() + path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(
+        f"https://api.notion.com/v1/file_uploads/{created['id']}/send", data=body, method="POST",
+        headers={
+            "Authorization": f"Bearer {NOTION_TOKEN}",
+            "Notion-Version": "2025-09-03",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        })
+    try:
+        with urllib.request.urlopen(req) as resp:
+            sent = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"file upload send failed: HTTP {e.code} {e.read().decode()[:300]}")
+    if sent.get("status") != "uploaded":
+        raise ValueError(f"file upload not completed: status={sent.get('status')}")
+
+    _UPLOAD_CACHE[path] = created["id"]
+    return created["id"]
+
+
+def image_block(caption, src):
+    """`![caption](src)` 한 줄을 image 블록으로 만든다. http(s)면 외부 URL, 아니면 로컬 파일을 올린다."""
+    if re.match(r"^https?://", src):
+        image = {"type": "external", "external": {"url": src}}
+    else:
+        image = {"type": "file_upload", "file_upload": {"id": upload_file(src)}}
+    if caption:
+        image["caption"] = md_to_rich_text(caption)
+    return {"type": "image", "image": image}
+
+
 # ── data source resolution (Notion-Version 2025-09-03) ────────
 # 2025-09-03부터 쿼리는 database가 아니라 data source 단위다.
 # 단일 data source DB를 전제로 db_id→ds_id를 1회 조회 후 프로세스 내 캐시한다.
@@ -272,6 +331,12 @@ def md_to_blocks(text):
                 "color": "default"
             }})
             stack.clear()
+            continue
+
+        # 이미지 한 줄: 설계 섹션의 다이어그램(archify / diagram-design PNG)을 넣는 경로
+        m = re.match(r'^!\[(.*?)\]\((.+?)\)$', lstripped)
+        if m:
+            place(indent, image_block(m.group(1).strip(), m.group(2).strip()))
             continue
 
         m = re.match(r'^[-*]\s+\[( |x|X)\]\s+(.*)', lstripped)
@@ -652,7 +717,11 @@ def cmd_create(args):
     if task_id:
         properties["Task"] = {"relation": [{"id": task_id}]}
 
-    blocks = make_template_blocks(sections, linked_to_task=bool(task_id))
+    try:
+        blocks = make_template_blocks(sections, linked_to_task=bool(task_id))
+    except ValueError as e:  # 이미지 업로드 실패: 페이지를 만들기 전에 멈춰 반쪽짜리 노트를 남기지 않는다
+        print(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False))
+        sys.exit(1)
     deferred = defer_column_grandchildren(blocks)
     parent = {"type": "data_source_id", "data_source_id": resolve_ds_id(DB_ID)}
 
