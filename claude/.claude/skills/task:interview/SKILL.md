@@ -133,7 +133,7 @@ PR에는 최종 결정만 남고 **중간 판단(왜 그 값이었다가 바뀌�
 
 | 순서 | 소스 | 도구 | 얻는 것 |
 |------|------|------|--------|
-| 1 | Notion Engineering 노트 (Task DB `Engineering` 관계) | `API-retrieve-page-markdown` | 대안 검토·미결 질문·정정 이력이 가장 압축돼 있다. 있으면 먼저 읽는다 |
+| 1 | Notion Engineering 노트 (Task DB `Working Note` 관계) | `API-retrieve-page-markdown` | 대안 검토·미결 질문·정정 이력이 가장 압축돼 있다. 있으면 먼저 읽는다 |
 | 2 | 세션 목록 | `claude-mem search` (키워드 + `dateStart` + `orderBy: date_asc`) | 시간 순서, 전환·오독 신호가 있는 세션 제목 |
 | 3 | 결정 순간 스니펫 | `search_session_transcripts` (구체 문자열) | 어느 세션에 그 순간이 있는지 |
 | 4 | 세션 본문 | `list_events` (`limit` 30~40, 최신부터) | 결정의 이유·버린 대안·계기 |

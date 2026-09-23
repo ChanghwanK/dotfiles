@@ -657,7 +657,7 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 ### 5단계: 작업 내용 → Engineering Note 기록 (자율 합성 + 1회 확인)
 
 클로징 시퀀스(4단계) 직후, **무엇을 어떻게 했는지**를 간결·구조화해 기록한다. 목적지는
-**Task 페이지 본문이 아니라 그 Task에 연결된 Engineering Note**(Task DB의 `Engineering`
+**Task 페이지 본문이 아니라 그 Task에 연결된 Engineering Note**(Task DB의 `Working Note`
 relation)다. Task 페이지는 "무엇을 하려 했는가"(00.Summary~04.Goals/Non Goals)만 담당하고,
 "어떻게 했는가"는 Engineering Note가 전담한다. 두 문서에 같은 내용을 쓰면 한쪽만 갱신됐을 때
 드리프트가 생기기 때문이다(2026-07-07 정책 변경: 이전엔 Task 본문에 직접 기록했으나
@@ -673,7 +673,7 @@ Engineering Note로 이전).
 ```bash
 curl -s "https://api.notion.com/v1/pages/<page_id>" \
   -H "Authorization: Bearer $NOTION_TOKEN" -H "Notion-Version: 2025-09-03" \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); rel=d.get('properties',{}).get('Engineering',{}).get('relation',[]); print(rel[0]['id'] if rel else '')"
+  | python3 -c "import json,sys; d=json.load(sys.stdin); rel=d.get('properties',{}).get('Working Note',{}).get('relation',[]); print(rel[0]['id'] if rel else '')"
 ```
 
 - 결과가 비어 있으면 → 아래 (4)에서 **신규 생성**.

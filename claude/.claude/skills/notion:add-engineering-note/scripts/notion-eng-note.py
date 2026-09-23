@@ -33,6 +33,7 @@ import re
 import urllib.request
 import urllib.error
 import argparse
+import time
 from datetime import date
 from pathlib import Path
 
@@ -59,7 +60,14 @@ DB_ID = "17964745-3170-8030-bf01-e7f20a6e1bd7"
 
 GROUP_OPTIONS = ["#Study", "#Article", "#업무노트", "#정리"]
 # Task DB(개인 Task DB) 페이지의 관계형 속성 이름. Engineering DB "Task" 관계의 반대편.
-TASK_DB_RELATION_PROPERTY = "Engineering"
+TASK_DB_RELATION_PROPERTY = "Working Note"
+
+# 전체 너비(Full width)는 Notion API로 설정할 수 없다. 전체 너비가 켜진 DB 템플릿으로 페이지를
+# 만들면 그 설정이 새 페이지에 이어진다(2026-09-23 실험으로 확인). 템플릿 본문은 쓰지 않고
+# 적용 직후 비운 뒤 이 스크립트의 본문으로 채운다.
+FULL_WIDTH_TEMPLATE_ID = "2e464745-3170-80b7-98a3-fa768cbaa8b0"  # Engineering DB "[#업무 노트]" 템플릿
+TEMPLATE_APPLY_TIMEOUT_SEC = 30
+NOTION_APPEND_BATCH = 100  # children append 한 번에 넣을 수 있는 최대 블록 수
 
 
 def notion_request(method, path, body=None):
@@ -405,6 +413,11 @@ def make_template_blocks(sections=None, linked_to_task=False):
     def divider():
         return {"type": "divider", "divider": {}}
 
+    def column_list(columns):
+        return {"type": "column_list", "column_list": {"children": [
+            {"type": "column", "column": {"children": col}} for col in columns
+        ]}}
+
     def section_blocks(key, placeholders):
         """섹션 내용 반환: sections[key]가 있으면 파싱, 없으면 placeholder."""
         content = s.get(key, "").strip()
@@ -432,10 +445,11 @@ def make_template_blocks(sections=None, linked_to_task=False):
             divider(),
             # 목표 / 비목표 (독립 노트에만 포함, Task 연결 노트는 04.Goals-Non Goals가 단일 출처)
             h1(f"{next(n)}. 목표 / 비목표"),
-            paragraph("Goal"),
-            *section_blocks("goal", [quote()]),
-            paragraph("Non-goal"),
-            *section_blocks("non_goal", [quote()]),
+            # 목표와 비목표를 나란히 비교할 수 있게 2열로 둔다
+            column_list([
+                [paragraph("Goal"), *section_blocks("goal", [quote()])],
+                [paragraph("Non-goal"), *section_blocks("non_goal", [quote()])],
+            ]),
             divider(),
         ]
 
@@ -486,7 +500,7 @@ def make_template_blocks(sections=None, linked_to_task=False):
 
 
 def link_task_relation(task_id, note_page_id):
-    """Task 페이지의 Engineering relation에 note_page_id를 추가한다 (기존 링크 보존, 중복 방지)."""
+    """Task 페이지의 Working Note relation에 note_page_id를 추가한다 (기존 링크 보존, 중복 방지)."""
     task_page = notion_request("GET", f"/pages/{task_id}")
     if task_page.get("object") == "error":
         return {"success": False, "error": task_page.get("message", str(task_page))}
@@ -501,6 +515,114 @@ def link_task_relation(task_id, note_page_id):
     if resp.get("object") == "error":
         return {"success": False, "error": resp.get("message", str(resp))}
     return {"success": True}
+
+
+def defer_column_grandchildren(blocks):
+    """열 안 블록의 하위 블록을 떼어 내 나중에 붙일 목록으로 돌려준다.
+
+    Notion은 한 요청에 2단계 중첩까지만 받는다. column_list → column → 블록이 이미 2단계라
+    열 안의 불릿이 하위 불릿을 가지면 요청이 거부된다. 반환값은 column_list 등장 순서별
+    [열 인덱스][블록 인덱스] → children 목록(없으면 None)이다.
+    """
+    deferred = []
+    for block in blocks:
+        if block.get("type") != "column_list":
+            continue
+        per_column = []
+        for column in block["column_list"]["children"]:
+            per_block = []
+            for child in column["column"]["children"]:
+                body = child.get(child.get("type", ""), {})
+                per_block.append(body.pop("children", None) if isinstance(body, dict) else None)
+            per_column.append(per_block)
+        deferred.append(per_column)
+    return deferred
+
+
+def list_children(block_id):
+    results, cursor = [], None
+    while True:
+        query = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        resp = notion_request("GET", f"/blocks/{block_id}/children{query}")
+        results += resp.get("results", [])
+        if not resp.get("has_more"):
+            return results
+        cursor = resp.get("next_cursor")
+
+
+def restore_column_grandchildren(created_blocks, deferred):
+    """defer_column_grandchildren로 떼어 둔 하위 블록을 생성된 열 안 블록에 다시 붙인다."""
+    column_lists = [b for b in created_blocks if b.get("type") == "column_list"]
+    for column_list_block, per_column in zip(column_lists, deferred):
+        for column, per_block in zip(list_children(column_list_block["id"]), per_column):
+            for child, grandchildren in zip(list_children(column["id"]), per_block):
+                if grandchildren:
+                    append_blocks(child["id"], grandchildren)
+
+
+def flatten_columns(created_blocks):
+    """목차가 열 안의 Goal/Non-goal 문단도 찾을 수 있게 column_list를 열 내용으로 펼친다."""
+    flat = []
+    for block in created_blocks:
+        if block.get("type") == "column_list":
+            for column in list_children(block["id"]):
+                flat += list_children(column["id"])
+        else:
+            flat.append(block)
+    return flat
+
+
+def append_blocks(page_id, blocks):
+    """블록을 NOTION_APPEND_BATCH 단위로 나눠 페이지 끝에 붙인다. 실패하면 error 응답을 반환한다."""
+    for start in range(0, len(blocks), NOTION_APPEND_BATCH):
+        resp = notion_request("PATCH", f"/blocks/{page_id}/children",
+                              {"children": blocks[start:start + NOTION_APPEND_BATCH]})
+        if resp.get("object") == "error":
+            return resp
+    return None
+
+
+def create_full_width_page(parent, properties, blocks):
+    """전체 너비 템플릿으로 페이지를 만들고 템플릿 본문을 노트 본문으로 교체한다.
+
+    템플릿은 생성 응답 이후 백그라운드에서 적용되고 적용 시 본문을 교체한다. 적용 전에 본문을
+    붙이면 덮어써질 수 있으므로, 템플릿 본문이 들어온 것을 확인한 뒤 비우고 붙인다.
+
+    반환: (생성 응답, 전체 너비 적용 여부). 이 경로가 실패하면 만든 페이지를 휴지통으로 보내고
+    (None, False)를 반환해 호출자가 기존 방식으로 다시 만들게 한다.
+    """
+    resp = notion_request("POST", "/pages", {
+        "parent": parent,
+        "properties": properties,
+        "template": {"type": "template_id", "template_id": FULL_WIDTH_TEMPLATE_ID},
+    })
+    if resp.get("object") == "error":
+        print(f"WARN: 템플릿 생성 실패, 기본 너비로 생성합니다: {resp.get('message', '')}", file=sys.stderr)
+        return None, False
+    page_id = resp["id"]
+
+    def discard(reason):
+        print(f"WARN: {reason}, 기본 너비로 다시 생성합니다.", file=sys.stderr)
+        notion_request("PATCH", f"/pages/{page_id}", {"in_trash": True})
+        return None, False
+
+    deadline = time.monotonic() + TEMPLATE_APPLY_TIMEOUT_SEC
+    while True:
+        children = notion_request("GET", f"/blocks/{page_id}/children?page_size=1")
+        if children.get("results"):
+            break
+        if time.monotonic() > deadline:
+            return discard(f"템플릿이 {TEMPLATE_APPLY_TIMEOUT_SEC}초 안에 적용되지 않음")
+        time.sleep(1)
+
+    erased = notion_request("PATCH", f"/pages/{page_id}", {"erase_content": True})
+    if erased.get("object") == "error":
+        return discard(f"템플릿 본문 비우기 실패: {erased.get('message', '')}")
+
+    appended = append_blocks(page_id, blocks)
+    if appended is not None:
+        return discard(f"본문 추가 실패: {appended.get('message', '')}")
+    return resp, True
 
 
 def cmd_create(args):
@@ -530,14 +652,17 @@ def cmd_create(args):
     if task_id:
         properties["Task"] = {"relation": [{"id": task_id}]}
 
-    # Create the page
-    page_body = {
-        "parent": {"type": "data_source_id", "data_source_id": resolve_ds_id(DB_ID)},
-        "properties": properties,
-        "children": make_template_blocks(sections, linked_to_task=bool(task_id)),
-    }
+    blocks = make_template_blocks(sections, linked_to_task=bool(task_id))
+    deferred = defer_column_grandchildren(blocks)
+    parent = {"type": "data_source_id", "data_source_id": resolve_ds_id(DB_ID)}
 
-    resp = notion_request("POST", "/pages", page_body)
+    full_width = False
+    resp = None
+    if not args.no_full_width:
+        resp, full_width = create_full_width_page(parent, properties, blocks)
+    if resp is None:
+        # 템플릿 경로를 끈 경우와 템플릿 적용이 실패한 경우: 본문을 생성 요청에 함께 넣는 기존 방식
+        resp = notion_request("POST", "/pages", {"parent": parent, "properties": properties, "children": blocks})
 
     if resp.get("object") == "error":
         print(json.dumps({
@@ -553,14 +678,15 @@ def cmd_create(args):
     # 얻으려면 별도로 top-level children을 조회해야 한다.
     children_resp = notion_request("GET", f"/blocks/{page_id}/children?page_size=100")
     created_blocks = children_resp.get("results", []) if children_resp.get("object") != "error" else []
-    callout_id, toc_rich_text = build_toc_rich_text(created_blocks, page_url)
+    restore_column_grandchildren(created_blocks, deferred)
+    callout_id, toc_rich_text = build_toc_rich_text(flatten_columns(created_blocks), page_url)
     if callout_id:
         notion_request("PATCH", f"/blocks/{callout_id}", {"callout": {"rich_text": toc_rich_text}})
 
     task_linked = False
     task_link_error = None
     if task_id:
-        # Engineering DB "Task" relation은 위에서 이미 설정됨. Task DB 쪽 "Engineering"
+        # Engineering DB "Task" relation은 위에서 이미 설정됨. Task DB 쪽 "Working Note"
         # relation은 dual-property가 아닐 수 있으므로 반대편도 명시적으로 채운다.
         link_result = link_task_relation(task_id, page_id)
         task_linked = link_result["success"]
@@ -573,6 +699,7 @@ def cmd_create(args):
         "title": title,
         "group": group,
         "url": page_url,
+        "full_width": full_width,
         "task_linked": task_linked,
     }
     if task_link_error:
@@ -630,6 +757,8 @@ def main():
                           help="섹션 내용이 담긴 JSON 파일 경로 "
                                "(keys: design, alternatives, plan, history, review, questions; "
                                "problem/goal/non_goal은 --task 미지정 독립 노트에서만 사용)")
+    create_p.add_argument("--no-full-width", action="store_true",
+                          help="전체 너비 템플릿을 쓰지 않고 기본 너비로 생성")
 
     # list
     list_p = subparsers.add_parser("list", help="최근 업무 노트 목록 조회")

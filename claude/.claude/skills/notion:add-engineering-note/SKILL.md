@@ -54,7 +54,7 @@ Claude와의 설계/의사결정 대화 내용을 Engineering DB 업무 노트�
 | Title | title | - |
 | Group | select | `#Study`, `#Article`, `#업무노트`, `#정리` |
 | Created At | date | - |
-| Task | relation | 개인 Task DB 관계 (반대편 속성: Task DB의 `Engineering`) |
+| Task | relation | 개인 Task DB 관계 (반대편 속성: Task DB의 `Working Note`) |
 | Task Status | rollup | Task의 `상태` (read-only, 자동) |
 
 `Tag` multi_select는 실제 DB에 존재하지 않는다 (2026-07-07 드리프트 발견 후 제거). 태그가 필요하면 Task DB 쪽 속성을 사용한다.
@@ -113,7 +113,7 @@ Task 페이지가 없으므로 문제 정의/목표/비목표를 그대로 포�
 | 섹션 | JSON key | 추출 기준 |
 |------|----------|-----------|
 | 문제 정의 | `problem` | 왜 이 작업을 하는가, 현재 상황 |
-| 목표 / 비목표 | `goal` / `non_goal` | 달성하려는 것 / 이번 범위에서 제외한 것 (TOC 서브 앵커 예외: 스크립트가 평문 "Goal"/"Non-goal" 라벨을 직접 생성한다. 실제 헤딩으로 바꾸지 않는다) |
+| 목표 / 비목표 | `goal` / `non_goal` | 달성하려는 것 / 이번 범위에서 제외한 것 (TOC 서브 앵커 예외: 스크립트가 평문 "Goal"/"Non-goal" 라벨을 직접 생성한다. 실제 헤딩으로 바꾸지 않는다. 스크립트가 Goal 왼쪽, Non-goal 오른쪽의 2열로 배치한다) |
 
 ### Step 2: 메타데이터 확인
 
@@ -138,13 +138,20 @@ python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/noti
 
 `--task`를 넘기면 스크립트가 양방향으로 관계를 건다:
 1. 새 노트의 `Task` relation → 지정한 Task 페이지
-2. Task 페이지의 `Engineering` relation → 새 노트 (기존 링크는 보존, 새 id만 추가)
+2. Task 페이지의 `Working Note` relation → 새 노트 (기존 링크는 보존, 새 id만 추가)
 
 Task와 무관한 독립 노트라면 `--task` 없이 생성한다:
 ```bash
 python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
   --title "제목"
 ```
+
+**전체 너비(기본 동작)**: Notion API에는 페이지 너비 설정이 없다. 그래서 스크립트는 전체 너비가 켜진
+Engineering DB 템플릿(`[#업무 노트]`, id는 스크립트의 `FULL_WIDTH_TEMPLATE_ID`)으로 페이지를 만들고,
+템플릿 본문이 적용되면 비운 뒤 노트 본문을 붙인다. 너비 설정만 템플릿에서 가져오고 본문은 쓰지 않는다.
+- 템플릿이 30초 안에 적용되지 않거나 비우기·추가가 실패하면, 만든 페이지를 휴지통으로 보내고 기본 너비로 다시 만든다. 응답의 `full_width`가 `false`가 된다.
+- 기본 너비로 만들려면 `--no-full-width`를 붙인다.
+- 템플릿을 지우거나 전체 너비를 끄면 이 동작이 깨진다. 템플릿을 바꾸면 스크립트의 `FULL_WIDTH_TEMPLATE_ID`도 갱신한다.
 
 ### Step 4: 결과 출력
 
@@ -153,6 +160,7 @@ python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/noti
 - 제목: {title}
 - Group: {group}
 - Task 연결: {있음(page_id) | 없음}
+- 전체 너비: {적용 | 미적용(기본 너비로 대체 생성)}
 - URL: {url}
 ```
 
@@ -165,6 +173,7 @@ python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/noti
 - `invalid database` → DB ID 확인
 - `success: false` → 에러 메시지를 사용자에게 전달 후 재실행
 - `task_linked: false` → Task page_id 오타 여부 확인, 재실행 또는 수동 연결
+- `full_width: false` → stderr의 WARN으로 원인을 전달하고, 페이지 `···` 메뉴에서 Full width를 켜도록 안내
 
 ---
 
