@@ -21,6 +21,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py today*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py reconcile-progress*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
@@ -61,94 +62,46 @@ allowed-tools:
 
 ---
 
-## 신규 Task 본격 템플릿 (6-필드)
+## 신규 Task 템플릿
 
-Alfred가 신규 Task를 생성할 때 **본격 Task**에 적용하는 공통 규칙이다.
+Alfred가 신규 Task를 생성할 때 적용하는 공통 규칙이다.
 Alfred가 직접 `create-task`를 호출하는 모든 경로(week·gate·task 모드)에 적용한다.
 
-### 단일 출처 (템플릿 본문 재게시 금지)
+### 단일 출처 (본문 규칙 재게시 금지)
 
-**본문 템플릿과 합성 가이드의 단일 출처는 `~/.claude/skills/tasks:capture/SKILL.md`의
-"본문 템플릿 (본격 Task)" 섹션이다.** 본격 Task를 생성하기 전에 그 섹션을 Read로 읽고 그대로 따른다.
+**섹션 구조, 작성 기준, 세션 컨텍스트 분석 게이트의 단일 출처는 `~/.claude/skills/tasks:capture/SKILL.md`의
+"본문 섹션 (Task 템플릿)"과 "Step 1.5" 섹션이다.** Task를 생성하기 전에 그 섹션을 Read로 읽고 그대로 따른다.
 
-이 파일에 템플릿 본문을 다시 적지 않는다. 과거 두 곳에 같은 템플릿을 적어두었다가
-`tasks:capture`만 6-필드로 갱신되고 이 파일은 5-필드로 남아 실제로 drift가 발생했다.
+이 파일에 작성 규칙을 다시 적지 않는다. 과거 두 곳에 같은 템플릿을 적어두었다가 한쪽만 갱신되어
+실제로 drift가 발생했다.
 
-### 본격 판정 기준
+### 템플릿 적용 기준
 
-**배경·목적을 합성할 맥락이 있는 실제 업무 항목이면 본격(6-필드)**, **단순 메모성 할 일이면 간이 생성**이 판정 기준이다. 아래 중 하나라도 해당하면 본격 Task로 보고 6-필드 본문 템플릿을 적용한다.
+- **기본은 템플릿이다.** 가벼운 할 일도 무슨 작업이고 무엇이 문제이고 왜 하는지를 채운다.
+- 사용자가 "pass" 또는 "simple"을 명시한 경우만 `--simple`로 제목만으로 만든다. Alfred가 스스로 가볍다고 판단해 생략하지 않는다.
+- 구조: `### 문제` / `### 근본 원인` / `### 기대 가치` / `## 작업 Context`. Goals와 실행 계획은 Task가 아니라
+  업무 노트(`notion:add-engineering-note`)에서 다룬다.
 
-- 대화에서 문제 정의·해결 이유를 추출할 수 있는 실제 업무 항목인 경우
-- 사용자가 Task에 대한 배경/이유를 추가로 설명한 경우
+Alfred 경로에서 특히 놓치기 쉬운 두 가지만 여기 명시한다.
 
-단순 메모 수준(맥락 없이 "이거 해줘" 류)이면 템플릿 없이 `--name`만으로 생성한다.
+- **문제는 현상을 빼고 쓴다.** 관측된 사건(시각, 횟수, 지속 시간, 리소스 이름)이 아니라 그 사건을 가능하게 한
+  경계·장치·절차의 결함을 현재형으로 쓰고, 관측값은 `작업 Context`의 `*확인한 사실:*`로 옮긴다.
+- **작업 Context는 재개 가능성이 기준이다.** 업무 노트를 바로 쓰지 않을 수 있으므로, 세션을 못 본 사람이
+  재조사 없이 `*다음 액션:*`을 시작할 수 있게 출발점·확인한 사실(재조회 방법 포함)·관련 리소스를 남긴다.
 
-### 6-필드 헤딩 (순서 확인용, 내용은 단일 출처 참조)
+### create-task 호출 형식
 
-`## 00. Summary` / `## 01. 문제 정의` / `## 02. 해결 이유` / `## 03. 기대효과` /
-`## 04. Goals/Non Goals` / `## 05. 세부 계획`
-
-Alfred 경로에서 특히 놓치기 쉬운 세 가지만 여기 명시한다. 나머지 작성 규칙은 단일 출처를 따른다.
-
-- **`01. 문제 정의`는 현상을 빼고 문제를 쓴다.** 관측된 사건(시각, 횟수, 지속 시간, 리소스 이름)이 아니라
-  그 사건을 가능하게 한 경계·장치·절차의 결함을 현재형으로 쓰고, 관측값은 `02. 해결 이유`의 근거로 옮긴다.
-  판별 기준과 예시는 tasks:capture 합성 가이드 "현상을 빼고 문제를 쓴다"가 단일 출처다.
-- **`04. Goals`는 행동 기반 동작 명세로 쓴다.** "무엇을 한다"(실행 동작)가 아니라
-  `{조건}일 때, {관찰 가능한 결과}가 발생한다 / 발생하지 않는다` 형식으로 쓰고,
-  실행 스텝은 전부 `05. 세부 계획`으로 옮긴다. 억제 케이스만 쓰지 않고 정상 케이스를 쌍으로 둔다.
-- **`05. 세부 계획`은 체크박스(`- [ ]`)로 실행 순서대로 적고 마지막에 `*롤백:*`을 둔다.**
-  한 체크박스는 한 실행 단위(`{단위 이름}: {무엇을 하는가 한 줄}`)로 추상화하고, 서비스 목록·설정 수치·
-  명령은 쓰지 않는다(상세: tasks:capture 합성 가이드).
-  이 체크박스는 나중에 **gate 모드의 완료 판정 근거**이자 **Engineering Note `plan` 섹션의
-  원본**이 되므로 비워두지 않는다.
-
-> Goals/Non-Goals는 각각 독립된 줄(문단)로 두고 그 아래 불릿을 붙인다. 인라인 라벨이면
-> `notion-task.py`가 자동으로 붙이는 페이지 상단 TOC 콜아웃이 개별 링크를 걸 수 없다.
-
-### 문장 스타일 (6개 섹션 공통)
-
-각 섹션 프로즈는 초안 합성 시점부터 `~/.claude/docs/notion-writing-style.md` §문장을 따른다(생성 후 교정이 아니라 처음부터 적용). 서로 밀접한 사실(원인+결과, 비교/대구, 결론+바로 그 근거)은 뚝뚝 끊지 않고 연결어(~이며, ~고, ~는데, ~므로)로 한 문장에 묶는다. 무관한 사실만 짧게 끊는다. 자가 점검: 한 문단·섹션 안에서 "~다."/"~습니다."가 3회 이상 연속되면, 인접한 두 문장이 실제로는 하나의 생각(원인-결과, 대구)인지 다시 확인하고 합칠 수 있으면 합친다.
-
-### 세션 컨텍스트 분석 게이트
-
-`문제 정의`와 `해결 이유`는 추정으로 채우지 않는다. 생성 전 세션 대화에서 추출 가능한지 먼저 판단한다.
-
-| 판단 기준 | 추출 가능 | 추출 불가 |
-|----------|----------|----------|
-| 문제 정의 | 대화에서 현재 상태의 문제가 구체적으로 언급됨 | 요청이 "이거 해줘" 수준으로 맥락 없음 |
-| 해결 이유 | 영향·불편함·기술적 근거가 명시됨 | 동기가 전혀 언급되지 않음 |
-
-**불충분하면 등록 전 질문한다.** 최대 2개, AskUserQuestion으로 묶어 1회 확인.
-
-```
-Task를 생성하기 전에 두 가지를 확인할게요.
-
-1. 문제 정의: 지금 어떤 문제가 있나요? 현재 상태에서 무엇이 안 되거나 부족한가요?
-2. 해결 이유: 이 문제를 해결해야 하는 이유가 무엇인가요? 방치하면 어떤 영향이 있나요?
-```
-
-두 필드가 세션에서 명확히 추출 가능하면 질문 없이 합성 후 진행한다.
-
-**문제 정의는 추출만으로 끝내지 않는다.** 세션에서 뽑은 문장은 대개 관측 타임라인(언제 무엇이 몇 번)이므로,
-합성 직후 tasks:capture Step 1.5-A의 A5(현상 제거 판별)를 통과시킨다. 날짜·횟수·지속 시간·리소스 이름을
-지웠을 때 무너지는 문장은 02의 근거로 옮기고, 01은 그 사건을 가능하게 한 경계·장치·절차의 결함으로 다시 쓴다.
-week·gate(1단계 미등록 작업 생성)·task 모드 모두 이 게이트를 거친다.
-
-### create-task 호출 형식 (본격 Task)
-
-본문은 스크래치패드에 파일로 Write한 뒤 `--body-file`로 넘긴다. 6-필드 본문은 백틱·따옴표·
-체크박스가 섞여 `--body` 인라인으로 넘기면 셸 인용이 깨지기 쉽다.
+sections JSON은 스크래치패드에 Write한 뒤 `--sections-file`로 넘긴다.
 
 ```bash
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py \
   create-task --name "Task 이름" --due "2026-03-27" \
-  --category "WORK" --description "한 줄 요약" \
-  --body-file "/path/to/scratchpad/task-body.md"
+  --category "WORK" --description "어떤 작업인지 한 줄" \
+  --sections-file "/path/to/scratchpad/task-sections.json"   # 키: problem, root_cause, value, context
 ```
 
-> 본문 6개 헤딩의 고정 순서는 위 "6-필드 헤딩" 참조. 각 섹션에 무엇을 쓰는지는 단일 출처
-> (`tasks:capture` SKILL.md)를 Read해서 따른다. 부득이 `--body` 인라인을 쓸 때 본문에
-> 작은따옴표가 포함되면 `'\''`로 이스케이프한다.
+> 응답의 `template_applied`가 `false`면 `template_error`를 사용자에게 한 줄로 알린다(같은 구조로 대체 생성되어
+> 캡처는 유실되지 않았지만 버튼이 빠졌다).
 
 ---
 
@@ -551,22 +504,24 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
   0. 취소
   ```
   - **1 선택** → 맥락에서 category를 추정해 생성한다(곧 완료할 작업이므로 due는 생략, 상태는 기본 "해야할 것").
-    "신규 Task 본격 템플릿(6-필드)" 섹션의 본격 판정 기준에 해당하면 **세션 컨텍스트 분석 게이트**를 통과한 뒤 `--body-file`로 본문을 포함해 생성한다. 단순 메모 수준이면 `--name`·`--category`만으로 즉시 생성한다.
+    "신규 Task 템플릿" 섹션을 따라 **세션 컨텍스트 분석 게이트**를 통과한 뒤 `--sections-file`로 섹션을 채워 생성한다
+    (사용자가 pass/simple을 명시했을 때만 `--simple`).
     ```bash
-    # 단순 생성
     python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task \
-      --name "..." --category WORK
-    # 본격 생성은 위 섹션의 --body 형식 참조
+      --name "..." --category WORK --description "어떤 작업인지 한 줄" \
+      --sections-file "/path/to/scratchpad/task-sections.json"
     ```
     응답의 `page_id`를 확보한 뒤 그 값으로 **2단계(체크)로 이어간다**. 완료 처리는 게이트의 4단계가 담당하므로 여기서 미리 완료로 바꾸지 않는다(체크를 건너뛰지 않기 위함).
   - **0 선택** → 게이트를 보류한다(아무것도 생성·변경하지 않음).
   - 구분: 체크 게이트 없이 *이미 끝낸 작업을 곧장 완료로만 남기려면* 이 경로가 아니라 `task` 모드의 "완료된 작업 등록"(생성→완료→노트)을 쓴다.
 
-- **대상 Task의 `05. 세부 계획`을 로드한다 (있으면 필수).** 확정된 `page_id`로 본문을 읽어
-  체크박스 항목을 그대로 가져온다. 이 목록이 2단계 체크의 근거가 된다.
-  - 조회: `mcp__claude_ai_Notion__notion-fetch` (page_id 또는 page URL)
-  - `05. 세부 계획` 섹션이 없는 Task(구 5-필드로 생성됐거나 단순 메모)면 이 로드를 건너뛰고
+- **연결된 업무 노트의 `실행 계획`을 로드한다 (있으면 필수).** Task의 `Working Note` relation(5단계 (1)과 같은 조회)으로
+  노트 page_id를 얻고, 노트 본문의 `## 실행 기록` > `### 실행 계획` 체크박스 항목을 그대로 가져온다.
+  이 목록이 2단계 체크의 근거가 된다. 실행 계획은 Task가 아니라 업무 노트에 있다(2026-09-27 Task 템플릿 개편).
+  - 조회: `python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page --page-id <note_page_id>`
+  - 연결된 노트가 없거나 노트에 `### 실행 계획`이 없으면(구 노트, 계획 없이 만든 노트) 이 로드를 건너뛰고
     2단계의 세부 계획 줄도 표시하지 않는다. **없는 계획을 추정해 만들어내지 않는다.**
+  - 구 00~05 템플릿 Task(본문에 세부 계획 체크박스가 있는 Task)는 노트 대신 Task 본문의 그 체크박스를 읽는다(과거 Task 호환).
   - `*롤백:*` 라벨 불릿은 실행 항목이 아니므로 완료 집계에서 제외한다.
   - 조회 자체가 실패하면(Notion 커넥터 미인증 등) 게이트를 막지 않고 세부 계획 줄만 생략한 뒤
     "세부 계획 조회 실패"를 경고로 1줄 병기한다. 로드 실패로 완료 처리를 보류하지 않는다.
@@ -579,7 +534,7 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 
 - **1. 동작 확인**, **2. 실패 케이스**: 세션에서 실제로 실행한 명령/로그/출력을 가리켜 채운다. 가리킬 근거가 전혀 없으면(대화 없이 파일만 수정된 경우 등) "세션 근거 없음"으로 초안에 그대로 포함한다. 질문으로 끊지 않고 단일 확인 화면에 함께 넣는다.
 
-**세부 계획 대조 (1단계에서 `05. 세부 계획`을 로드했을 때만)**: 각 체크박스 항목이 세션에서 실제로 수행됐는지 Claude가 대조해 완료/미완료로 분류한다. 항목별로 사용자에게 되묻지 않고, 세션 근거로 판단한 결과를 초안에 그대로 싣는다. **세션 근거가 없는 항목은 미완료로 둔다**(완료로 낙관 처리하지 않는다).
+**세부 계획 대조 (1단계에서 실행 계획을 로드했을 때만)**: 각 체크박스 항목이 세션에서 실제로 수행됐는지 Claude가 대조해 완료/미완료로 분류한다. 항목별로 사용자에게 되묻지 않고, 세션 근거로 판단한 결과를 초안에 그대로 싣는다. **세션 근거가 없는 항목은 미완료로 둔다**(완료로 낙관 처리하지 않는다).
 - 이 항목은 **핵심 2항목 점수의 분모에 포함하지 않는다**(2체크 설계 유지). 미완료가 있으면 경고로 병기하고 후속은 7단계의 후속 액션 기록으로 넘긴다.
 - 미완료 항목이 남은 채 완료 처리하는 것은 허용된다(점수 무관 완료 원칙). 단 **침묵하지 않는다.**
 - Task 페이지의 체크박스를 대신 체크해 주지는 않는다(본문 덮어쓰기 위험). 대조 결과만 보고한다.
@@ -594,7 +549,7 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 
 1. 동작 확인: {세션에서 실행한 명령/로그/출력 요약 또는 "세션 근거 없음"} (확인됨)
 2. 실패 케이스: {세션에서 확인한 경계/실패 케이스 요약 또는 "세션 근거 없음"} (확인됨)
-(05. 세부 계획이 있을 때만) 세부 계획: {완료}/{전체} 완료
+(실행 계획을 로드했을 때만) 세부 계획: {완료}/{전체} 완료
   - 미완료: {미완료 항목 목록}
 (신호가 있을 때만 추가) 나쁜 소식 선공유: {세션 근거}
 (신호가 있을 때만 추가) 상대 추가 작업: {세션 근거}
@@ -668,15 +623,15 @@ Adjust: 감지된 작업이 오늘 1순위와 정렬돼 있습니까?
 
 클로징 시퀀스(4단계) 직후, **무엇을 어떻게 했는지**를 간결·구조화해 기록한다. 목적지는
 **Task 페이지 본문이 아니라 그 Task에 연결된 Engineering Note**(Task DB의 `Working Note`
-relation)다. Task 페이지는 "무엇을 하려 했는가"(00.Summary~04.Goals/Non Goals)만 담당하고,
+relation)다. Task 페이지는 "무엇을 왜 하려 했는가"(문제/근본 원인/기대 가치, 작업 Context)만 담당하고,
 "어떻게 했는가"는 Engineering Note가 전담한다. 두 문서에 같은 내용을 쓰면 한쪽만 갱신됐을 때
 드리프트가 생기기 때문이다(2026-07-07 정책 변경: 이전엔 Task 본문에 직접 기록했으나
 Engineering Note로 이전).
 
 > task:review(성과측정·성장회고)와 역할이 다르다. 작업 내용 기록은 **항상**(확인 후) 남기고,
 > task:review는 6단계에서 **항상 자율 실행**한다(확인 없이 진행, 완료/마일스톤 여부와 무관하게 건너뛰기 금지). 신규 생성 노트는 두 결과가
-> "작업 History" / "Task Review" 섹션에 제자리로 들어가고(6단계에서 create 1회),
-> 기존 노트는 Notion append 제약상 페이지 맨 끝에 누적된다(섹션 내 삽입 불가).
+> "실행 기록" / "Task Review" 섹션에 제자리로 들어가고(6단계에서 create 1회),
+> 기존 노트는 `append-content --section`으로 해당 섹션 끝에 누적된다.
 
 **(1) 기존 Engineering Note 확인**: Task에 이미 연결된 노트가 있는지 확인한다(중복 노트 생성 방지).
 
@@ -698,17 +653,15 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
   - 참고: {제목} ({url})              ← 참고 자료가 있을 때만
 ```
 
-- 날짜 접두(`YYYY-MM-DD:`)를 반드시 붙인다. Engineering Note "작업 History" 섹션은 날짜별
+- 날짜 접두(`YYYY-MM-DD:`)를 반드시 붙인다. Engineering Note "실행 기록" 섹션은 날짜별
   누적 기록이 표준 형식이다.
 - PR·참고 링크는 있을 때만 포함한다(없는 링크를 만들지 않는다).
-- **신규 생성 경로((1)에서 노트 없음)면 추가로**: 세션 대화에서 `design`(선택한 구조/방식),
-  `alternatives`(검토 후 기각한 옵션), `plan`(업무 Plan), `questions`(미결 사항)를
-  추출해 sections 초안에 함께 담는다(notion:add-engineering-note의 섹션 매핑 표와 동일 기준).
-  - **`plan`은 창작하지 않는다.** 연결된 Task에 `## 05. 세부 계획`이 있으면 **그것을 원본으로
-    옮겨 담고**, 1단계에서 대조한 완료/미완료 상태를 `- [x]` / `- [ ]`로 반영한다.
-    Task의 계획을 Engineering Note의 업무 Plan으로 승격시키는 것이 표준 경로이며, 같은 계획을
-    서로 다른 문장으로 두 번 쓰면 어느 쪽이 실제 실행 계획인지 판단할 근거가 사라진다.
-  - Task에 `05. 세부 계획`이 없을 때만 세션 대화에서 실행 단계를 추출해 `plan`을 합성한다.
+- **신규 생성 경로((1)에서 노트 없음)면 추가로**: 세션 대화에서 `design`(선택한 구조/방식과 검토 후 기각한 대안,
+  `### 대안 및 트레이드오프` 하위 heading으로), `plan`(실제로 실행한 단계), `result`(측정된 결과)를 추출하고,
+  Task 본문(`read-page`)의 문제/근본 원인/기대 가치를 `problem`/`root_cause`/`value`로 그대로 옮겨 sections 초안에 담는다
+  (키와 작성 기준은 notion:add-engineering-note의 "Step 3" 매핑표가 단일 출처).
+  - **`plan`은 창작하지 않는다.** 세션에서 실제로 수행한 실행 단위만 `- [x]`로, 계획했지만 못 한 단위는 `- [ ]`로 적는다.
+  - gate 경로는 이미 끝난 작업의 기록이므로 grill-me 인터뷰·tech-spec을 거치지 않고 스크립트로 바로 만든다.
   세션에 근거가 없는 키는 생략한다(placeholder를 억지로 채우지 않는다). history만 넣고
   나머지를 전부 placeholder로 두는 것은 금지한다(2026-07-15 개선: 대화에 설계·대안 검토가
   있었는데도 버려져 빈 노트가 생성되던 문제).
@@ -742,10 +695,9 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
     --content "- YYYY-MM-DD: {작업 내용 요약}"
   ```
 - **기존 노트가 없는 경우 (생성 보류)**: 여기서 생성하지 않는다. 확인받은 sections 초안
-  (history + 추출한 design/alternatives/plan/questions)을 보관한 채 6단계로 넘어가,
-  task:review 결과(`review`)까지 합쳐 **create 1회**로 생성한다. history만 넣어 먼저
-  생성하면 append가 페이지 맨 끝에만 붙는 제약 때문에 템플릿 "Task Review" 섹션이 빈
-  placeholder로 남고 페이지 끝에 중복 heading이 생긴다(2026-07-15 개선).
+  (history + 추출한 problem/root_cause/value/design/plan/result)을 보관한 채 6단계로 넘어가,
+  task:review 결과(`review`)까지 합쳐 **create 1회**로 생성한다. 호출 수를 줄이고 한 번에
+  완결된 노트를 남기기 위함이다(2026-07-15 개선).
 
 - `{slug}` = Task명을 소문자·하이픈으로 변환. heredoc(`<< 'EOF'`)을 쓰면 본문 내 작은따옴표·특수문자가 안전하다.
 - 저장 후 1줄 보고(append 경로만): "→ 작업 내용을 Engineering Note에 기록했습니다 (기존 노트에 추가)."
@@ -761,7 +713,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 > **안전 경계: 의미 불변, confirm 필수**: 이 패스는 prose 재작성(섹션 중복 제거·문장 분리)이므로 기술적 사실을 바꿀 수 있다. **silent 자동 반영 금지.** 반드시 diff를 보여주고 1회 확인을 받은 뒤에만 적용한다. 사실·수치·PR 번호·결정 내용은 절대 바꾸지 않는다. 스타일만 정리한다.
 
 **(1) 탐지**: 본문에서 다음 3종만 찾는다(그 외는 건드리지 않는다).
-- 섹션 간 동일 사실 재진술 (예: `작업 History`가 설계·계획·질문 섹션과 같은 내용을 반복) → 고유 정보만 남기도록 중복 bullet 삭제 제안.
+- 섹션 간 동일 사실 재진술 (예: `실행 기록`이 설계·계획 섹션과 같은 내용을 반복) → 고유 정보만 남기도록 중복 bullet 삭제 제안.
 - 한 문장 다중 메시지 (`~때문에 ~되어 ~됐고 ~였습니다` 연쇄) → 짧은 문장 분리 제안.
 - 군더더기 표현("실제로는", "기본적으로" 등) → 삭제 제안.
 
@@ -772,7 +724,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 ```
 🎩 Engineering Note 본문을 다음과 같이 간결화할까요? (사실·수치는 그대로, 스타일만)
 
-- [중복] '작업 History'의 원인 재진술 3 bullet → 삭제 (PR·수동조치만 유지)
+- [중복] '실행 기록'의 원인 재진술 3 bullet → 삭제 (PR·수동조치만 유지)
 - [연쇄문] 설계 섹션 2번째 문장 → 3문장으로 분리
 - [군더더기] 요약 "실제로는" → 삭제
 
@@ -815,7 +767,7 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
      Situation에 두고, Pain/Risk에는 그 일을 가능하게 한 구조의 결함을 쓴다. 정본은
      `~/.claude/docs/par-format-convention.md` §2 "Pain/Risk는 현상이 아니라 문제를 쓴다"이다.
    - **판단 근거 누락 경고 (질문 아님)**: 합성한 대표 PAAR의 Analyze에 기각한 대안도 선택의 대가도
-     없으면(세션에도, Task 본문 `02. 해결 이유`의 `*검토한 대안:*`에도 근거가 없으면) 완료는 그대로
+     없으면(세션에도, 업무 노트 `설계`의 대안에도, Task `작업 Context`의 `*검토한 것:*`에도 근거가 없으면) 완료는 그대로
      진행하되 경고를 1줄 병기한다. 흐름을 질문으로 끊지 않는다(점수 무관 완료, 단 침묵하지 않는다).
      ```
      ⚠ 판단 근거 미기록: 왜 그 방법이었는지가 남지 않아 나중에 경력기술서로 복원할 수 없습니다.
@@ -827,15 +779,16 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
 
    **(a) 신규 생성 경로 (5단계에서 생성 보류)**: 5단계 sections 초안에 `review`를 합쳐
    create 1회로 생성한다. `review` 값에는 상위 "Task Review" heading·구분선을 넣지 않는다
-   (템플릿에 "N. Task Review" 섹션 heading이 이미 있음). `### 성과 측정` 이하 하위 섹션만 담는다.
+   (템플릿에 Task Review heading이 이미 있음). `### 성과 측정` / `### PAAR 성과 문장` / `### 성장 회고`
+   하위 섹션만 담으면 스크립트가 템플릿의 세 하위 섹션에 나눠 넣는다.
    ```bash
-   # 세션 근거가 없는 키(design/alternatives/plan/questions)는 생략한다 (placeholder 유지)
+   # 세션 근거가 없는 키는 생략한다 (템플릿의 빈 칸 유지)
    cat > /tmp/eng-note-sections-{slug}.json << 'EOF'
    {"history": "- YYYY-MM-DD: {작업 내용 요약}\n  - PR: {repo}#{번호} ({제목})",
-    "design": "{추출한 설계}",
-    "alternatives": "{추출한 대안 검토}",
-    "plan": "{실행한 단계}",
-    "questions": "{미결 사항}",
+    "problem": "{Task의 문제}", "root_cause": "{Task의 근본 원인}", "value": "{Task의 기대 가치}",
+    "design": "{추출한 설계}\n### 대안 및 트레이드오프\n- {기각한 대안}: {근거}",
+    "plan": "- [x] {실행한 단계}",
+    "result": "{측정된 결과}",
     "review": "### 성과 측정\n- ...\n### PAAR 성과 문장\n**대표 PAAR**\n- *Problem:*\n\t- ...\n- *Analyze:*\n\t- **{판단 그룹}**\n\t\t- {후보와 비교 축}\n\t\t- {기각 근거 또는 대가}\n\t- **{판단 그룹}**\n\t\t- {후보와 비교 축}\n- *Action:*\n\t- **{실행 그룹}**\n\t\t- {세부 실행}\n\t\t- {세부 실행}\n\t- **{실행 그룹}**\n\t\t- {세부 실행}\n- *Result:*\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n\t- **{효과 그룹}**\n\t\t- {측정된 결과}\n**이력서 bullet**\n- {resume-format-convention.md 포맷, 명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- *Keep:*\n\t- ...\n- *Try:*\n\t- ..."}
    EOF
 
@@ -848,20 +801,15 @@ curl -s "https://api.notion.com/v1/pages/<page_id>" \
    - 응답의 `page_id`를 `note_page_id`로 기억하고 "→ 작업 내용·리뷰를
      Engineering Note에 기록했습니다 (신규 생성)" 1줄 보고.
 
-   **(b) 기존 노트 경로 (5단계에서 append 완료)**: review 텍스트를 임시 파일로 저장 후
-   페이지 끝에 append한다 (섹션 내 삽입은 Notion API 제약상 불가):
+   **(b) 기존 노트 경로 (5단계에서 append 완료)**: review를 세 부분으로 나눠 템플릿의 각 하위 섹션 끝에 붙인다.
+   각 파일에는 `###` heading 줄 없이 그 섹션의 본문만 담는다(heading은 템플릿에 이미 있다):
    ```bash
-   # review 텍스트(Markdown)를 임시 파일에 저장: 맨 앞에 구분선(---) + 제목 헤딩 포함
-   cat > /tmp/task-review-{slug}.md << 'EOF'
-   {review 전체 텍스트, task:review 출력 포맷 그대로}
-   EOF
-
-   # Engineering Note 본문에 누적 (Markdown → Notion 블록 자동 변환, 페이지 ID만 있으면
-   # Engineering DB 페이지도 동작한다)
-   python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
-     --page-id <note_page_id> \
-     --content-file /tmp/task-review-{slug}.md
+   S=/Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py
+   python3 $S append-content --page-id <note_page_id> --section "성과 측정" --content-file /tmp/task-review-{slug}-metrics.md
+   python3 $S append-content --page-id <note_page_id> --section "성과 문장" --content-file /tmp/task-review-{slug}-par.md
+   python3 $S append-content --page-id <note_page_id> --section "성장 회고" --content-file /tmp/task-review-{slug}-retro.md
    ```
+   - 구 노트(해당 heading이 없는 노트)면 `--section`이 실패한다. 이때는 `--section` 없이 review 전체를 페이지 끝에 붙인다.
    - 두 경로 공통: heading(#~####)·bullet·numbered·quote·divider·code fence·인라인 bold/code는 Notion 블록으로 변환된다. **마크다운 표는 미지원**. review 본문은 표 대신 bullet로 작성한다.
    - `{slug}` = Task명을 소문자·하이픈으로 변환
 
@@ -1121,8 +1069,8 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py upda
 - 복구 방법 병기: "되돌리려면 `/alfred task {명} 상태를 해야할 것으로`"
 
 **신규 Task 생성**:
-- **본격 판정 기준에 해당하면** "신규 Task 본격 템플릿(6-필드)" 섹션의 세션 컨텍스트 분석 게이트를 먼저 통과한 뒤, `--body-file`로 6-필드 본문을 함께 전달한다.
-- **단순 메모**이면 `--body` 없이 `--name`·`--category`만으로 즉시 생성한다.
+- "신규 Task 템플릿" 섹션을 따라 세션 컨텍스트 분석 게이트를 먼저 통과한 뒤 `--sections-file`로 섹션을 채워 생성한다.
+- 사용자가 pass/simple을 명시한 경우만 `--simple`로 `--name`·`--category`만 넘겨 즉시 생성한다.
 - 생성 후 1줄 보고: "'{Task명}' Task를 생성했습니다 (due MM/DD)."
 
 **완료된 작업 등록** (이미 끝낸 작업을 완료 상태로 기록):

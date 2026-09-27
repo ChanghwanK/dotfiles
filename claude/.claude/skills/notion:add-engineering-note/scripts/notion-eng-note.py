@@ -5,25 +5,24 @@ Usage:
   python3 notion-eng-note.py create --title "제목" [--group "#업무노트"] [--task <task-page-id>] [--sections /tmp/sections.json]
   python3 notion-eng-note.py list [--limit 10]
 
---task를 지정하면(Task 연결) 문제 정의/목표/비목표 섹션은 생략된다: 그 내용은 연결된
-Task 페이지의 01.문제 정의 / 04.Goals-Non Goals 섹션이 단일 출처이므로 중복 작성하지 않는다.
---task 없이 만드는 독립 노트는 참조할 Task가 없으므로 문제 정의/목표/비목표를 그대로 포함한다.
+Engineering DB의 업무 노트 템플릿(NOTE_TEMPLATE_ID)으로 페이지를 만들고, 템플릿 heading 아래를
+sections 내용으로 채운다(_lib/notion_template_fill.py). 노트가 "왜"(문제/근본 원인/기대 가치)의
+최종본이므로 --task 유무와 관계없이 모든 섹션을 쓴다. 연결된 Task의 같은 섹션은 호출자가
+notion-task.py update-why로 동기화한다.
 
-sections.json 형식 (--task 지정 시, problem/goal/non_goal 생략 가능):
+sections.json 키 (값은 마크다운, 없는 키는 템플릿의 빈 칸으로 남는다):
 {
-  "problem":  "문제 상황과 배경 (마크다운, 독립 노트에서만 사용)",
-  "goal":     "목표 (마크다운, 독립 노트에서만 사용)",
-  "non_goal": "비목표 (마크다운, 독립 노트에서만 사용)",
-  "design":   "설계 내용 (마크다운)",
-  "alternatives": "대안 검토 (마크다운)",
-  "plan":     "작업 계획 (마크다운)",
-  "history":  "작업 History (마크다운, 날짜별 진행 기록. append-content로 계속 추가 권장)",
-  "review":   "Task Review (마크다운, task:review 구조: 성과 측정/PAR/성장 회고. 상위 heading 없이 하위 섹션만)",
-  "questions": "미결 질문 (마크다운)"
+  "problem", "root_cause", "value",          # 왜 이걸 해야하는가?
+  "before", "after", "changes",              # 현재 상태와 목표 (Before | After 2열, 변경 사항)
+  "goals", "non_goals",                      # Goals | Non Goals 2열
+  "design",                                  # 설계 (선택 이유·대안·다이어그램 포함)
+  "plan", "history",                         # 실행 기록 (### 실행 계획 체크박스 / ### 진행 기록)
+  "result",                                  # 작업 결과
+  "review_metrics", "review_par", "review_retro"   # Task Review 하위 3개
 }
 
-각 섹션 제목은 템플릿이 H1으로 깔기 때문에, 섹션 내용에 쓰는 heading은 H2(##)부터 시작한다.
-호출자가 ###으로 써도 make_template_blocks가 H2 기준으로 자동 보정하므로 계층이 깨지지 않는다.
+섹션 제목이 H2/H3로 깔려 있으므로 섹션 내용의 heading은 ###만 쓴다.
+호출자가 ##로 써도 normalize_subsection_headings가 H3 기준으로 자동 보정한다.
 """
 
 import os
@@ -44,16 +43,9 @@ except Exception:  # backstop은 쓰기 경로를 절대 깨지 않는다
     def sanitize_body(text):
         return text
 try:
-    from notion_toc import placeholder_callout, build_toc_rich_text
-except Exception:  # backstop: TOC 링크 없이도 페이지 생성 자체는 깨지지 않는다
-    def placeholder_callout():
-        return {"type": "callout", "callout": {
-            "rich_text": [{"type": "text", "text": {"content": "목차"}}],
-            "icon": {"type": "emoji", "emoji": "📌"}, "color": "gray_background",
-        }}
-
-    def build_toc_rich_text(created_blocks, page_url):
-        return None, None
+    import notion_template_fill as tfill
+except Exception:  # 헬퍼를 못 읽으면 템플릿 경로 대신 대체 구조로 생성한다
+    tfill = None
 
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 DB_ID = "17964745-3170-8030-bf01-e7f20a6e1bd7"
@@ -62,11 +54,37 @@ GROUP_OPTIONS = ["#Study", "#Article", "#업무노트", "#정리"]
 # Task DB(개인 Task DB) 페이지의 관계형 속성 이름. Engineering DB "Task" 관계의 반대편.
 TASK_DB_RELATION_PROPERTY = "Working Note"
 
-# 전체 너비(Full width)는 Notion API로 설정할 수 없다. 전체 너비가 켜진 DB 템플릿으로 페이지를
-# 만들면 그 설정이 새 페이지에 이어진다(2026-09-23 실험으로 확인). 템플릿 본문은 쓰지 않고
-# 적용 직후 비운 뒤 이 스크립트의 본문으로 채운다.
-FULL_WIDTH_TEMPLATE_ID = "2e464745-3170-80b7-98a3-fa768cbaa8b0"  # Engineering DB "[#업무 노트]" 템플릿
+# Engineering DB "[#업무 노트]" 템플릿(목차·섹션·2열 배치 포함). 템플릿 구조는 Notion이 단일 출처이고,
+# 스크립트는 아래 heading 이름으로 채울 자리를 찾는다. 전체 너비 같은 페이지 설정도 템플릿에서 이어진다
+# (Notion API로는 너비를 설정할 수 없다).
+NOTE_TEMPLATE_ID = "3e864745-3170-803d-a912-e4ee9c81b16f"
+# (sections 키, 템플릿 heading, 접두어 매칭 여부). 접두어 매칭은 괄호 설명이 바뀌기 쉬운 Task Review 하위 heading용.
+SECTION_HEADINGS = [
+    ("problem", "문제", False),
+    ("root_cause", "근본 원인", False),
+    ("value", "기대 가치", False),
+    ("before", "Before", False),
+    ("after", "After", False),
+    ("changes", "변경 사항", False),
+    ("goals", "Goals", False),
+    ("non_goals", "Non Goals", False),
+    ("design", "설계", False),
+    ("result", "작업 결과", False),
+    ("review_metrics", "성과 측정", True),
+    ("review_par", "성과 문장", True),
+    ("review_retro", "성장 회고", True),
+]
+RUN_LOG_HEADING = "실행 기록"
+PLAN_SUBHEADING = "실행 계획"
+HISTORY_SUBHEADING = "진행 기록"
+# review: task:review·alfred gate 출력처럼 "### 성과 측정 / ### ...성과 문장 / ### 성장 회고"를 한 문자열로
+# 받는 편의 키. 하위 heading으로 나눠 review_* 세 섹션에 넣는다(REVIEW_SPLIT_RULES).
+SECTION_KEYS = [key for key, _, _ in SECTION_HEADINGS] + ["plan", "history", "review"]
+REVIEW_SPLIT_RULES = [("성과 측정", "review_metrics"), ("성과 문장", "review_par"),
+                      ("PAAR", "review_par"), ("PAR", "review_par"), ("성장 회고", "review_retro")]
 TEMPLATE_APPLY_TIMEOUT_SEC = 30
+# 템플릿 본문이 들어온 뒤 heading이 다 보이기를 기다리는 시간. 넘기면 템플릿 본문이 우리 구조와 다르다고 본다.
+TEMPLATE_SETTLE_SEC = 5
 NOTION_APPEND_BATCH = 100  # children append 한 번에 넣을 수 있는 최대 블록 수
 
 
@@ -384,16 +402,16 @@ def md_to_blocks(text):
     return blocks
 
 
-MIN_SUBSECTION_HEADING_LEVEL = 2  # 섹션 제목이 H1이므로 섹션 내용의 최상위 heading은 H2다
+MIN_SUBSECTION_HEADING_LEVEL = 3  # 섹션 제목이 H2(설계, 실행 기록 등)이므로 섹션 내용의 최상위 heading은 H3다
 MAX_NOTION_HEADING_LEVEL = 3      # Notion은 heading_3까지만 지원한다
 
 
 def normalize_subsection_headings(blocks):
-    """섹션 내용의 heading 최상위 레벨을 H2로 맞춘다 (상대 깊이는 보존).
+    """섹션 내용의 heading 최상위 레벨을 H3로 맞춘다 (상대 깊이는 보존).
 
-    템플릿이 각 섹션 제목을 H1으로 깔기 때문에, 섹션 내용이 H3부터 시작하면
-    H1 바로 아래 H3이 오는 계층 건너뜀이 생긴다. 호출자마다 ## / ### 중 무엇을 쓸지
-    엇갈리므로(문서화만으로는 반복 교정이 필요했다) 여기서 결정론적으로 보정한다.
+    템플릿이 각 섹션 제목을 H2로 깔기 때문에, 섹션 내용이 H2로 시작하면 섹션 경계가 깨지고
+    (다음 섹션 제목과 같은 레벨) H1이면 계층이 뒤집힌다. 호출자마다 ## / ### 중 무엇을 쓸지
+    엇갈리므로 여기서 결정론적으로 보정한다.
 
     Notion heading이 3단계뿐이라 H3을 넘는 깊이는 H3으로 접힌다. 접힘이 실제로
     발생하면 형제 관계가 뭉개지므로 stderr로 알린다.
@@ -427,141 +445,187 @@ def normalize_subsection_headings(blocks):
     if collapsed:
         print(
             "WARN: 섹션 내용의 heading 깊이가 Notion 한계(H3)를 넘어 일부가 H3으로 접혔습니다. "
-            "섹션 내용은 ## / ### 두 단계까지만 쓰십시오.",
+            "섹션 내용에는 heading을 ### 한 단계만 쓰십시오.",
             file=sys.stderr,
         )
     return blocks
 
 
-def make_template_blocks(sections=None, linked_to_task=False):
-    """업무 노트 템플릿 블록 구조 생성.
+def _h(level, text):
+    htype = f"heading_{level}"
+    return {"type": htype, htype: {"rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"}}
 
-    sections: dict with keys: problem, goal, non_goal, design, alternatives, plan, history, review, questions
-    값이 있으면 해당 섹션에 내용 채움. 없으면 placeholder 사용.
 
-    linked_to_task: True면 problem/goal/non_goal 섹션을 생략한다: 그 내용은 연결된 Task
-    페이지(01.문제 정의 / 04.Goals-Non Goals)가 단일 출처이므로 여기서 중복 작성하지 않는다.
+def build_section_blocks(sections):
+    """sections dict → {heading 텍스트: [blocks]}. 키는 SECTION_HEADINGS 참조.
+
+    '실행 기록'은 plan과 history를 한 섹션에 담는다: plan이 있으면 '### 실행 계획' 아래 체크박스로,
+    기록은 '### 진행 기록' 아래에 둔다. 이후 append-content --section "실행 기록"으로 덧붙이는
+    날짜별 기록이 섹션 끝(진행 기록 아래)에 쌓이게 하기 위한 배치다.
     """
-    s = sections or {}
+    unknown = sorted(set(sections) - set(SECTION_KEYS))
+    if unknown:
+        raise ValueError(f"알 수 없는 sections 키: {unknown}. 허용: {list(SECTION_KEYS)}")
 
-    def h1(text):
-        return {"type": "heading_1", "heading_1": {
-            "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
-        }}
+    def parsed(key):
+        content = (sections.get(key) or "").strip()
+        return normalize_subsection_headings(md_to_blocks(content)) if content else []
 
-    def h2(text):
-        return {"type": "heading_2", "heading_2": {
-            "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
-        }}
+    if (sections.get("review") or "").strip():
+        if any(sections.get(k) for k in ("review_metrics", "review_par", "review_retro")):
+            raise ValueError("review와 review_* 키를 함께 쓸 수 없습니다")
+        sections = {**sections, **split_review(sections["review"])}
 
-    def quote(text=""):
-        return {"type": "quote", "quote": {
-            "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
-        }}
+    filled = {}
+    for key, heading, _prefix in SECTION_HEADINGS:
+        blocks = parsed(key)
+        if blocks:
+            filled[heading] = blocks
 
-    def paragraph(text=""):
-        return {"type": "paragraph", "paragraph": {
-            "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
-        }}
+    plan, history = parsed("plan"), parsed("history")
+    run_log = []
+    if plan:
+        run_log += [_h(3, PLAN_SUBHEADING), *plan]
+    if plan or history:
+        run_log += [_h(3, HISTORY_SUBHEADING), *history]
+    if run_log:
+        filled[RUN_LOG_HEADING] = run_log
+    return filled
 
-    def todo(text, checked=False):
-        return {"type": "to_do", "to_do": {
-            "rich_text": [{"type": "text", "text": {"content": text}}],
-            "checked": checked, "color": "default"
-        }}
 
-    def bullet(text):
-        return {"type": "bulleted_list_item", "bulleted_list_item": {
-            "rich_text": [{"type": "text", "text": {"content": text}}], "color": "default"
-        }}
+def split_review(markdown):
+    """review 마크다운을 하위 heading(### 성과 측정 등) 기준으로 review_* 키별 마크다운으로 나눈다.
 
-    def divider():
-        return {"type": "divider", "divider": {}}
+    heading 줄 자체는 버린다(템플릿에 같은 heading이 이미 있다). 규칙에 없는 heading이나 heading 앞의
+    본문이 있으면 어디에 넣을지 알 수 없으므로 페이지를 만들기 전에 실패시킨다.
+    """
+    split, current = {}, None
+    for line in markdown.strip().split("\n"):
+        match = re.match(r"^#{1,3}\s+(.+?)\s*$", line)
+        if match:
+            title = match.group(1)
+            current = next((key for prefix, key in REVIEW_SPLIT_RULES if title.startswith(prefix)), None)
+            if current is None:
+                raise ValueError(f"review의 하위 heading을 Task Review 섹션에 매핑할 수 없습니다: {title}")
+            split.setdefault(current, [])
+            continue
+        if current is None:
+            if line.strip():
+                raise ValueError("review는 '### 성과 측정' 같은 하위 heading으로 시작해야 합니다")
+            continue
+        split[current].append(line)
+    return {key: "\n".join(lines).strip() for key, lines in split.items()}
+
+
+def make_fallback_blocks(filled):
+    """템플릿 적용이 실패했을 때 템플릿과 같은 구조를 직접 조립한다(전체 너비 등 템플릿 설정만 빠진다).
+
+    filled: build_section_blocks 결과. 없는 섹션은 빈 불릿 placeholder로 둔다.
+    """
+    def bullet():
+        return {"type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [], "color": "default"}}
+
+    def section(level, heading):
+        return [_h(level, heading), *(filled.get(heading) or [bullet()])]
 
     def column_list(columns):
         return {"type": "column_list", "column_list": {"children": [
             {"type": "column", "column": {"children": col}} for col in columns
         ]}}
 
-    def section_blocks(key, placeholders):
-        """섹션 내용 반환: sections[key]가 있으면 파싱, 없으면 placeholder."""
-        content = s.get(key, "").strip()
-        if content:
-            return normalize_subsection_headings(md_to_blocks(content))
-        return placeholders
-
-    section_count = (0 if linked_to_task else 2) + 6  # 6개 공통 섹션 + (독립 노트만) 문제정의/목표비목표
-    n = iter(range(1, section_count + 1))
-
-    blocks = [
-        # TOC 콜아웃 placeholder: cmd_create가 페이지 생성 후 각 heading/Goal-Non-goal
-        # 문단의 실제 block id로 링크를 채운다 (build_toc_rich_text).
-        placeholder_callout(),
+    toc = {"type": "callout", "callout": {
+        "rich_text": [], "icon": {"type": "emoji", "emoji": "📌"}, "color": "default",
+        "children": [{"type": "table_of_contents", "table_of_contents": {"color": "gray"}}],
+    }}
+    headings = {key: heading for key, heading, _ in SECTION_HEADINGS}
+    return [
+        toc,
+        _h(2, "왜 이걸 해야하는가?"),
+        *section(3, headings["problem"]),
+        *section(3, headings["root_cause"]),
+        *section(3, headings["value"]),
+        _h(2, "현재 상태와 목표"),
+        column_list([section(3, headings["before"]), section(3, headings["after"])]),
+        *section(3, headings["changes"]),
+        column_list([section(3, headings["goals"]), section(3, headings["non_goals"])]),
+        *section(2, headings["design"]),
+        *section(2, RUN_LOG_HEADING),
+        *section(2, headings["result"]),
+        {"type": "divider", "divider": {}},
+        _h(2, "Task Review"),
+        *section(3, headings["review_metrics"]),
+        *section(3, headings["review_par"]),
+        *section(3, headings["review_retro"]),
     ]
 
-    if not linked_to_task:
-        # 문제 정의 (독립 노트에만 포함, Task 연결 노트는 연결된 Task 01.문제 정의가 단일 출처)
-        blocks += [
-            h1(f"{next(n)}. 문제 정의"),
-            *section_blocks("problem", [
-                paragraph("현재 어떤 상황이고, 무엇이 문제인가?"),
-                paragraph("해결하지 않으면 어떤 일이 생기나? (왜 진행하는가?)"),
-            ]),
-            divider(),
-            # 목표 / 비목표 (독립 노트에만 포함, Task 연결 노트는 04.Goals-Non Goals가 단일 출처)
-            h1(f"{next(n)}. 목표 / 비목표"),
-            # 목표와 비목표를 나란히 비교할 수 있게 2열로 둔다
-            column_list([
-                [paragraph("Goal"), *section_blocks("goal", [quote()])],
-                [paragraph("Non-goal"), *section_blocks("non_goal", [quote()])],
-            ]),
-            divider(),
-        ]
 
-    blocks += [
-        # 설계
-        h1(f"{next(n)}. 설계"),
-        *section_blocks("design", [quote()]),
-        divider(),
-        # 대안 검토
-        h1(f"{next(n)}. 대안 검토"),
-        *section_blocks("alternatives", [paragraph("")]),
-        divider(),
-        # 작업 계획: 더미 to_do("작업 1")는 미기입 상태인데 깨진 본문처럼 보여
-        # 안내 문구형 placeholder로 교체 (2026-07-15)
-        h1(f"{next(n)}. 작업 계획"),
-        *section_blocks("plan", [
-            quote("미기입: 실행 단계를 체크리스트(- [ ])로 작성. Phase 구분과 예상 리스크 포함 권장"),
-        ]),
-        divider(),
-        # 작업 History: 진행하며 append-content로 날짜별 기록을 계속 추가한다
-        h1(f"{next(n)}. 작업 History"),
-        *section_blocks("history", [
-            bullet("YYYY-MM-DD: 무엇을 했는지, 어떤 이슈가 있었는지 한 줄로"),
-        ]),
-        divider(),
-        # Task Review: 완료 후 작성. task:review 출력 구조(성과 측정/PAR/성장 회고)와
-        # 포맷을 통일한다 (2026-07-15: 템플릿과 gate가 쓰는 포맷이 달라 중복 섹션 발생)
-        h1(f"{next(n)}. Task Review"),
-        # 미기입 placeholder도 H2로 둔다: 섹션 제목이 H1이라 하위 제목은 H2여야 하고,
-        # 빈 템플릿이 그 레벨을 그대로 보여줘야 Notion UI에서 이어 쓸 때도 계층이 유지된다.
-        *section_blocks("review", [
-            h2("성과 측정"),
-            quote(""),
-            h2("성과 문장 (PAR: 대표 PAR / 이력서 bullet / 확장형)"),
-            quote(""),
-            h2("성장 회고 (Keep / Try)"),
-            quote(""),
-        ]),
-        divider(),
-        # 미결 질문
-        h1(f"{next(n)}. 미결 질문"),
-        *section_blocks("questions", [
-            todo("아직 결정 안 된 것 (@담당자 YYYY-MM-DD까지)"),
-            todo("확인 필요한 것"),
-        ]),
-    ]
-    return blocks
+def create_from_template(parent, properties, filled, template_id):
+    """노트 템플릿으로 페이지를 만들고 섹션을 채운다.
+
+    전체 너비 같은 페이지 설정은 템플릿에서만 이어받을 수 있으므로(API로 설정 불가), 템플릿이 적용된 페이지는
+    가능한 한 버리지 않는다.
+    - 템플릿 본문에 우리 heading이 모두 있으면 heading 아래를 채운다(body_source="template").
+    - 템플릿은 적용됐는데 heading이 없거나 모자라면(템플릿 본문을 누가 고친 경우) 본문을 비우고 같은 구조를
+      직접 조립해 넣는다(body_source="script"). 페이지 설정은 그대로 남는다.
+    - 템플릿 자체가 적용되지 않으면 페이지를 휴지통으로 보내고 (None, 사유, None)을 반환한다.
+    반환: (생성 응답, 오류 사유 또는 None, body_source)
+    """
+    if tfill is None:
+        return None, "notion_template_fill 헬퍼를 불러오지 못함", None
+    resp = notion_request("POST", "/pages", {
+        "parent": parent,
+        "properties": properties,
+        "template": {"type": "template_id", "template_id": template_id},
+    })
+    if resp.get("object") == "error":
+        return None, f"템플릿 생성 실패: {resp.get('message', '')}", None
+    page_id = resp["id"]
+
+    def discard(reason):
+        notion_request("PATCH", f"/pages/{page_id}", {"in_trash": True})
+        return None, reason, None
+
+    request = lambda method, path, body=None: notion_request(method, path, body)
+    exact = [RUN_LOG_HEADING] + [h for _, h, prefix in SECTION_HEADINGS if not prefix]
+    prefixed = [h for _, h, prefix in SECTION_HEADINGS if prefix]
+
+    deadline = time.monotonic() + TEMPLATE_APPLY_TIMEOUT_SEC
+    body_seen_at = None
+    while True:
+        groups = tfill.load_tree(request, page_id)
+        if groups and groups[0]["blocks"]:
+            if not tfill.find_missing(groups, exact) and not tfill.find_missing(groups, prefixed, prefix=True):
+                break
+            body_seen_at = body_seen_at or time.monotonic()
+            if time.monotonic() - body_seen_at > TEMPLATE_SETTLE_SEC:
+                return rebuild_in_place(page_id, filled, resp, discard)
+        elif time.monotonic() > deadline:
+            return discard(f"템플릿 본문이 {TEMPLATE_APPLY_TIMEOUT_SEC}초 안에 적용되지 않음")
+        time.sleep(1)
+
+    prefix_of = {h: prefix for _, h, prefix in SECTION_HEADINGS}
+    for heading, blocks in filled.items():
+        result = tfill.fill_section(request, groups, heading, blocks, prefix=prefix_of.get(heading, False))
+        if result is not None:
+            reason = result.get("message", "") if isinstance(result, dict) else result
+            return discard(f"'{heading}' 섹션 채우기 실패: {reason}")
+    return resp, None, "template"
+
+
+def rebuild_in_place(page_id, filled, resp, discard):
+    """템플릿이 적용된 페이지의 본문을 비우고 표준 구조를 직접 넣는다(페이지 설정은 유지)."""
+    print("WARN: 템플릿 본문에 노트 heading이 없어 구조를 직접 만듭니다. 템플릿 본문이 바뀌었는지 확인하세요.",
+          file=sys.stderr)
+    erased = notion_request("PATCH", f"/pages/{page_id}", {"erase_content": True})
+    if erased.get("object") == "error":
+        return discard(f"템플릿 본문 비우기 실패: {erased.get('message', '')}")
+    blocks = make_fallback_blocks(filled)
+    deferred = defer_column_grandchildren(blocks)
+    appended = append_blocks(page_id, blocks)
+    if appended is not None:
+        return discard(f"구조 추가 실패: {appended.get('message', '')}")
+    restore_column_grandchildren(list_children(page_id), deferred)
+    return resp, None, "script"
 
 
 def link_task_relation(task_id, note_page_id):
@@ -625,18 +689,6 @@ def restore_column_grandchildren(created_blocks, deferred):
                     append_blocks(child["id"], grandchildren)
 
 
-def flatten_columns(created_blocks):
-    """목차가 열 안의 Goal/Non-goal 문단도 찾을 수 있게 column_list를 열 내용으로 펼친다."""
-    flat = []
-    for block in created_blocks:
-        if block.get("type") == "column_list":
-            for column in list_children(block["id"]):
-                flat += list_children(column["id"])
-        else:
-            flat.append(block)
-    return flat
-
-
 def append_blocks(page_id, blocks):
     """블록을 NOTION_APPEND_BATCH 단위로 나눠 페이지 끝에 붙인다. 실패하면 error 응답을 반환한다."""
     for start in range(0, len(blocks), NOTION_APPEND_BATCH):
@@ -645,49 +697,6 @@ def append_blocks(page_id, blocks):
         if resp.get("object") == "error":
             return resp
     return None
-
-
-def create_full_width_page(parent, properties, blocks):
-    """전체 너비 템플릿으로 페이지를 만들고 템플릿 본문을 노트 본문으로 교체한다.
-
-    템플릿은 생성 응답 이후 백그라운드에서 적용되고 적용 시 본문을 교체한다. 적용 전에 본문을
-    붙이면 덮어써질 수 있으므로, 템플릿 본문이 들어온 것을 확인한 뒤 비우고 붙인다.
-
-    반환: (생성 응답, 전체 너비 적용 여부). 이 경로가 실패하면 만든 페이지를 휴지통으로 보내고
-    (None, False)를 반환해 호출자가 기존 방식으로 다시 만들게 한다.
-    """
-    resp = notion_request("POST", "/pages", {
-        "parent": parent,
-        "properties": properties,
-        "template": {"type": "template_id", "template_id": FULL_WIDTH_TEMPLATE_ID},
-    })
-    if resp.get("object") == "error":
-        print(f"WARN: 템플릿 생성 실패, 기본 너비로 생성합니다: {resp.get('message', '')}", file=sys.stderr)
-        return None, False
-    page_id = resp["id"]
-
-    def discard(reason):
-        print(f"WARN: {reason}, 기본 너비로 다시 생성합니다.", file=sys.stderr)
-        notion_request("PATCH", f"/pages/{page_id}", {"in_trash": True})
-        return None, False
-
-    deadline = time.monotonic() + TEMPLATE_APPLY_TIMEOUT_SEC
-    while True:
-        children = notion_request("GET", f"/blocks/{page_id}/children?page_size=1")
-        if children.get("results"):
-            break
-        if time.monotonic() > deadline:
-            return discard(f"템플릿이 {TEMPLATE_APPLY_TIMEOUT_SEC}초 안에 적용되지 않음")
-        time.sleep(1)
-
-    erased = notion_request("PATCH", f"/pages/{page_id}", {"erase_content": True})
-    if erased.get("object") == "error":
-        return discard(f"템플릿 본문 비우기 실패: {erased.get('message', '')}")
-
-    appended = append_blocks(page_id, blocks)
-    if appended is not None:
-        return discard(f"본문 추가 실패: {appended.get('message', '')}")
-    return resp, True
 
 
 def cmd_create(args):
@@ -718,20 +727,26 @@ def cmd_create(args):
         properties["Task"] = {"relation": [{"id": task_id}]}
 
     try:
-        blocks = make_template_blocks(sections, linked_to_task=bool(task_id))
-    except ValueError as e:  # 이미지 업로드 실패: 페이지를 만들기 전에 멈춰 반쪽짜리 노트를 남기지 않는다
+        filled = build_section_blocks(sections)
+    except ValueError as e:  # 알 수 없는 키·이미지 업로드 실패: 페이지를 만들기 전에 멈춰 반쪽짜리 노트를 남기지 않는다
         print(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False))
         sys.exit(1)
-    deferred = defer_column_grandchildren(blocks)
     parent = {"type": "data_source_id", "data_source_id": resolve_ds_id(DB_ID)}
 
-    full_width = False
-    resp = None
-    if not args.no_full_width:
-        resp, full_width = create_full_width_page(parent, properties, blocks)
+    resp, template_error, body_source = None, None, None
+    if not args.no_template:
+        resp, template_error, body_source = create_from_template(parent, properties, filled, args.template_id)
+        if template_error:
+            print(f"WARN: {template_error}. 템플릿 없이 같은 구조로 다시 생성합니다.", file=sys.stderr)
+    template_applied = resp is not None
+
     if resp is None:
-        # 템플릿 경로를 끈 경우와 템플릿 적용이 실패한 경우: 본문을 생성 요청에 함께 넣는 기존 방식
+        # 템플릿을 끈 경우와 템플릿 적용이 실패한 경우: 같은 구조를 조립해 생성 요청에 함께 넣는다
+        blocks = make_fallback_blocks(filled)
+        deferred = defer_column_grandchildren(blocks)
         resp = notion_request("POST", "/pages", {"parent": parent, "properties": properties, "children": blocks})
+        if resp.get("object") != "error":
+            restore_column_grandchildren(list_children(resp["id"]), deferred)
 
     if resp.get("object") == "error":
         print(json.dumps({
@@ -742,15 +757,6 @@ def cmd_create(args):
 
     page_id = resp.get("id", "")
     page_url = resp.get("url", f"https://www.notion.so/{page_id.replace('-', '')}")
-
-    # POST /pages 응답은 생성된 자식 블록의 id를 담지 않으므로, 콜아웃/heading id를
-    # 얻으려면 별도로 top-level children을 조회해야 한다.
-    children_resp = notion_request("GET", f"/blocks/{page_id}/children?page_size=100")
-    created_blocks = children_resp.get("results", []) if children_resp.get("object") != "error" else []
-    restore_column_grandchildren(created_blocks, deferred)
-    callout_id, toc_rich_text = build_toc_rich_text(flatten_columns(created_blocks), page_url)
-    if callout_id:
-        notion_request("PATCH", f"/blocks/{callout_id}", {"callout": {"rich_text": toc_rich_text}})
 
     task_linked = False
     task_link_error = None
@@ -768,12 +774,16 @@ def cmd_create(args):
         "title": title,
         "group": group,
         "url": page_url,
-        "full_width": full_width,
+        "template_applied": template_applied,
+        "body_source": body_source or "script",
         "task_linked": task_linked,
     }
+    if template_error:
+        result["template_error"] = template_error
     if task_link_error:
         result["task_link_error"] = task_link_error
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
 
 
 def cmd_list(args):
@@ -823,11 +833,11 @@ def main():
     create_p.add_argument("--task", default="",
                           help="연결할 Notion Task 페이지 ID. 지정 시 노트↔Task 양방향 relation을 건다")
     create_p.add_argument("--sections", default="",
-                          help="섹션 내용이 담긴 JSON 파일 경로 "
-                               "(keys: design, alternatives, plan, history, review, questions; "
-                               "problem/goal/non_goal은 --task 미지정 독립 노트에서만 사용)")
-    create_p.add_argument("--no-full-width", action="store_true",
-                          help="전체 너비 템플릿을 쓰지 않고 기본 너비로 생성")
+                          help=f"섹션 내용이 담긴 JSON 파일 경로 (keys: {', '.join(SECTION_KEYS)})")
+    create_p.add_argument("--no-template", action="store_true",
+                          help="템플릿을 적용하지 않고 같은 구조를 직접 조립해 생성")
+    create_p.add_argument("--template-id", dest="template_id", default=NOTE_TEMPLATE_ID,
+                          help=argparse.SUPPRESS)  # 대체 경로 검증용 override
 
     # list
     list_p = subparsers.add_parser("list", help="최근 업무 노트 목록 조회")

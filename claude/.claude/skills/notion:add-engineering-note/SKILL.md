@@ -1,7 +1,9 @@
 ---
 name: notion:add-engineering-note
 description: |
-  Notion Engineering DB에 업무 노트 페이지를 생성하고 내용을 작성하는 스킬.
+  Notion Engineering DB에 업무 노트를 만드는 스킬. grill-me로 인터뷰해 설계 판단의 빈틈을 메우고,
+  tasks:tech-spec 방법론(문제 검증 게이트, Goal Challenge, 리뷰 Agent)으로 내용을 확정한 뒤
+  업무 노트 템플릿에 저장한다. 연결된 Task의 문제/근본 원인/기대 가치도 노트 최종본으로 맞춘다.
   사용 시점: (1) 인프라/시스템 설계 대화 후 결과를 Notion에 정리, (2) 의사결정 문서화,
   (3) 기술 검토/설계 노트 생성, (4) 이슈 분석 노트 작성.
   트리거 키워드: "업무 노트", "engineering note", "노트 생성", "eng-note",
@@ -9,38 +11,38 @@ description: |
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-why *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
-  - Write(/tmp/eng-note-sections.json)
-  - mcp__claude_ai_Notion__notion-fetch
+  - Skill
+  - Write
 ---
 
 # Engineering Note Skill
 
-Claude와의 설계/의사결정 대화 내용을 Engineering DB 업무 노트로 자동 생성하는 워크플로우.
+설계·의사결정 작업을 **인터뷰(grill-me) → 스펙 확정(tasks:tech-spec) → 노트 저장** 순서로 Engineering DB
+업무 노트에 남긴다. 대화에서 나온 내용을 그대로 옮기지 않고, 인터뷰로 빈틈을 메우고 스펙 게이트로
+검증한 결과를 저장하는 것이 목적이다.
 
 ---
 
 ## 핵심 원칙
 
-- 본문 작성 시 `~/.claude/docs/notion-writing-style.md`의 "쓰기 시점 체크리스트"를 초안 단계부터 직접 적용한다:
-  - 불릿 `레이블: 내용`은 레이블을 `*레이블:*`(이탤릭)로 직접 쓴다.
-  - 레이블을 상위 불릿, 내용을 한 단계 들여쓴 하위 불릿으로 항상 중첩한다. 내용이 한 줄이어도 인라인으로 붙이지 않는다.
-  - 버전/태그/상태 전환은 "to" 대신 화살표(`→`)로 직접 쓴다.
-  - Goals/Non-Goals류 구조적 섹션은 볼드 텍스트가 아니라 실제 헤딩(`##`/`###`)으로 직접 쓴다. 단 아래 "독립 노트" `goal`/`non_goal` 섹션은 스크립트가 TOC 서브 앵커용 평문 라벨을 직접 생성하는 예외이므로 이 규칙 대상이 아니다.
-  - 여러 섹션에 같은 사실을 재진술하지 않는다: 한 사실은 가장 적합한 섹션에만 쓴다.
-  - Summary/불릿 목록은 결론·핵심 판단을 첫 불릿에 둔다.
-  - 코드 블록은 실행형 명령어/설정 전체에만 쓰고, 일반 명사·강조 목적으로 쓰지 않는다(강조는 볼드).
-  em dash/본문 이모지, "to"→화살표(숫자 버전·backtick 값 한정)는 쓰기 스크립트가 추가로 결정적 backstop을 건다.
-- **PR 참조는 링크 멘션으로.** 본문에서 PR을 언급할 때 `PR #1234` 같은 plain text 대신 GitHub PR의
-  실제 URL(`https://github.com/riiid/kubernetes/pull/1234`)을 그대로 붙인다. Notion이 bare URL을
-  자동으로 언마크(unfurl)해 리치 프리뷰/멘션으로 렌더링한다.
-- **대화 내용을 템플릿에 매핑**한다. 섹션별로 대화에서 나온 내용을 추출해 채운다.
-- 내용이 없는 섹션은 placeholder 유지: 억지로 채우지 않는다.
-- **페이지 맨 위 목차(TOC) 콜아웃은 스크립트가 자동으로 만든다.** 페이지 생성 직후
-  각 heading과 Goal/Non-goal 문단으로 링크가 걸린 📌 콜아웃을 붙이므로, Claude가
-  `sections` 값에 목차 텍스트를 직접 넣지 않는다.
-- 스크립트만 호출한다. Notion MCP 도구 사용 금지 (토큰 효율).
-- 토큰은 환경변수 `$NOTION_TOKEN` 사용 (`~/.secrets.zsh`에서 로드됨).
+- **노트가 최종본이다.** 문제/근본 원인/기대 가치는 Task에도 있지만(캡처 시점 이해), 노트를 쓰는 시점의
+  정제된 내용이 최종본이다. 노트를 만들 때 연결된 Task의 같은 섹션을 `update-why`로 최종본으로 교체한다.
+  이후 수정도 노트에서 한다. Task의 `작업 Context`는 캡처 기록이므로 건드리지 않는다.
+- **템플릿이 구조의 단일 출처다.** 스크립트가 Notion 템플릿(`NOTE_TEMPLATE_ID`)을 적용하고 heading 아래를
+  채운다. Claude는 sections JSON만 만든다. 목차는 템플릿의 네이티브 목차 블록이 자동으로 만든다.
+- **추정으로 채우지 않는다.** 인터뷰·세션에 근거가 없는 섹션은 키를 생략해 템플릿의 빈 칸으로 둔다.
+- 본문은 `~/.claude/docs/notion-writing-style.md`의 "쓰기 시점 체크리스트"를 초안 단계부터 적용한다:
+  - 불릿 `레이블: 내용`은 레이블을 `*레이블:*`(이탤릭) 상위 불릿으로, 내용은 한 단계 들여쓴 하위 불릿으로 쓴다.
+  - 버전/태그/상태 전환은 "to" 대신 화살표(`→`)로 쓴다.
+  - 여러 섹션에 같은 사실을 재진술하지 않는다. 한 사실은 가장 적합한 섹션에만 쓴다.
+  - 불릿 목록은 결론·핵심 판단을 첫 불릿에 둔다.
+  - 코드 블록은 실행형 명령어/설정 전체에만 쓰고, 강조는 볼드로 한다.
+  - em dash/본문 이모지, "to"→화살표(숫자 버전·backtick 값 한정)는 쓰기 스크립트가 결정적 backstop을 건다.
+- **PR 참조는 링크 멘션으로.** `PR #1234` 대신 실제 URL(`https://github.com/riiid/kubernetes/pull/1234`)을 붙인다.
+- 스크립트만 호출한다. Notion MCP 도구는 쓰지 않는다(토큰 효율). 토큰은 `$NOTION_TOKEN`을 쓴다.
 - 생성 후 URL을 반드시 출력한다.
 
 ---
@@ -57,211 +59,195 @@ Claude와의 설계/의사결정 대화 내용을 Engineering DB 업무 노트�
 | Task | relation | 개인 Task DB 관계 (반대편 속성: Task DB의 `Working Note`) |
 | Task Status | rollup | Task의 `상태` (read-only, 자동) |
 
-`Tag` multi_select는 실제 DB에 존재하지 않는다 (2026-07-07 드리프트 발견 후 제거). 태그가 필요하면 Task DB 쪽 속성을 사용한다.
+---
+
+## 템플릿 구조와 sections 키
+
+```
+[📌 목차]
+## 왜 이걸 해야하는가?
+### 문제              ← problem
+### 근본 원인         ← root_cause
+### 기대 가치         ← value
+## 현재 상태와 목표
+[ ### Before ← before | ### After ← after ]
+### 변경 사항         ← changes
+[ ### Goals ← goals | ### Non Goals ← non_goals ]
+## 설계               ← design
+## 실행 기록          ← plan (### 실행 계획), history (### 진행 기록)
+## 작업 결과          ← result
+---
+## Task Review
+### 성과 측정         ← review_metrics
+### 성과 문장 (...)   ← review_par
+### 성장 회고 (...)   ← review_retro
+```
+
+- 섹션 제목이 H2/H3이므로 섹션 내용에는 heading을 `###`만 쓴다(스크립트가 H3 기준으로 보정한다).
+- 2열(Before/After, Goals/Non Goals) 안의 불릿도 2단계 중첩까지 쓸 수 있다.
+- `plan`이 있으면 `### 실행 계획` 체크박스 아래에 `### 진행 기록`이 생기고, 이후 기록은 `실행 기록` 섹션 끝에 쌓인다.
 
 ---
 
-## Primary Workflow: 대화 → Notion 노트
+## 워크플로우
 
-### 역할 분리: Task 문서 vs Engineering Note
+### Step 0: 연결할 Task 확정 + Task 본문 읽기
 
-Task를 연결하면(`--task`) 노트↔Task가 양방향 relation으로 묶인다. 이 경우 **문제 정의 /
-목표 / 비목표는 작성하지 않는다**: 그 내용은 이미 연결된 Task 페이지의
-`01. 문제 정의` / `04. Goals/Non Goals` 섹션이 단일 출처이므로, Engineering Note에
-그대로 다시 쓰면 두 문서가 어긋날 때(Task는 갱신되고 노트는 그대로인 경우 등) 어느 쪽이
-맞는지 판단할 근거가 없어진다. Engineering Note는 Task가 다루지 않는 부분,
-즉 **설계 판단 · 실행 과정 · 사후 회고**를 담당한다.
+- 대화에 Task 링크나 page_id가 있으면 그대로 쓴다. grill-me에서 넘어왔는데 Task가 없으면 묻지 않고 `tasks:capture`를
+  인터뷰 결과와 함께 호출해 Task를 만든 뒤 그 page_id로 진행한다. 그 외에 Task가 없으면 "이 노트를 연결할 Task가 있나요?"라고 한 번 묻는다.
+  연결할 Task가 없는데 실제 업무라면 `tasks:capture`로 먼저 Task를 만들고 이어간다. 순수 학습/정리 노트만
+  Task 없이 만든다.
+- Task 본문을 읽어 캡처 시점의 문제/근본 원인/기대 가치와 `작업 Context`(확인한 사실, 관련 리소스, 검토한 것)를
+  인터뷰의 출발점으로 삼는다.
 
-`--task` 없이 만드는 **독립 노트**(순수 학습/정리, 연결할 Task가 없는 경우)는 참조할
-Task 페이지가 없으므로 문제 정의/목표/비목표를 그대로 포함한다. 스크립트가
-`--task` 유무로 자동 분기하므로(`linked_to_task`), Claude는 어느 케이스인지만 판단해
-아래 표의 해당 키만 채우면 된다.
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page --page-id "<task-page-id>"
+```
 
-### 업무 Plan의 원본: Task의 `05. 세부 계획`
+### Step 1: grill-me 인터뷰
 
-`plan`(작업 계획) 섹션은 Engineering Note에서 새로 창작하는 것이 아니라, **연결된 Task 페이지의
-`## 05. 세부 계획`을 업무 Plan으로 승격시킨 결과**다.
+`grill-me`를 Skill 도구로 호출한다. args에 **eng-note 모드**임과 Task 본문 요약을 넘긴다.
 
-위 "역할 분리"에서 문제 정의/목표/비목표는 Task가 단일 출처라 노트에 다시 쓰지 않는다고 했는데,
-세부 계획만 예외로 옮기는 이유는 **두 문서가 담는 시점이 다르기 때문**이다. Task의 `05. 세부 계획`은
-착수 시점의 계획이고, 노트의 `plan`은 그 계획을 실행 상태와 함께 보관하는 자리다. 노트가
-`작업 History` / `Task Review`를 함께 들고 있으므로 실행 기록의 단일 출처는 노트 쪽이 맞다.
+- 인터뷰 대상: 문제·근본 원인이 현상이 아니라 메커니즘인가, Before/After가 구체적인가, Goals/Non Goals의
+  경계가 분명한가, 설계 결정마다 이유와 기각한 대안이 있는가.
+- grill-me의 라운드 진행(frontier·추천 답·가벼운 합의 확인)과 탈출 경로를 그대로 따른다. 사용자가 "인터뷰 생략"을 명시하면 Step 2를
+  Quick mode로 진행한다(Claude가 스스로 생략하지 않는다).
+- 인터뷰 결과(확정된 결정, 해소된 Gap, 남은 Gap)는 Step 2의 입력이 된다.
+- grill-me에서 이 스킬로 넘어온 경우(args에 "grill-me 인터뷰 완료")는 인터뷰를 다시 하지 않고 Step 2로 간다.
 
-- 옮길 때 실제 수행 상태를 반영한다: 완료 항목은 `- [x]`, 남은 항목은 `- [ ]`.
-- Task 본문의 `*롤백:*` 라벨 불릿도 함께 옮긴다. 실행 항목은 아니지만 업무 Plan의 일부다.
-- **계획이 실행 중 바뀌었으면 바뀐 최종 계획을 `plan`에 담고, 왜 바뀌었는지는 `design` 또는
-  `alternatives`에 남긴다.** 이때 Task의 `05`는 착수 시점 기록으로 그대로 두고 소급 수정하지 않는다.
-  어느 쪽이 최종인지 묻는다면 답은 항상 노트의 `plan`이다.
-- Task에 `05. 세부 계획`이 없으면(구 5-필드 Task 또는 단순 메모) 대화에서 실행 단계를 추출해
-  `plan`을 합성한다. 없는 섹션을 있는 것처럼 인용하지 않는다.
+### Step 2: tasks:tech-spec으로 내용 확정
 
-### Step 1: 대화 내용 분석 및 섹션 매핑
+`tasks:tech-spec`을 Skill 도구로 호출한다. args에 **eng-note 모드**, 연결할 Task page_id, Step 1 인터뷰 결과를 넘긴다.
 
-**Task 연결 노트** (표준 경로, Task가 있으면 항상 이 표만 사용):
+- Standard mode의 Phase 1~3을 grill-me 결과로 미리 채운 상태에서 진행한다(이미 확정된 내용은 다시 묻지 않는다).
+- 공통 문제 검증 게이트(G1~G4), Goal Challenge, 저장 전 자동 검증, 리뷰 Agent(F)를 그대로 거친다.
+- tech-spec은 Obsidian에 저장하지 않는다. 확정된 스펙을 아래 Step 3의 매핑으로 이 스킬에 돌려준다.
 
-| 섹션 | JSON key | 추출 기준 |
-|------|----------|-----------|
-| 설계 | `design` | 선택한 아키텍처/방식 |
-| 대안 검토 | `alternatives` | 검토했던 다른 옵션들 |
-| 작업 계획 | `plan` | 업무 Plan(실행 단계 체크리스트). **연결된 Task에 `## 05. 세부 계획`이 있으면 그것을 원본으로 옮겨 담는다** (아래 "업무 Plan의 원본" 참조). 없을 때만 대화에서 합성한다 |
-| 작업 History | `history` | 날짜별 실제 진행 기록. 생성 시점엔 비워두고 이후 `append-content`로 계속 추가하는 것을 표준으로 한다 |
-| Task Review | `review` | 완료 후 회고. task:review 출력 구조(성과 측정 / 성과 문장 PAR / 성장 회고)를 따르고, 상위 "Task Review" heading 없이 `### 성과 측정` 이하 하위 섹션만 넣는다. PAR 하위에는 3종(대표 PAR / 이력서 bullet / 성과평가용 확장형)을 모두 포함한다(이력서 bullet 생략 금지, 명사형 종결). 작업 진행 중에는 비워두고 완료 시점에 채운다 |
-| 미결 질문 | `questions` | 아직 결정 안 된 것 |
+### Step 3: sections.json 작성
 
-**독립 노트** (`--task` 없음, 위 6개 키에 아래 2개 섹션이 추가됨):
+tech-spec 산출물을 아래 표로 sections 키에 옮긴다.
 
-| 섹션 | JSON key | 추출 기준 |
-|------|----------|-----------|
-| 문제 정의 | `problem` | 왜 이 작업을 하는가. 관측된 현상(시각·횟수·지속 시간·리소스 이름)이 아니라 그 일을 가능하게 한 경계·장치·절차의 결함을 현재형으로 쓴다(판별: tasks:capture 합성 가이드 "현상을 빼고 문제를 쓴다") |
-| 목표 / 비목표 | `goal` / `non_goal` | 달성하려는 것 / 이번 범위에서 제외한 것 (TOC 서브 앵커 예외: 스크립트가 평문 "Goal"/"Non-goal" 라벨을 직접 생성한다. 실제 헤딩으로 바꾸지 않는다. 스크립트가 Goal 왼쪽, Non-goal 오른쪽의 2열로 배치한다) |
+| tech-spec 섹션 | sections 키 | 작성 기준 |
+|----------------|-------------|-----------|
+| 왜 이걸 해야 하는가? > 문제 | `problem` | 관측된 사건이 아니라 그 사건을 가능하게 한 경계·장치·절차의 결함을 현재형으로 쓴다(판별: `tasks:capture` "현상을 빼고 문제를 쓴다") |
+| 왜 이걸 해야 하는가? > 배경(원인) | `root_cause` | 신호가 아니라 신호를 만든 메커니즘. 확인하지 못한 부분은 `(미확인)`으로 표시한다 |
+| 임팩트 측정 > 기대 효과·측정 방법 | `value` | 개선 후 사람·팀이 얻는 것 + `*측정 기준:*` 대표 지표의 현재값 |
+| 현재 상태와 목표 > Before / After | `before` / `after` | 같은 축으로 대응되게 쓴다(Before의 각 항목에 After가 짝을 이룬다) |
+| 현재 상태와 목표 > 변경 사항 (Diff) | `changes` | 변경 대상별 As-Is → To-Be. 설정 수준 diff는 코드 블록 |
+| 목표·성공 기준 | `goals` | 아래 "Goals 작성 기준" |
+| Non-Goals | `non_goals` | 이번엔 다루지 않는 것(오버엔지니어링 방지 경계), 비가역 변경이면 롤백 시나리오 |
+| 설계 + 왜 이 방법인가 | `design` | `### 선택 이유`, `### 대안 및 트레이드오프`, 스펙 아티팩트 표, 다이어그램(Step 3-1) |
+| 실행 계획 | `plan` | 아래 "실행 계획 작성 기준" |
+| (진행 기록) | `history` | 생성 시점엔 보통 비운다. 이후 `append-content --section "실행 기록"`으로 날짜별 누적 |
+| 실제 결과 (Outcome) | `result` | 완료 후 채운다. 성공 기준 대비 측정값 |
+| (완료 후 회고) | `review_metrics` / `review_par` / `review_retro` | `task:review` 출력 구조. PAR은 대표 PAR / 이력서 bullet(명사형 종결) / 성과평가용 확장형 3종 모두 |
+| (완료 후 회고, 한 문자열) | `review` | 편의 키. `### 성과 측정` / `### ...성과 문장` / `### 성장 회고` 하위 heading으로 쓰면 스크립트가 위 세 섹션에 나눠 넣는다. `review_*`와 함께 쓰지 않는다 |
 
-### Step 1.5: 설계 시각화 (가능하면 다이어그램 1개 이상)
+#### Goals 작성 기준
 
-`design` 섹션에는 가능하면 `archify` 또는 `diagram-design`으로 만든 다이어그램을 넣는다.
-글로 읽어야 하는 구조·흐름·비교를 한눈에 보이게 해, 노트를 여는 사람이 설계를 빠르게 파악하게 하기 위함이다.
+- **행동·동작 기반으로 쓴다.** "무엇을 한다"가 아니라 작업이 끝났을 때 시스템이 어떤 조건에서 어떻게
+  동작하는지를 서술한다. 형식은 `{조건}일 때, {관찰 가능한 결과}가 발생한다 / 발생하지 않는다`.
+- **억제 케이스와 정상 케이스를 쌍으로 쓴다.** "X일 때 안 온다"만 쓰면 과잉 억제(전면 침묵) 회귀를 잡지 못하므로
+  "Y일 때는 온다"를 함께 둔다. 이렇게 쓰면 Goals가 그대로 완료 판정 기준 겸 검증 시나리오가 된다.
+  - 좋은 예: "promote가 완료된 stable 리비전에서 replica가 부족해질 때, abort 알림이 오지 않는다" /
+    "promote 전 리비전이 카나리 진행 중 abort될 때, abort 알림이 온다"
+  - 나쁜 예(plan으로 옮길 대상): "trigger에 when 조건을 추가한다", "dev/stg/prod에 배포한다"
+- tech-spec의 성공 기준(수치)은 해당 Goal 옆에 괄호로 붙인다.
+- 환경이 여러 개인 변경은 "위 동작이 dev, stg, prod에서 동일하게 성립한다"를 마지막 Goal로 둔다.
+
+#### 실행 계획 작성 기준
+
+- 실행 단위 액션을 체크박스(`- [ ]`)로 실제 실행 순서대로 나열한다. **한 체크박스 = 따로 착수하고 따로 끝낼 수 있는
+  한 덩어리**(결정 기록, PR 하나, 환경 롤아웃 하나, 검증 한 번). 형식은 `{단위 이름}: {무엇을 하는가 한 줄}`,
+  5~7개 기준. tech-spec의 Phase 구분이 있으면 `###`가 아니라 항목 이름 앞에 Phase를 붙인다.
+- 환경 단계(dev → stg → prod)는 항목을 쪼개지 않고 한 항목 안에 순서로 적는다.
+- 검증 항목은 무엇으로 판정하는지를 지표·관찰 이름 수준으로 적는다(쿼리·명령은 쓰지 않는다).
+- 인프라·설정 변경이 있으면 마지막에 `*롤백:*` 라벨 불릿으로 원복 방법과 소요 시간을 적고, 생략하지 않는다.
+  문서·설계만 하는 작업처럼 되돌릴 인프라 변경이 없으면 `*롤백:*` 라벨째 생략한다("변경 없음, 문서 수정으로 되돌림" 같은
+  빈 문장을 쓰지 않는다. 2026-09-27 QA 피드백).
+- 범위를 넘는 후속 조사·분리 작업도 체크박스로 남긴다.
+- 이 체크리스트가 alfred gate의 세부 계획 대조 원본이다. 계획이 실행 중 바뀌면 이 체크리스트를 고치고,
+  왜 바뀌었는지는 `진행 기록`에 남긴다.
+
+#### Step 3-1: 설계 시각화 (가능하면 다이어그램 1개 이상)
+
+`design`에는 가능하면 `archify` 또는 `diagram-design`으로 만든 다이어그램을 넣는다.
 
 - *도구 선택:*
   - `archify`: 시스템·인프라 아키텍처, 요청 흐름, 시퀀스, 데이터 흐름, 상태 전이
-  - `diagram-design`: 선택지 비교(매트릭스·사분면), 계층·우선순위(layer stack, tree), 타임라인·전환 순서, 수치 차트, 의사결정 흐름도
+  - `diagram-design`: 선택지 비교(매트릭스·사분면), 계층·우선순위, 타임라인·전환 순서, 수치 차트, 의사결정 흐름도
 - *절차:*
-  - 해당 스킬을 Skill 도구로 호출해 HTML을 만든 뒤, 그 스킬의 PNG 내보내기 절차로 PNG를 만든다. 파일은 스크래치패드에 두고 절대 경로를 쓴다.
-  - Notion 다크 모드에서도 읽히도록 **흰 배경 PNG**로 내보낸다. `diagram-design`의 기본 PNG는 투명 배경이므로 배경을 채워 캡처한다.
-  - `design` 마크다운에 `![캡션](/절대/경로/diagram.png)` 한 줄을 넣는다. 스크립트가 Notion에 업로드해 이미지 블록으로 넣는다.
+  - 해당 스킬로 HTML을 만든 뒤 그 스킬의 PNG 내보내기 절차로 **흰 배경 PNG**를 만든다(Notion 다크 모드 대비). 파일은 스크래치패드에 둔다.
+  - `design` 마크다운에 `![캡션](/절대/경로/diagram.png)` 한 줄을 넣는다. 스크립트가 업로드해 이미지 블록으로 넣는다(png·jpg·gif·webp·svg, 20MB 이하).
 - *생략 조건:*
-  - 구조·흐름·비교가 없는 순수 텍스트 결정(용어 정리, 단일 설정값 변경 등)은 억지로 그리지 않는다. 생략했으면 결과 출력에 이유를 한 줄로 적는다.
-- 다이어그램은 본문을 대신하지 않는다. 다이어그램이 보여 주는 내용 중 결정에 필요한 핵심은 불릿으로도 남긴다.
+  - 구조·흐름·비교가 없는 순수 텍스트 결정은 그리지 않는다. 생략했으면 결과 출력에 이유를 한 줄로 적는다.
+- 다이어그램은 본문을 대신하지 않는다. 결정에 필요한 핵심은 불릿으로도 남긴다.
 
-### Step 2: 메타데이터 확인
+### Step 4: 페이지 생성 + Task 동기화
 
-사용자에게 확인 (대화 맥락에서 명확하면 생략):
-- **제목** (필수)
-- **Group**: 기본 `#업무노트`
-- **연결할 Task** (표준, 있으면 항상 연결): 이 노트가 특정 Notion Task의 후속/작업 기록이면 그 Task의 page_id를 반드시 `--task`로 넘긴다. 대화에 Task 링크나 page_id가 언급돼 있으면 그대로 사용하고, 없으면 "이 노트를 연결할 Task가 있나요?"라고 한 번 확인한다. 완전히 독립적인 학습/정리 노트라면 생략 가능.
-
-### Step 3: sections.json 작성 후 페이지 생성
+sections JSON은 스크래치패드에 Write한 뒤 넘긴다.
 
 ```bash
-# 1. sections.json 생성 (Write 도구 사용)
-# /tmp/eng-note-sections.json
-
-# 2. 페이지 생성 (Task 연결 표준, 있으면 항상 --task 전달)
+# 1. 노트 생성 (Task가 있으면 항상 --task)
 python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
   --title "제목" \
   --group "#업무노트" \
   --task "<task-page-id>" \
-  --sections /tmp/eng-note-sections.json
+  --sections "/path/to/scratchpad/eng-note-sections.json"
+
+# 2. Task의 문제/근본 원인/기대 가치를 노트 최종본으로 교체 (같은 문장을 그대로 넘긴다)
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-why \
+  --page-id "<task-page-id>" \
+  --sections-file "/path/to/scratchpad/task-why.json"   # {"problem": ..., "root_cause": ..., "value": ...}
 ```
 
-`--task`를 넘기면 스크립트가 양방향으로 관계를 건다:
-1. 새 노트의 `Task` relation → 지정한 Task 페이지
-2. Task 페이지의 `Working Note` relation → 새 노트 (기존 링크는 보존, 새 id만 추가)
+- `--task`를 넘기면 스크립트가 노트의 `Task` relation과 Task의 `Working Note` relation을 양방향으로 건다.
+- `update-why`는 Task에 해당 heading이 없으면(구 템플릿 Task) 아무것도 쓰지 않고 실패한다. 이때는 동기화를
+  건너뛰고 결과 출력에 "Task 동기화 생략(구 템플릿)"을 적는다.
+- 템플릿이 30초 안에 적용되지 않으면 스크립트가 그 페이지를 휴지통으로 보내고 같은 구조로 다시 만든다
+  (`template_applied: false`, 전체 너비 등 템플릿 설정만 빠진다).
 
-Task와 무관한 독립 노트라면 `--task` 없이 생성한다:
-```bash
-python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
-  --title "제목"
-```
-
-**전체 너비(기본 동작)**: Notion API에는 페이지 너비 설정이 없다. 그래서 스크립트는 전체 너비가 켜진
-Engineering DB 템플릿(`[#업무 노트]`, id는 스크립트의 `FULL_WIDTH_TEMPLATE_ID`)으로 페이지를 만들고,
-템플릿 본문이 적용되면 비운 뒤 노트 본문을 붙인다. 너비 설정만 템플릿에서 가져오고 본문은 쓰지 않는다.
-- 템플릿이 30초 안에 적용되지 않거나 비우기·추가가 실패하면, 만든 페이지를 휴지통으로 보내고 기본 너비로 다시 만든다. 응답의 `full_width`가 `false`가 된다.
-- 기본 너비로 만들려면 `--no-full-width`를 붙인다.
-- 템플릿을 지우거나 전체 너비를 끄면 이 동작이 깨진다. 템플릿을 바꾸면 스크립트의 `FULL_WIDTH_TEMPLATE_ID`도 갱신한다.
-
-### Step 4: 결과 출력
+### Step 5: 결과 출력
 
 ```
 업무 노트 생성 완료.
 - 제목: {title}
 - Group: {group}
 - Task 연결: {있음(page_id) | 없음}
-- 전체 너비: {적용 | 미적용(기본 너비로 대체 생성)}
+- Task 동기화: {문제/근본 원인/기대 가치 교체 | 생략(이유)}
+- 템플릿: {적용 | 미적용(template_error) → 같은 구조로 대체 생성}
+- 인터뷰: {grill-me 결정 N개, 남은 Gap M개 | 사용자 요청으로 생략}
 - 설계 다이어그램: {N개 (도구명) | 생략 (이유)}
 - URL: {url}
 ```
 
-### Step 5: 검증
+### Step 6: 검증
 
-스크립트 응답의 `success` 필드를 반드시 확인한다. `--task`를 넘겼다면 `task_linked` 필드도 확인한다: `false`면 `task_link_error`를 그대로 사용자에게 전달한다(노트 자체는 생성됐지만 Task 쪽 역방향 링크만 실패한 상태이므로, Task page_id를 다시 확인 후 재시도하거나 Notion에서 수동으로 연결).
-
-실패 시:
-- `NOTION_TOKEN not set` → `~/.secrets.zsh`에서 NOTION_TOKEN 확인
-- `invalid database` → DB ID 확인
-- `success: false` → 에러 메시지를 사용자에게 전달 후 재실행
-- `task_linked: false` → Task page_id 오타 여부 확인, 재실행 또는 수동 연결
-- `full_width: false` → stderr의 WARN으로 원인을 전달하고, 페이지 `···` 메뉴에서 Full width를 켜도록 안내
+- `success`를 확인한다. `false`면 `error`를 그대로 전달한다(`NOTION_TOKEN not set` → `~/.secrets.zsh` 확인).
+- `--task`를 넘겼다면 `task_linked`를 확인한다. `false`면 `task_link_error`를 전달한다(노트는 생성됐고 Task 쪽
+  역방향 링크만 실패한 상태이므로 page_id 확인 후 재시도하거나 Notion에서 수동 연결).
+- `template_applied: false`면 `template_error`를 전달한다(템플릿 ID 변경·권한 문제일 수 있다).
 
 ---
 
-## sections.json 형식
+## 생성 이후 갱신 (진행 기록 / 작업 결과 / Task Review)
 
-```json
-{
-  "design":       "설계 내용 마크다운 (- 불릿, **bold**, 코드블록 지원)",
-  "alternatives": "대안 검토 마크다운",
-  "plan":         "- [ ] Step 1: ...\n- [ ] Step 2: ...",
-  "history":      "- YYYY-MM-DD: 진행 기록 한 줄",
-  "review":       "### 성과 측정\n- ...\n### 성과 문장 (PAR)\n**대표 PAR**\n- *Problem:*\n\t- ...\n- *Action:*\n\t- ...\n- *Result:*\n\t- ...\n**이력서 bullet**\n- {명사형 종결}\n**성과평가용 확장형**\n- ...\n### 성장 회고\n- *Keep:*\n\t- ...\n- *Try:*\n\t- ...",
-  "questions":    "- [ ] 미결 질문 항목",
-
-  "problem":      "문제 상황 마크다운 (--task 없는 독립 노트에서만 사용)",
-  "goal":         "목표 마크다운 (--task 없는 독립 노트에서만 사용)",
-  "non_goal":     "비목표 마크다운 (--task 없는 독립 노트에서만 사용)"
-}
-```
-
-값이 없는 키는 생략해도 됨 (placeholder로 대체). `history`/`review`는 생성 시점에
-비워두고 작업 진행 중/완료 후 뒤늦게 채우는 것이 표준 흐름이다. `notion-eng-note.py`에는
-`create`/`list`만 있고 append 전용 커맨드가 없지만, `/blocks/{page_id}/children` PATCH는
-Notion API에서 Task DB 전용이 아니라 페이지 ID만 있으면 어느 DB의 페이지든 동작하므로
-`tasks:manage/scripts/notion-task.py append-content --page-id <노트 page_id> --content "..."`를
-그대로 재사용한다 (하드룰 위반 시 append 자체를 거부하는 검증도 동일하게 적용됨).
-
-### 이미지 (설계 다이어그램)
-
-한 줄 전체가 `![캡션](경로)`이면 image 블록이 된다. 로컬 경로는 Notion File Upload API로 올리고
-(png·jpg·gif·webp·svg, 20MB 이하), `http(s)://` URL은 외부 이미지로 넣는다. 업로드가 실패하면
-페이지를 만들기 전에 `success: false`로 멈춘다.
-
-```json
-{
-  "design": "- 요청은 게이트웨이를 거쳐 API로 간다.\n![요청 흐름](/abs/path/scratchpad/request-flow.png)"
-}
-```
-
-### 중첩 (구현 계획에 세부 내용 + 코드/설정 붙이기)
-
-들여쓰기(2/4-space 무관, 상대 들여쓰기)로 하위 항목을 부모의 children으로 중첩할 수 있다.
-`구현 계획`처럼 스텝 하나에 구체적인 내용과 실제 코드/설정을 함께 담을 때 이 형태를 표준으로 쓴다:
-
-```json
-{
-  "plan": "- [ ] Step 1: values.yaml 수정\n  - requests.memory 2Gi -> 6Gi, limits.memory 12Gi -> 10Gi\n  ```yaml\n  resources:\n    requests:\n      memory: 6Gi\n    limits:\n      memory: 10Gi\n  ```\n- [ ] Step 2: yamllint 검증\n  - `yamllint src/infra/argocd/infra-k8s-global/values.yaml`"
-}
-```
-
-- 코드 펜스(` ``` `)는 그 코드블록을 연 줄과 같은 들여쓰기 깊이의 형제로 붙는다 (스텝의 자식이 된다).
-- Notion 페이지 **생성**(POST) 시 중첩은 한 번에 전부 반영된다. 단, 스텝 아래 세부 항목은 1단계 들여쓰기까지만 쓴다. 그 이상 깊어지면 가독성이 떨어지고, 이후 `notion-task.py append-content` 류로 내용을 덧붙일 때는 2단계(부모→자식→손자) 중첩 제약이 걸린다.
-
----
-
-## 작업 History / Task Review 갱신 (생성 이후)
-
-노트 생성 시 `history`/`review`를 비워뒀다면, 작업이 진행되거나 완료될 때 아래로 이어서 채운다.
-Engineering DB 페이지도 일반 Notion 페이지이므로 Task DB 전용 스크립트가 아니라
-블록 자체를 다루는 `append-content`를 그대로 쓴다 (페이지 ID만 있으면 어느 DB든 동작).
+생성 시점에 비워 둔 섹션은 작업이 진행되거나 끝날 때 `append-content --section`으로 해당 섹션 끝에 붙인다.
+페이지 끝이 아니라 섹션 안에 들어가므로 템플릿 구조가 유지된다.
 
 ```bash
+# 진행 기록: 의미 있는 이벤트(배포, 이슈 발견, 방향 전환)마다 날짜를 붙여 짧게
 python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
-  --page-id "<노트 page_id>" \
+  --page-id "<노트 page_id>" --section "실행 기록" \
   --content "- 2026-07-07: canary 배포 완료, AnalysisRun 통과"
+
+# 작업 결과 / Task Review 하위 섹션
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content \
+  --page-id "<노트 page_id>" --section "작업 결과" --content "- ..."
 ```
 
-- **작업 History**: 진행 중 의미 있는 이벤트(배포, 이슈 발견, 방향 전환)가 생길 때마다 짧게 append.
-- **Task Review**: Task가 완료 처리될 때 한 번, 목표 대비 결과·잘된 점/아쉬운 점·다음에 다르게 할 것을 append.
-- append는 페이지 **맨 끝**에 붙는다 (특정 섹션 안으로 삽입되지 않음). "작업 History" 갱신임을
-  알 수 있게 append 내용 앞에 날짜를 명시한다.
+- `--section`은 heading 텍스트다. 정확히 일치하는 heading이 없으면 접두어로 찾으므로 괄호 설명은 생략해도 된다(`성장 회고`).
+- 실행 계획 체크박스를 대신 체크하지 않는다(본문 덮어쓰기 위험). 진행 상황은 진행 기록에 남긴다.
 
 ---
 

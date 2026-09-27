@@ -12,7 +12,10 @@ Usage:
   python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료: 캘린더 동기화 대상
 
   # 생성
-  python3 notion-task.py create-task --name "이름" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--description "설명"] [--body "Markdown" | --body-file PATH]
+  python3 notion-task.py create-task --name "이름" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--description "설명"] [--sections-file PATH | --simple]
+  python3 notion-task.py update-why --page-id <id> --sections-file PATH   # 노트 최종본으로 문제/근본 원인/기대 가치 교체
+  python3 notion-task.py read-page --page-id <id>                         # 본문 Markdown 조회
+  python3 notion-task.py append-content --page-id <id> --content "..." [--section "실행 기록"]
 
   # 상태 변경
   python3 notion-task.py update-status --page-id <id> --status "진행 중"
@@ -51,8 +54,28 @@ except Exception:  # backstop: TOC 링크 없이도 페이지 생성 자체는 �
     def build_toc_rich_text(created_blocks, page_url):
         return None, None
 
+try:
+    import notion_template_fill as tfill
+except Exception:  # 헬퍼를 못 읽으면 템플릿 경로 대신 대체 구조로 생성한다
+    tfill = None
+
 NOTION_TOKEN = os.environ.get("NOTION_TOKEN", "")
 TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
+
+# Task DB 템플릿("#Task - "). 버튼 블록은 API에서 unsupported라 직접 만들 수 없어서,
+# 템플릿을 적용한 뒤 heading 아래를 채운다(_lib/notion_template_fill.py).
+TASK_TEMPLATE_ID = "2da64745-3170-80f2-8c83-dcaa96fd53c6"
+TEMPLATE_APPLY_TIMEOUT_SEC = 30
+# sections 파일 키 → 템플릿 heading (템플릿 배치 순서). heading 이름을 바꾸면 여기도 바꾼다.
+TASK_WHY_HEADING = "왜 이걸 해야하는가?"
+TASK_SECTION_HEADINGS = [
+    ("problem", "문제"),
+    ("root_cause", "근본 원인"),
+    ("value", "기대 가치"),
+    ("context", "작업 Context"),
+]
+# 노트 최종본으로 Task를 동기화할 때 교체하는 섹션 (작업 Context는 캡처 기록이라 건드리지 않는다)
+WHY_SECTION_KEYS = ("problem", "root_cause", "value")
 
 VALID_STATUSES = {"해야할 것", "진행 중", "완료", "대기"}
 CATEGORY_OPTIONS = {"WORK", "MY"}
@@ -89,6 +112,32 @@ def notion_request(token, method, path, body=None):
     except urllib.error.HTTPError as e:
         err_body = e.read().decode()
         _exit_error(f"HTTP {e.code}: {err_body}")
+
+
+def soft_requester(token):
+    """오류 시 종료하지 않고 error dict를 돌려주는 요청 함수.
+
+    템플릿 경로는 실패하면 대체 구조로 다시 만들어야 하므로 notion_request처럼 즉시 종료하면 안 된다.
+    """
+    def request(method, path, body=None):
+        url = f"https://api.notion.com/v1{path}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Notion-Version": "2025-09-03",
+            "Content-Type": "application/json",
+        }
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode()
+            try:
+                return json.loads(err_body)
+            except ValueError:
+                return {"object": "error", "message": f"HTTP {e.code}: {err_body}"}
+    return request
 
 
 # ── data source resolution (Notion-Version 2025-09-03) ────────
@@ -326,8 +375,135 @@ def cmd_tasks(args):
 # 생성
 # ─────────────────────────────────────────────
 
+def _load_section_blocks(path, allowed_keys):
+    """sections JSON 파일을 읽어 {key: [blocks]}로 변환한다. 페이지 POST 전에 호출해 fail-fast한다."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            sections = json.load(f)
+    except (OSError, ValueError) as e:
+        _exit_error(f"sections 파일을 읽을 수 없습니다: {path} ({e})")
+    unknown = sorted(set(sections) - set(allowed_keys))
+    if unknown:
+        _exit_error(f"알 수 없는 sections 키: {unknown}. 허용: {list(allowed_keys)}")
+    return {
+        key: markdown_to_blocks(value)
+        for key, value in sections.items()
+        if isinstance(value, str) and value.strip()
+    }
+
+
+def _image_blocks(images):
+    """URL은 image 블록으로, 로컬 경로는 경로를 보존하는 callout 텍스트로 만든다."""
+    url_images = [img for img in images if img.startswith("http://") or img.startswith("https://")]
+    local_images = [img for img in images if img not in url_images]
+    blocks = [
+        {"object": "block", "type": "image", "image": {"type": "external", "external": {"url": url}}}
+        for url in url_images
+    ]
+    if local_images:
+        blocks.append({
+            "object": "block",
+            "type": "callout",
+            "callout": {
+                "rich_text": [
+                    {"type": "text", "text": {"content": "로컬 이미지 경로\n"}, "annotations": {"bold": True}},
+                    {"type": "text", "text": {"content": "\n".join(local_images)}, "annotations": {"code": True}},
+                ],
+                "icon": {"type": "emoji", "emoji": "🖼"},
+                "color": "gray_background",
+            },
+        })
+    return blocks
+
+
+def _note_reminder_callout():
+    # 템플릿 없이 만드는 경로(--simple, 구 --body)에서만 쓴다. 템플릿 경로는 템플릿의 버튼이 대신한다.
+    return {
+        "object": "block",
+        "type": "callout",
+        "callout": {
+            "rich_text": [
+                {"type": "text", "text": {"content": "업무 노트 작성하기\n"}, "annotations": {"bold": True}},
+                {"type": "text", "text": {"content": "Engineering DB에서 이 Task를 연결하여 업무 노트를 작성하세요."},
+                 "annotations": {"color": "gray"}},
+            ],
+            "icon": {"type": "emoji", "emoji": "📝"},
+            "color": "blue_background",
+        },
+    }
+
+
+def native_toc_callout():
+    """템플릿과 같은 📌 콜아웃 + 네이티브 목차 블록. heading 이름과 무관하게 Notion이 자동 갱신한다."""
+    return {
+        "object": "block",
+        "type": "callout",
+        "callout": {
+            "rich_text": [],
+            "icon": {"type": "emoji", "emoji": "📌"},
+            "color": "default",
+            "children": [{"object": "block", "type": "table_of_contents",
+                          "table_of_contents": {"color": "gray"}}],
+        },
+    }
+
+
+def _fallback_task_blocks(section_blocks):
+    """템플릿 적용이 실패했을 때 템플릿과 같은 heading 구조를 직접 조립한다(버튼만 빠진다)."""
+    def empty_bullet():
+        return {"object": "block", "type": "bulleted_list_item",
+                "bulleted_list_item": {"rich_text": []}}
+
+    blocks = [native_toc_callout(), _heading_block(2, TASK_WHY_HEADING)]
+    for key, heading in TASK_SECTION_HEADINGS:
+        if key == "context":
+            blocks.append({"object": "block", "type": "divider", "divider": {}})
+            blocks.append(_heading_block(2, heading))
+        else:
+            blocks.append(_heading_block(3, heading))
+        blocks.extend(section_blocks.get(key) or [empty_bullet()])
+    return blocks
+
+
+def _create_task_from_template(request, parent, properties, section_blocks, template_id):
+    """템플릿으로 Task를 만들고 섹션을 채운다.
+
+    반환: (생성 응답, None) 또는 실패 시 (None, 사유). 실패하면 만든 페이지를 휴지통으로 보내므로
+    호출자는 대체 구조로 다시 만들면 된다(캡처가 유실되지 않게 하기 위함).
+    """
+    if tfill is None:
+        return None, "notion_template_fill 헬퍼를 불러오지 못함"
+    resp = request("POST", "/pages", {
+        "parent": parent,
+        "properties": properties,
+        "template": {"type": "template_id", "template_id": template_id},
+    })
+    if resp.get("object") == "error":
+        return None, f"템플릿 생성 실패: {resp.get('message', '')}"
+    page_id = resp["id"]
+
+    def discard(reason):
+        request("PATCH", f"/pages/{page_id}", {"in_trash": True})
+        return None, reason
+
+    headings = [heading for _, heading in TASK_SECTION_HEADINGS]
+    groups = tfill.wait_for_headings(request, page_id, headings, TEMPLATE_APPLY_TIMEOUT_SEC)
+    if groups is None:
+        return discard(f"템플릿 heading {headings}이 {TEMPLATE_APPLY_TIMEOUT_SEC}초 안에 나타나지 않음")
+    for key, heading in TASK_SECTION_HEADINGS:
+        result = tfill.fill_section(request, groups, heading, section_blocks.get(key) or [])
+        if result is not None:
+            reason = result.get("message", "") if isinstance(result, dict) else result
+            return discard(f"'{heading}' 섹션 채우기 실패: {reason}")
+    return resp, None
+
+
 def cmd_create_task(args):
-    """Notion Task DB에 새 Task 생성."""
+    """Notion Task DB에 새 Task 생성.
+
+    기본은 Task 템플릿 적용 + 섹션 채우기. --simple이면 템플릿 없이 속성만으로 만든다(사용자가
+    pass/simple을 명시한 가벼운 캡처). 구 6-필드 --body/--body-file은 호환용으로만 남아 있다.
+    """
     token = get_token()
 
     name = sanitize_body(args.name.strip())  # 제목 하드룰 backstop (em dash/이모지)
@@ -342,145 +518,138 @@ def cmd_create_task(args):
     if task_type not in TYPE_OPTIONS:
         _exit_error(f"Invalid type '{task_type}'. Valid: {sorted(TYPE_OPTIONS)}")
 
-    # 본문 템플릿(Summary/Why/기대효과/Non-Goals)을 미리 파싱해 fail-fast.
-    # 페이지 POST 전에 검증해야 본문 누락된 반쪽 Task가 생기지 않는다.
-    # --body(인라인)와 --body-file 중 파일 우선. 둘 다 없으면 본문 템플릿 생략.
-    body_blocks = []
-    body_file = getattr(args, "body_file", None)
-    body_inline = getattr(args, "body", None)
-    body_md = None
-    if body_file:
+    # 본문 입력은 페이지 POST 전에 모두 파싱해 fail-fast한다(본문 누락된 반쪽 Task 방지).
+    section_blocks = {}
+    if args.sections_file:
+        section_blocks = _load_section_blocks(args.sections_file, [k for k, _ in TASK_SECTION_HEADINGS])
+
+    legacy_body_md = None
+    if args.body_file:
         try:
-            with open(body_file, "r", encoding="utf-8") as f:
-                body_md = f.read()
+            with open(args.body_file, "r", encoding="utf-8") as f:
+                legacy_body_md = f.read()
         except OSError as e:
-            _exit_error(f"본문 템플릿 파일을 읽을 수 없습니다: {body_file} ({e})")
-    elif body_inline:
-        body_md = body_inline
-    if body_md:
-        body_blocks = markdown_to_blocks(body_md)
+            _exit_error(f"본문 템플릿 파일을 읽을 수 없습니다: {args.body_file} ({e})")
+    elif args.body:
+        legacy_body_md = args.body
+    if legacy_body_md and (args.sections_file or args.simple):
+        _exit_error("--body/--body-file(구 6-필드)은 --sections-file/--simple과 함께 쓸 수 없습니다")
+    if legacy_body_md:
+        print("WARN: --body/--body-file(6-필드)은 deprecated입니다. --sections-file을 쓰세요.", file=sys.stderr)
+    if args.simple and args.sections_file:
+        _exit_error("--simple은 본문 없이 만드는 옵션이라 --sections-file과 함께 쓸 수 없습니다")
 
     properties = {
-        "Title": {
-            "title": [{"text": {"content": name}}]
-        },
-        "Group": {
-            "select": {"name": category}
-        },
-        "Type": {
-            "select": {"name": task_type}
-        },
-        "상태": {
-            "status": {"name": "해야할 것"}
-        },
+        "Title": {"title": [{"text": {"content": name}}]},
+        "Group": {"select": {"name": category}},
+        "Type": {"select": {"name": task_type}},
+        "상태": {"status": {"name": "해야할 것"}},
     }
-
     if args.due:
         properties["Due Date"] = {"date": {"start": args.due}}
-
     if args.description:
-        properties["Description"] = {
-            "rich_text": [{"text": {"content": args.description}}]
-        }
+        properties["Description"] = {"rich_text": [{"text": {"content": args.description}}]}
+    if args.related_task:
+        properties["Related Task"] = {"relation": [{"id": args.related_task}]}
 
-    related_task = getattr(args, "related_task", None)
-    if related_task:
-        properties["Related Task"] = {"relation": [{"id": related_task}]}
+    parent = {"type": "data_source_id", "data_source_id": resolve_ds_id(token, TASK_DB_ID)}
+    image_blocks = _image_blocks(args.images or [])
+    use_template = not args.simple and not legacy_body_md
 
-    body = {
-        "parent": {"type": "data_source_id", "data_source_id": resolve_ds_id(token, TASK_DB_ID)},
-        "properties": properties,
-    }
+    template_applied = False
+    template_error = None
+    result = None
+    if use_template:
+        result, template_error = _create_task_from_template(
+            soft_requester(token), parent, properties, section_blocks, args.template_id)
+        template_applied = result is not None
+        if template_error:
+            print(f"WARN: {template_error}. 템플릿 없이 같은 구조로 다시 생성합니다.", file=sys.stderr)
 
-    result = notion_request(token, "POST", "/pages", body)
+    if result is not None:
+        body_blocks = image_blocks  # 템플릿 경로: 이미지만 페이지 끝(작업 Context 뒤)에 붙인다
+    elif use_template:
+        body_blocks = _fallback_task_blocks(section_blocks) + image_blocks
+    elif legacy_body_md:
+        legacy_blocks = markdown_to_blocks(legacy_body_md)
+        has_headings = any(b.get("type", "").startswith("heading_") for b in legacy_blocks)
+        toc = [{"object": "block", **placeholder_callout()}] if has_headings else []
+        body_blocks = toc + legacy_blocks + [_note_reminder_callout()] + image_blocks
+    else:  # --simple
+        body_blocks = [_note_reminder_callout()] + image_blocks
+
+    if result is None:
+        result = notion_request(token, "POST", "/pages", {"parent": parent, "properties": properties})
     page_id = result.get("id", "")
     page_url = result.get("url", f"https://www.notion.so/{page_id.replace('-', '')}")
 
-    # 본문 템플릿에 헤딩이 있으면(본격 Task 5-필드 등) 맨 앞에 TOC 콜아웃 placeholder를
-    # 넣는다. PATCH 응답으로 실제 block id를 받은 뒤 링크된 목차로 채운다(아래).
-    has_headings = any(b.get("type", "").startswith("heading_") for b in body_blocks)
-    toc_blocks = [{"object": "block", **placeholder_callout()}] if has_headings else []
+    if body_blocks:
+        patch_result = notion_request(token, "PATCH", f"/blocks/{page_id}/children", {"children": body_blocks})
+        # 구 6-필드 본문만 번호 heading 링크형 목차(placeholder 콜아웃)를 쓴다.
+        # 템플릿 경로와 대체 경로는 네이티브 목차 블록이라 채울 필요가 없다.
+        if legacy_body_md:
+            callout_id, toc_rich_text = build_toc_rich_text(patch_result.get("results", []), page_url)
+            if callout_id:
+                notion_request(token, "PATCH", f"/blocks/{callout_id}", {"callout": {"rich_text": toc_rich_text}})
 
-    # TOC 콜아웃 → 본문 템플릿(있으면) → 업무 노트 리마인더 → 이미지 블록 순서로 본문 구성.
-    children_blocks = toc_blocks + body_blocks + [
-        {
-            "object": "block",
-            "type": "callout",
-            "callout": {
-                "rich_text": [
-                    {
-                        "type": "text",
-                        "text": {"content": "업무 노트 작성하기\n"},
-                        "annotations": {"bold": True},
-                    },
-                    {
-                        "type": "text",
-                        "text": {"content": "Engineering DB에서 이 Task를 연결하여 업무 노트를 작성하세요."},
-                        "annotations": {"color": "gray"},
-                    }
-                ],
-                "icon": {"type": "emoji", "emoji": "📝"},
-                "color": "blue_background",
-            },
-        },
-    ]
-
-    images = getattr(args, "images", None) or []
-    url_images = [img for img in images if img.startswith("http://") or img.startswith("https://")]
-    local_images = [img for img in images if not (img.startswith("http://") or img.startswith("https://"))]
-
-    for img_url in url_images:
-        children_blocks.append({
-            "object": "block",
-            "type": "image",
-            "image": {
-                "type": "external",
-                "external": {"url": img_url},
-            },
-        })
-
-    if local_images:
-        paths_text = "\n".join(local_images)
-        children_blocks.append({
-            "object": "block",
-            "type": "callout",
-            "callout": {
-                "rich_text": [
-                    {
-                        "type": "text",
-                        "text": {"content": "로컬 이미지 경로\n"},
-                        "annotations": {"bold": True},
-                    },
-                    {
-                        "type": "text",
-                        "text": {"content": paths_text},
-                        "annotations": {"code": True},
-                    },
-                ],
-                "icon": {"type": "emoji", "emoji": "🖼"},
-                "color": "gray_background",
-            },
-        })
-
-    patch_result = notion_request(token, "PATCH", f"/blocks/{page_id}/children", {
-        "children": children_blocks
-    })
-
-    if has_headings:
-        created_blocks = patch_result.get("results", [])
-        callout_id, toc_rich_text = build_toc_rich_text(created_blocks, page_url)
-        if callout_id:
-            notion_request(token, "PATCH", f"/blocks/{callout_id}", {
-                "callout": {"rich_text": toc_rich_text}
-            })
-
-    print(json.dumps({
+    output = {
         "success": True,
         "page_id": page_id,
         "url": page_url,
         "name": name,
         "category": category,
         "due_date": args.due or "",
+        "template_applied": template_applied,
+    }
+    if template_error:
+        output["template_error"] = template_error
+    print(json.dumps(output, ensure_ascii=False, indent=2))
+
+
+def cmd_update_why(args):
+    """Task의 문제/근본 원인/기대 가치를 노트 최종본으로 교체한다(작업 Context는 유지).
+
+    노트가 "왜"의 최종본이므로, 노트를 쓸 때 Task의 같은 섹션을 덮어써 두 문서를 맞춘다.
+    이 커맨드를 명시적으로 호출할 때만 덮어쓴다.
+    """
+    token = get_token()
+    if tfill is None:
+        _exit_error("notion_template_fill 헬퍼를 불러오지 못했습니다")
+    section_blocks = _load_section_blocks(args.sections_file, WHY_SECTION_KEYS)
+    if not section_blocks:
+        _exit_error(f"교체할 섹션이 없습니다. 허용 키: {list(WHY_SECTION_KEYS)}")
+
+    request = soft_requester(token)
+    groups = tfill.load_tree(request, args.page_id)
+    if groups is None:
+        _exit_error(f"Task 본문을 읽지 못했습니다: {args.page_id}")
+    headings = dict(TASK_SECTION_HEADINGS)
+    # 구 6-필드 Task에는 이 heading이 없다. 일부만 덮어써 섞이지 않게 쓰기 전에 전부 확인한다.
+    missing = tfill.find_missing(groups, [headings[k] for k in section_blocks])
+    if missing:
+        _exit_error(f"Task에 섹션 heading이 없습니다(구 템플릿 Task일 수 있음): {missing}")
+
+    updated = []
+    for key, blocks in section_blocks.items():
+        result = tfill.fill_section(request, groups, headings[key], blocks, replace=True)
+        if result is not None:
+            reason = result.get("message", "") if isinstance(result, dict) else result
+            _exit_error(f"'{headings[key]}' 교체 실패(앞선 섹션 {updated}는 이미 교체됨): {reason}")
+        updated.append(key)
+
+    print(json.dumps({"success": True, "page_id": args.page_id, "updated": updated},
+                     ensure_ascii=False, indent=2))
+
+
+def cmd_read_page(args):
+    """페이지 본문을 Markdown으로 반환한다(노트 작성·gate 대조의 입력, MCP 커넥터 비의존)."""
+    token = get_token()
+    resp = notion_request(token, "GET", f"/pages/{args.page_id}/markdown")
+    print(json.dumps({
+        "success": True,
+        "page_id": args.page_id,
+        "truncated": resp.get("truncated", False),
+        "markdown": resp.get("markdown", ""),
     }, ensure_ascii=False, indent=2))
 
 
@@ -971,6 +1140,23 @@ def cmd_append_content(args):
     if not blocks:
         _exit_error("변환된 블록이 없습니다 (빈 콘텐츠)")
 
+    if args.section:
+        # 노트의 '실행 기록'처럼 중간 섹션에 누적하려면 페이지 끝 append로는 안 된다.
+        if tfill is None:
+            _exit_error("notion_template_fill 헬퍼를 불러오지 못했습니다")
+        request = soft_requester(token)
+        groups = tfill.load_tree(request, args.page_id)
+        if groups is None:
+            _exit_error(f"페이지 본문을 읽지 못했습니다: {args.page_id}")
+        result = tfill.append_to_section(request, groups, args.section, blocks)
+        if result == "missing":
+            _exit_error(f"페이지에 '{args.section}' heading이 없습니다")
+        if result is not None:
+            _exit_error(f"'{args.section}' 섹션 append 실패: {result.get('message', '')}")
+        print(json.dumps({"success": True, "page_id": args.page_id, "section": args.section,
+                          "blocks_appended": len(blocks)}, ensure_ascii=False, indent=2))
+        return
+
     appended = 0
     for i in range(0, len(blocks), _NOTION_BLOCK_LIMIT):
         batch = blocks[i:i + _NOTION_BLOCK_LIMIT]
@@ -1019,15 +1205,31 @@ def main():
                     help="Task/Project 구분 (기본값 Task)")
     ct.add_argument("--due", default=None, help="마감일 (YYYY-MM-DD)")
     ct.add_argument("--description", default=None, help="부연 설명 (Description 속성)")
+    ct.add_argument("--sections-file", dest="sections_file", default=None,
+                    help="템플릿 섹션 JSON 파일 (키: problem, root_cause, value, context; 값은 Markdown)")
+    ct.add_argument("--simple", action="store_true",
+                    help="템플릿 없이 속성만으로 생성 (사용자가 pass/simple을 명시한 가벼운 캡처)")
+    ct.add_argument("--template-id", dest="template_id", default=TASK_TEMPLATE_ID,
+                    help=argparse.SUPPRESS)  # 대체 경로 검증용 override
     ct.add_argument("--body", dest="body", default=None,
-                    help="본문 템플릿 Markdown 문자열 (Summary/Why/기대효과/Non-Goals). "
-                         "본격 Task에만 사용: 페이지 본문 최상단에 렌더링")
+                    help="(deprecated) 구 6-필드 본문 Markdown 문자열. --sections-file을 쓸 것")
     ct.add_argument("--body-file", dest="body_file", default=None,
-                    help="본문 템플릿 Markdown 파일 경로 (--body 대신 파일로 전달). 파일 우선")
+                    help="(deprecated) 구 6-필드 본문 Markdown 파일. --sections-file을 쓸 것")
     ct.add_argument("--image", dest="images", action="append", default=None,
                     help="이미지 URL 또는 로컬 파일 경로 (여러 번 사용 가능)")
     ct.add_argument("--related-task", dest="related_task", default=None,
                     help="연결할 기존 Task의 page ID (Related Task self-relation, 양방향 sync)")
+
+    # update-why
+    uw = subparsers.add_parser("update-why",
+                               help="Task의 문제/근본 원인/기대 가치를 노트 최종본으로 교체")
+    uw.add_argument("--page-id", required=True, help="Task page ID")
+    uw.add_argument("--sections-file", dest="sections_file", required=True,
+                    help="JSON 파일 (키: problem, root_cause, value)")
+
+    # read-page
+    rp = subparsers.add_parser("read-page", help="페이지 본문을 Markdown으로 조회 (Task·노트 공용)")
+    rp.add_argument("--page-id", required=True, help="Notion page ID")
 
     # link-related-task
     lr = subparsers.add_parser("link-related-task",
@@ -1052,6 +1254,8 @@ def main():
     ac_group = ac.add_mutually_exclusive_group(required=True)
     ac_group.add_argument("--content-file", default=None, help="Markdown 파일 경로")
     ac_group.add_argument("--content", default=None, help="Markdown 문자열 (직접 전달)")
+    ac.add_argument("--section", default=None,
+                    help="이 heading 섹션의 끝에 붙인다 (예: '실행 기록'). 생략 시 페이지 끝")
 
     # carry-over
     co = subparsers.add_parser("carry-over", help="지난 주 미완료 Task 이월")
@@ -1071,6 +1275,8 @@ def main():
         "tasks": cmd_tasks,
         "calendar-pending": cmd_calendar_pending,
         "create-task": cmd_create_task,
+        "update-why": cmd_update_why,
+        "read-page": cmd_read_page,
         "update-status": cmd_update_status,
         "link-related-task": cmd_link_related_task,
         "delete-task": cmd_delete_task,
