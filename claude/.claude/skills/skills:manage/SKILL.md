@@ -239,7 +239,7 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py va
 | `skill_md_exists` | 스킬 디렉토리에 SKILL.md 생성 |
 | `frontmatter_present` | SKILL.md 최상단에 `---` 블록 추가 |
 | `required_fields` | frontmatter에 name/description 추가 |
-| `no_unknown_fields` | 허용: name, description, model, allowed-tools, license, metadata. 그 외 제거 |
+| `no_unknown_fields` | 허용: name, description, model, effort, allowed-tools, license, metadata, disable-model-invocation. 그 외 제거 |
 | `name_matches_dir` | name 값을 디렉토리명과 일치시키기 |
 | `name_format` | `^[a-z0-9]+([:-][a-z0-9]+)*$`, 최대 64자 |
 | `description_not_empty` | 사용 시점 + 트리거 키워드 포함한 설명 작성 |
