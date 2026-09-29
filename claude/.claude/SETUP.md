@@ -52,7 +52,7 @@ claude login
         "hooks": [
           {
             "type": "command",
-            "command": "cmd=$(cat | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))\"); if printf '%s' \"$cmd\" | grep -qE 'kubectl[[:space:]]+(edit|delete)'; then printf 'BLOCKED: kubectl edit/delete bypasses GitOps and will be reverted by ArgoCD. Modify YAML files in Git instead.\\n' >&2; exit 2; fi"
+            "command": "python3 /Users/<USER>/.claude/scripts/guard-kubectl-mutate.py"
           }
         ]
       }
