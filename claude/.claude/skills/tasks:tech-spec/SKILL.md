@@ -162,7 +162,7 @@ correctness 가드)이 아니다. 안정성은 목적이고 가용성 수준은 
 - 목표를 명확한 문장으로 정의
 - Before(현재) → After(목표) 구체화
 - **Non-Goals**: 하면 좋지만 이번에는 안 하는 것을 명시 (스코프 통제)
-- **성공 기준**: 완료 후 "작업 결과"에서 검증할 측정 가능한 수치 (예: latency -30%, 비용 $X 절감). `## 임팩트 측정 > 증명 기준`과 같은 지표를 쓴다
+- **성공 기준**: 완료 후 "작업 결과"에서 검증할 측정 가능한 수치 (예: latency -30%, 비용 $X 절감). `## 임팩트 측정 > 검증 기준`과 같은 지표를 쓴다
 - **변경 사항 Diff**: Before → After 변화를 대상별로 테이블 정리. 코드/설정 수준 변경이 있으면 diff 블록 추가.
 
 ---
@@ -438,7 +438,7 @@ Agent F 결과를 사용자에게 제시한 후:
 ### 해결 가설
 - (무엇을 적용하면 위 문제가 해결되는가, 한 문장. 개선 후 사람·팀이 얻는 것을 1~4 불릿으로 덧붙인다)
 
-### 증명 기준
+### 검증 기준
 - (무엇이 어느 방향으로 얼마나 바뀌면 해결인가: 지표 현재값 → 목표값, 어떤 메트릭으로 어떻게 확인하는가, 판정 시점)
 - (반증 조건: 이 관측이 나오면 가설이 틀린 것. 인프라·prod면 안 바뀔 것도 적는다)
 
@@ -456,7 +456,7 @@ Agent F 결과를 사용자에게 제시한 후:
 확정된 스펙을 Notion 업무 노트에 저장한다. 절차는 `notion:add-engineering-note` SKILL.md가 단일 출처다.
 
 1. **sections.json 작성**: 위 템플릿 구조의 각 섹션을 `notion:add-engineering-note`의 Step 3 매핑표로 sections 키에
-   옮긴다(문제·배경 → `problem`/`root_cause`, 해결 가설·증명 기준 → `value`의 `*가설:*`·`*증명 기준:*` 라벨, Before/After → `before`/`after`,
+   옮긴다(문제·배경 → `problem`/`root_cause`, 해결 가설·검증 기준 → `value`의 `*가설:*`·`*검증 기준:*` 라벨, Before/After → `before`/`after`,
    Diff → `changes`, 목표·성공 기준 → `goals`, Non-Goals → `non_goals`, 설계 + 왜 이 방법인가 → `design`,
    실행 계획 → `plan`). 매핑표 아래의 Goals·실행 계획 작성 기준을 함께 적용한다.
 2. **노트 생성 + Task 동기화**: `notion:add-engineering-note`의 Step 4 명령을 실행한다(`notion-eng-note.py create --task`,
