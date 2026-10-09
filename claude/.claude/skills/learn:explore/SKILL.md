@@ -3,12 +3,15 @@ name: learn:explore
 description: |
   특정 주제(기술/개념)에 대한 "탐구 지도"를 생성한다. 기본→중급→심화 3단계로 (1) 이해하면 좋을 개념,
   (2) 파고들 Why / 꼬리물기 질문, (3) 딥다이브 블로그 글쓰기 주제(의문형)를 정리한다.
-  가르치지 않고(=learn), 커리큘럼 문서를 만들지 않으며(=learn:roadmap), 수준 인터뷰를 하지 않는다.
+  가르치지 않고(=learn), 수준 인터뷰를 하지 않으며, 진행률 추적용 체크박스 문서를 만들지 않는다.
   "이 주제로 뭘 궁금해하고, 어떤 Why를 고민하고, 어떤 글을 쓰면 좋을지"를 한 번에 뽑아주는 스킬.
+  학습 로드맵·커리큘럼 요청도 이 스킬이 받는다 (learn:roadmap을 2026-10-09 흡수·삭제).
   사용 시점: (1) 새 주제를 파기 전 "무엇을 궁금해하면 좋을지" 지도가 필요할 때,
-  (2) Why/꼬리물기 질문 세트를 얻고 싶을 때, (3) 블로그/기술글 딥다이브 주제를 발굴할 때.
+  (2) Why/꼬리물기 질문 세트를 얻고 싶을 때, (3) 블로그/기술글 딥다이브 주제를 발굴할 때,
+  (4) 새 도메인을 처음부터 배울 순서(로드맵)가 필요할 때.
   트리거 키워드: "/learn:explore", "탐구 지도", "뭘 궁금해하면 좋을지", "Why 꼬리물기 정리",
-  "딥다이브 주제", "블로그 주제 정리", "학습 관점 정리", "이 주제 파고들 포인트".
+  "딥다이브 주제", "블로그 주제 정리", "학습 관점 정리", "이 주제 파고들 포인트",
+  "로드맵 만들어줘", "101 커리큘럼", "학습 계획", "커리큘럼 설계".
 model: sonnet
 allowed-tools:
   - Read
@@ -33,10 +36,11 @@ The output is Korean, formal (`~입니다`, `~합니다`), bullet-list heavy. Th
 | Skill | Role | Route here instead when |
 |-------|------|-------------------------|
 | `learn` | Teaches content in a Why→How→What-if→Apply session | User says "설명해줘", "가르쳐줘", "deep-dive 해줘" |
-| `learn:roadmap` | Level 0~10 curriculum saved to Obsidian with progress tracking | User wants a trackable curriculum document |
-| `learn:explore` | **This skill.** One-shot curiosity/Why/blog-topic map | User asks "뭘 궁금해하면 좋을지 / Why 꼬리물기 / 딥다이브·블로그 주제 정리" |
+| `learn:explore` | **This skill.** One-shot curiosity/Why/blog-topic map, also the learning roadmap | User asks "뭘 궁금해하면 좋을지 / Why 꼬리물기 / 딥다이브·블로그 주제 정리 / 로드맵·커리큘럼" |
 
 If the request mixes intents (e.g. "map + then teach"), produce the exploration map first, then suggest `/learn <topic>` to go deeper on a chosen item.
+
+Roadmap requests ("로드맵 만들어줘", "101", "처음부터") get the same exploration map; the 기본 tier already starts from "why does this exist". Do not add progress checkboxes or a Level 0~10 breakdown. `learn:roadmap` was merged here on 2026-10-09 because its only distinct feature, progress tracking, went unused: both saved roadmaps stalled (4/33 and 0/45 checked), and the user's actual loop is question → `/learn` → blog post, not checking items off.
 
 ## Core principles
 

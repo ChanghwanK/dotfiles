@@ -3,7 +3,7 @@ name: learn:unknown-unknown
 description: |
   존재 자체를 모르는 subsystem·failure mode·trade-off를 발견시키는 멘토 스킬. 외부 Reference Model로
   Problem Space를 먼저 펼친 뒤 Lifecycle을 추적시키고, 사용자 답변에서 빠진 컴포넌트를 지목한다.
-  가르치지 않고(=/learn), 커리큘럼도 수준 인터뷰도 질문 목록도 만들지 않는다(=/learn:roadmap, :design, :explore).
+  가르치지 않고(=/learn), 커리큘럼도 수준 인터뷰도 질문 목록도 만들지 않는다(=/learn:design, :explore).
   사용 시점: (1) 써봤는데 전체 그림이 안 보일 때, (2) 뭘 모르는지조차 모를 때,
   (3) Happy Path만 알고 Failure Surface를 모를 때, (4) 장애 가설-변별 증거 사고를 훈련할 때.
   트리거 키워드: "/learn:unknown-unknown", "모르는 걸 모르겠어", "전체 그림", "내가 뭘 놓치고 있지",
