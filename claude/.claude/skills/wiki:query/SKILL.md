@@ -69,6 +69,7 @@ python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \
 
 ## 주의사항
 
-- `--scope all`은 Daily Notes 포함 (날짜별 노트 다수 포함될 수 있음)
+- 기본 scope(`all`)는 Notes·Resources·Wiki이고 Daily Notes는 제외한다. Daily는 `--scope daily` 또는 `find-issues`로 본다
+- `--tags`는 저장 시와 같은 규칙으로 정규화해 비교한다 (`domain/kubernetes`와 `kubernetes`는 같은 결과)
 - `--note` 파라미터는 부분 일치 지원 (파일명 일부 또는 제목 키워드)
 - 볼트 경로: `/Users/changhwan/Library/Mobile Documents/com~apple~CloudDocs/obsidian_home/ch_home`

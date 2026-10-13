@@ -8,6 +8,8 @@ description: |
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/task:resume/scripts/resolve_task.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py working-note *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
   - mcp__notion-personal__API-retrieve-page-markdown
 ---
 
@@ -86,7 +88,15 @@ mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
 - 아직 안 된 것(미완료 체크박스, "다음 단계" 류 섹션)
 - 막혔던 지점이나 의사결정이 필요했던 부분
 
-Task에 Working Note relation이 있으면 그 노트의 `## 실행 기록`도 함께 읽는다. 진행 로그는 Task가 아니라 노트에 쌓인다.
+진행 로그는 Task가 아니라 연결된 업무 노트(Working Note relation)에 쌓이므로 노트도 함께 읽는다:
+
+```bash
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py working-note --page-id <Step 1의 page_id>
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page --page-id <note_page_id>
+```
+
+- `note_page_id`가 null이면 노트가 없는 Task다. Task 본문만으로 파악한다.
+- 노트에 `## 실행 기록`이 있으면 그 섹션을 진행 로그로 본다. 오래된 템플릿이라 없으면 작업·해결 류 섹션에서 진행 내용을 찾는다.
 
 ### Step 4: 컨텍스트 요약 출력
 

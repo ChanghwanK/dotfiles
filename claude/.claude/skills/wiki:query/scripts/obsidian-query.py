@@ -18,6 +18,16 @@ from datetime import date, timedelta
 
 sys.path.insert(0, "/Users/changhwan/.claude/skills/_lib")
 from obsidian import VaultScanner, parse_frontmatter, VAULT_BASE, SCAN_DIRS
+from tags import normalize_tags
+
+
+def _normalized_tags(raw_tags: list) -> set:
+    """저장 시(wiki:note)와 같은 규칙으로 정규화한다: domain/ 접두어 제거·도메인 매핑(istio → networking 등).
+
+    필터와 노트 태그를 같은 함수로 맞춰야 표기 차이(domain/kubernetes)와 정규화 이전에 저장된
+    노트의 태그가 모두 같은 키로 비교된다.
+    """
+    return set(normalize_tags(raw_tags))
 
 
 def cmd_search(args):
@@ -27,7 +37,9 @@ def cmd_search(args):
     scanner.scan_all(scopes=scopes)
 
     query_lower = args.query.lower() if args.query else ""
-    tag_filters = [t.strip() for t in args.tags] if args.tags else []
+    raw_filters = [t.strip() for t in args.tags] if args.tags else []
+    # type/·resource/ 처럼 정규화에서 버려지는 태그만 준 경우엔 원문 그대로 비교한다
+    tag_filters = sorted(_normalized_tags(raw_filters)) or raw_filters
 
     alias_index = scanner.build_alias_index()
     seen = set()
@@ -44,12 +56,13 @@ def cmd_search(args):
                 continue
             if args.type and note.note_type != args.type:
                 continue
-            if tag_filters and not any(tf in note.tags for tf in tag_filters):
+            note_tags = _normalized_tags(note.tags) | set(note.tags)
+            if tag_filters and not any(tf in note_tags for tf in tag_filters):
                 continue
             seen.add(note.filename)
             score = 20 if exact else 10
             for tf in tag_filters:
-                if tf in note.tags:
+                if tf in note_tags:
                     score += 3
             scored.append((score, note))
 
@@ -60,7 +73,8 @@ def cmd_search(args):
                 continue
             if args.type and note.note_type != args.type:
                 continue
-            tag_score = sum(3 for tf in tag_filters if tf in note.tags)
+            note_tags = _normalized_tags(note.tags) | set(note.tags)
+            tag_score = sum(3 for tf in tag_filters if tf in note_tags)
             if tag_score:
                 scored.append((tag_score, note))
                 seen.add(note.filename)
@@ -91,7 +105,8 @@ def cmd_search(args):
 def cmd_related(args):
     """wikilink를 따라 연관 노트를 탐색: 링크 그래프 기반, full scan 없음."""
     scanner = VaultScanner()
-    notes = scanner.scan_all(scopes=("notes", "resources"))
+    # wiki:note가 저장하는 04. Wiki/까지 포함해야 Wiki 노트에서 시작하거나 그쪽으로 이어지는 탐색이 된다
+    notes = scanner.scan_all(scopes=("notes", "resources", "wiki"))
     note_map = {n.filename: n for n in notes}
 
     start_note = _find_note(note_map, args.note)
@@ -205,7 +220,6 @@ def _parse_scope(scope_str: str) -> tuple:
         "resources": ("resources",),
         "daily": ("daily",),
         "wiki": ("wiki",),
-        "all": ("notes", "resources", "wiki", "daily"),
     }
     return mapping.get(scope_str, ("notes", "resources", "wiki"))
 
@@ -234,9 +248,9 @@ def main():
 
     p_search = sub.add_parser("search", help="키워드 검색")
     p_search.add_argument("--query", default="", help="검색 키워드")
-    p_search.add_argument("--tags", nargs="+", help="태그 필터 (예: domain/kubernetes)")
+    p_search.add_argument("--tags", nargs="+", help="태그 필터 (예: kubernetes. domain/ 접두어와 도메인 매핑은 정규화해 비교)")
     p_search.add_argument("--type", help="노트 타입 필터 (예: learning-note)")
-    p_search.add_argument("--scope", default="all", help="검색 범위: notes|resources|wiki|daily|all")
+    p_search.add_argument("--scope", default="all", help="검색 범위: notes|resources|wiki|daily|all (all = notes+resources+wiki, daily 제외)")
     p_search.add_argument("--limit", type=int, default=10)
 
     p_related = sub.add_parser("related", help="연관 노트 탐색")

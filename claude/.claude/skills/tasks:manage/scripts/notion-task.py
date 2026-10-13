@@ -653,6 +653,25 @@ def cmd_read_page(args):
     }, ensure_ascii=False, indent=2))
 
 
+def cmd_working_note(args):
+    """Task에 연결된 Engineering Note(Working Note relation) id를 반환한다.
+
+    실행 계획·실행 기록은 Task 본문이 아니라 이 노트에 쌓이므로, 재개(task:resume)와
+    완료 게이트(alfred)가 노트를 읽거나 이어 쓰기 전에 id를 얻는 단일 경로로 쓴다.
+    연결이 없으면 note_page_id는 null이다(신규 생성 여부는 호출하는 스킬이 정한다).
+    """
+    token = get_token()
+    page = notion_request(token, "GET", f"/pages/{args.page_id}")
+    relations = page.get("properties", {}).get("Working Note", {}).get("relation", [])
+    note_ids = [r["id"] for r in relations]
+    print(json.dumps({
+        "success": True,
+        "page_id": args.page_id,
+        "note_page_id": note_ids[0] if note_ids else None,
+        "note_page_ids": note_ids,
+    }, ensure_ascii=False, indent=2))
+
+
 # ─────────────────────────────────────────────
 # 상태 변경
 # ─────────────────────────────────────────────
@@ -1231,6 +1250,11 @@ def main():
     rp = subparsers.add_parser("read-page", help="페이지 본문을 Markdown으로 조회 (Task·노트 공용)")
     rp.add_argument("--page-id", required=True, help="Notion page ID")
 
+    # working-note
+    wn = subparsers.add_parser("working-note",
+                                help="Task에 연결된 Engineering Note(Working Note relation) id 조회")
+    wn.add_argument("--page-id", required=True, help="Task page ID")
+
     # link-related-task
     lr = subparsers.add_parser("link-related-task",
                                 help="두 Task를 Related Task 프로퍼티로 연결 (self-relation, 양방향 sync)")
@@ -1277,6 +1301,7 @@ def main():
         "create-task": cmd_create_task,
         "update-why": cmd_update_why,
         "read-page": cmd_read_page,
+        "working-note": cmd_working_note,
         "update-status": cmd_update_status,
         "link-related-task": cmd_link_related_task,
         "delete-task": cmd_delete_task,

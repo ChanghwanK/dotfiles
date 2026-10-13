@@ -22,6 +22,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py append-content *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py working-note *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py today*)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py reconcile-progress*)
   - Bash(python3 /Users/changhwan/.claude/scripts/alfred-state.py get*)
@@ -649,12 +650,10 @@ relation)다. Task 페이지는 "무엇을 왜 하려 했는가"(문제/근본 �
 **(1) 기존 Engineering Note 확인**: Task에 이미 연결된 노트가 있는지 확인한다(중복 노트 생성 방지).
 
 ```bash
-curl -s "https://api.notion.com/v1/pages/<page_id>" \
-  -H "Authorization: Bearer $NOTION_TOKEN" -H "Notion-Version: 2025-09-03" \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); rel=d.get('properties',{}).get('Working Note',{}).get('relation',[]); print(rel[0]['id'] if rel else '')"
+python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py working-note --page-id <page_id>
 ```
 
-- 결과가 비어 있으면 → 아래 (4)에서 **신규 생성**.
+- 응답의 `note_page_id`가 null이면 → 아래 (4)에서 **신규 생성**.
 - id가 나오면 → 그 `note_page_id`에 **append**한다(신규 생성 금지).
 
 **(2) 초안 합성**: 현재 대화 맥락에서 자동으로 합성한다. 추가 질문하지 않는다.
