@@ -13,7 +13,7 @@ allowed-tools:
   - Read(/Users/changhwan/.claude/skills/youtube:summary/assets/template.md)
   - Read(/tmp/yt-extract-result.json)
   - Write(/tmp/yt-extract-result.json)
-  - Write(/tmp/obsidian-content.json)
+  - Write(/tmp/obsidian-content.txt)
 ---
 
 # YouTube Summary Skill
@@ -61,7 +61,7 @@ python3 /Users/changhwan/.claude/skills/youtube:summary/scripts/yt-extract.py ex
    - `{`, `}`, `"blocks"` 등 JSON 구조 포함 금지
    - 메타정보 blockquote(`> **채널**:...`)부터 관련 키워드 섹션까지 완성된 마크다운
 
-2. 기존 `obsidian:note` 스크립트 호출:
+2. 기존 `wiki:note` 스크립트 호출:
 ```bash
 python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create \
   --title "[영상제목] 유튜브 요약" \
@@ -71,7 +71,7 @@ python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py creat
 
 **태그 규칙:**
 - 첫 번째 태그는 **반드시** `YouTube`
-- 영상 주제에 맞는 태그를 obsidian:note의 태그 목록에서 선택
+- 영상 주제에 맞는 태그를 wiki:note의 태그 목록에서 선택
 - 영상에 등장하는 구체적 기술 키워드도 태그로 추가
 
 ### Step 5: 결과 검증 및 출력

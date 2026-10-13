@@ -5,7 +5,7 @@ description: |
   (2) 파고들 Why / 꼬리물기 질문, (3) 딥다이브 블로그 글쓰기 주제(의문형)를 정리한다.
   가르치지 않고(=learn), 수준 인터뷰를 하지 않으며, 진행률 추적용 체크박스 문서를 만들지 않는다.
   "이 주제로 뭘 궁금해하고, 어떤 Why를 고민하고, 어떤 글을 쓰면 좋을지"를 한 번에 뽑아주는 스킬.
-  학습 로드맵·커리큘럼 요청도 이 스킬이 받는다 (learn:roadmap을 2026-10-09 흡수·삭제).
+  학습 로드맵·커리큘럼 요청도 이 스킬이 받는다.
   사용 시점: (1) 새 주제를 파기 전 "무엇을 궁금해하면 좋을지" 지도가 필요할 때,
   (2) Why/꼬리물기 질문 세트를 얻고 싶을 때, (3) 블로그/기술글 딥다이브 주제를 발굴할 때,
   (4) 새 도메인을 처음부터 배울 순서(로드맵)가 필요할 때.
@@ -40,7 +40,7 @@ The output is Korean, formal (`~입니다`, `~합니다`), bullet-list heavy. Th
 
 If the request mixes intents (e.g. "map + then teach"), produce the exploration map first, then suggest `/learn <topic>` to go deeper on a chosen item.
 
-Roadmap requests ("로드맵 만들어줘", "101", "처음부터") get the same exploration map; the 기본 tier already starts from "why does this exist". Do not add progress checkboxes or a Level 0~10 breakdown. `learn:roadmap` was merged here on 2026-10-09 because its only distinct feature, progress tracking, went unused: both saved roadmaps stalled (4/33 and 0/45 checked), and the user's actual loop is question → `/learn` → blog post, not checking items off.
+Roadmap requests ("로드맵 만들어줘", "101", "처음부터") get the same exploration map; the 기본 tier already starts from "why does this exist". Do not add progress checkboxes or a Level 0~10 breakdown: the user's loop is question → `/learn` → blog post, not checking items off.
 
 ## Core principles
 
@@ -78,7 +78,7 @@ python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py creat
   --title "{topic} 탐구 지도" \
   --tags "{topic}" \
   --content-file /tmp/obsidian-content.json \
-  --type resource
+  --type learning-note
 ```
 
 Otherwise, do not save. End the response with the soft suggestion line: `💡 /wiki:note 로 이 탐구 지도를 개인 wiki에 저장할 수 있습니다.`

@@ -189,4 +189,4 @@ git push origin main
 - `git reset --hard` 절대 사용 금지
 - push 전 반드시 사용자 확인
 - prod 환경 롤백은 이중 확인 (Step 3 + Step 6)
-- revert 후 ArgoCD가 자동 sync하므로 클러스터 반영은 별도 확인 불필요 (필요 시 deploy-verify-agent 사용)
+- revert 후 ArgoCD auto-sync 결과를 `/devops:deploy-check`로 확인한다.

@@ -58,7 +58,7 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py sear
 | Notion `read` | `page_id`, `tomorrow`, `kpt` 필드 획득 전용 |
 | Obsidian `today` → `todos.completed` | **오늘 한 일 유일한 기준**: 세션 로그 보완 없음 |
 | Obsidian `today` → `todos.in_progress` | **미완료 항목 primary source** |
-| Obsidian `today` → `top3` | 오늘 목표 달성 여부 + `[실행]`/`[탐색]` 태그별 완료율 |
+| Obsidian `today` → `top3` | 오늘 목표 달성 여부 + `[필수]`/`[진행]`/`[검토]` 태그별 완료율 |
 | Obsidian `today` → `notes` | 리마인드 생성 원천 (Step 3.5) |
 | Obsidian Daily Note → `## Hypothesis Log` | 가설-실행 사이클 분석 (Growth Feedback용) |
 | 세션 로그 `sessions` | KPT·Growth Feedback 보완용: **오늘 한 일 요약에는 미포함** |
@@ -80,7 +80,7 @@ Hypothesis Log가 비어있으면(`-` 한 줄만 있거나 섹션 없음) Growth
 
 Obsidian Daily Note의 `## Top 3 오늘의 목표`에서:
 - `[x]`/`[ ]` → 전체 완료율
-- `[실행]`/`[탐색]` 태그 → 태그별 완료율 분리
+- `[필수]`/`[진행]`/`[검토]` 태그 → 태그별 완료율 분리
 
 **세션 로그 해석 방법 (KPT·Growth Feedback 보완용):**
 - `sessions[].project`로 어떤 리포지토리/프로젝트에서 작업했는지 파악
@@ -211,12 +211,12 @@ Step 1의 `search-tasks` 결과(재호출 없음)에서 오늘 날짜(KST) 기�
 
 **Growth Feedback 생성 로직 (KPT 하단에 추가):**
 1. 실행율은 **2.0 ROI 분석의 Top 3 정렬도 값을 그대로 재사용** (중복 계산 금지)
-2. `[실행]`/`[탐색]` 태그별 완료율 분리: `[실행] {M}/{N}, [탐색] {M}/{N}` (태그 정보는 ROI 분석에는 없으므로 여기서 별도 계산)
+2. `[필수]`/`[진행]`/`[검토]` 태그별 완료율 분리: `[필수] {M}/{N}, [진행] {M}/{N}, [검토] {M}/{N}` (태그 정보는 ROI 분석에는 없으므로 여기서 별도 계산)
 3. `## Hypothesis Log` 파싱:
    - `결과: H1이 맞았다` → 첫 가설 적중
    - `결과: H{2+}이 맞았다` 또는 `놓친 것:` → 놓친 레이어
    - 기록 건수 0이면 가설 관련 항목 전체 생략
-4. Top 3에 `[실행]`/`[탐색]` 태그가 없으면 (아직 새 형식 미적용) Growth Feedback 섹션 전체를 생략
+4. Top 3에 `[필수]`/`[진행]`/`[검토]` 태그가 없으면 Growth Feedback 섹션 전체를 생략
 
 **출력 포맷:**
 ```
@@ -260,7 +260,7 @@ Step 1의 `search-tasks` 결과(재호출 없음)에서 오늘 날짜(KST) 기�
 ---
 
 ### Growth Feedback 📊
-실행율: {완료}/{전체} ({%}), [실행] {M}/{N}, [탐색] {M}/{N}
+실행율: {완료}/{전체} ({%}), [필수] {M}/{N}, [진행] {M}/{N}, [검토] {M}/{N}
 가설 사이클: {N}건
   - 첫 가설 적중: {N}건
   - 놓친 레이어: {목록}
@@ -472,7 +472,7 @@ python3 /Users/changhwan/.claude/skills/daily:review/scripts/llm-wiki-append.py 
 ## 주의사항
 
 - Notion 업데이트는 항상 사용자 확인 후 실행
-- **Step 1에서 Notion + Obsidian + 세션 로그 세 소스를 반드시 병렬로 읽는다**: Notion `Todo's` 프로퍼티는 DB 컬럼값(3개 내외)만 반환하므로 실제 todos와 불일치. Obsidian이 primary todos source
+- **Step 1의 네 소스를 병렬로 읽는다**: Notion `Todo's` 프로퍼티는 DB 컬럼값(3개 내외)만 반환하므로 실제 todos와 불일치. Obsidian이 primary todos source
 - **오늘 한 일 요약은 Obsidian `todos.completed`만 사용한다**: 세션 로그를 추가 완료 항목으로 포함하지 않는다. 세션 로그는 KPT·Growth Feedback 보완에만 사용
 - **미완료 항목은 Obsidian `todos.in_progress`에서 읽는다**: Notion `todos` done=false 사용 금지
 - **내일 할 것들과 KPT는 Step 2에서 반드시 함께 제시한다**: 한 번에 확인받고 한 번에 업데이트

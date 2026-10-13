@@ -9,11 +9,11 @@ Given the topic or context provided in $ARGUMENTS:
    - Who is the target audience?
    - What is the key message or call to action?
    - Is there a deadline or date to highlight?
-   - What tone is appropriate — formal, casual, or urgent?
+   - What tone is appropriate: formal, casual, or urgent?
 
 2. Compose the announcement following Slack formatting best practices:
    - Use Slack's mrkdwn syntax: `*bold*` for emphasis (not `**bold**`), `_italic_` for secondary emphasis, `>` for callouts.
-   - Lead with the most important information — don't bury the point.
+   - Lead with the most important information; don't bury the point.
    - Use a clear, descriptive opening line that works as a headline.
    - Keep paragraphs short (2-3 sentences max).
    - Use bullet points for lists of items or action steps.

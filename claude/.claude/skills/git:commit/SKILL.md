@@ -129,7 +129,7 @@ pre-commit hook 실패 시: 문제를 수정한 후 **새 커밋 생성** (amend
 ```
 커밋 완료:
 ─────────────────────────────
-chore(santa/authentication): Update image tag in dev
+chore(santa/authentication): bump image to dev-4164f0a for OTel trace fix
 ─────────────────────────────
 ```
 

@@ -19,8 +19,10 @@ allowed-tools:
 args가 step 번호 (예: `2`, `3`). 반드시 숫자여야 한다.
 
 ```bash
-python3 /Users/changhwan/.claude/scripts/plan-todo.py check {args}
+python3 /Users/changhwan/.claude/scripts/plan-todo.py check {args} --plan-id <이 세션 플랜의 plan_id>
 ```
+
+`--plan-id`를 빼면 가장 최근 수정된 active 플랜(다른 세션의 플랜일 수 있음)이 체크된다. 출력의 플랜 제목이 이 세션 플랜인지 확인한다.
 
 완료 후 바로 todo 출력으로 현재 진행률 보여주기:
 

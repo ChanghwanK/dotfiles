@@ -36,7 +36,7 @@ Then review that plan against the brief before building: if any part of it reads
 
 When writing the code, be careful of structuring your CSS selector specificities. It's easy to generate CSS classes that cancel each other out (especially with a type-based selector like .section and a element-based selector like .cta). This can happen often with paddings/margins between sections.
 
-Try to do a lot of this planning and iteration in your thinking, and only show ideas to the user when you have higher confidence it'll delight them.
+Share the revised plan (tokens, layout concept, signature) in a few lines before writing code.
 
 ## Restraint and self-critique
 

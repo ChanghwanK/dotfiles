@@ -44,8 +44,8 @@ allowed-tools:
 ```yaml
 ---
 weekly_tasks:
-  - name: "작업명", priority: P1, status: 진행중, due: 2026-03-10~2026-03-14, level: daily
-  - name: "주간 프로젝트명", priority: P1, status: 진행 중, due: 2026-03-23~2026-04-05, level: weekly_project
+  - name: "작업명", status: 진행중, due: 2026-03-10~2026-03-14, level: daily
+  - name: "주간 프로젝트명", status: 진행 중, due: 2026-03-23~2026-04-05, level: weekly_project
   - ...
 today_page_id: "notion-page-uuid"
 today_page_created: true/false

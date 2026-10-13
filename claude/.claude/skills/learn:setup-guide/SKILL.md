@@ -57,7 +57,7 @@ Applied 모드 가이드 작성 시 아래 인프라 컨텍스트를 매핑한�
 | 배포 방식 | ArgoCD (kubectl edit/delete 금지) |
 | Service Mesh | Istio |
 | Node Provisioning | Karpenter |
-| Registry | `harbor.global.riid.team` |
+| Registry | `harbor.global.riiid.team` |
 | Tokyo VPC | 10.0.0.0/16 |
 | Seoul VPC | 10.100.0.0/16 |
 
@@ -118,8 +118,8 @@ WebSearch와 WebFetch로 아래 정보를 수집한다:
 ```
 
 "Y" 또는 Enter 시:
-1. `/tmp/setup-guide-content.json` 작성 (title, content, tags, aliases)
-2. `python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create --input /tmp/setup-guide-content.json` 실행
+1. 본문을 `/tmp/setup-guide-content.json`에 작성 (`{"blocks": "<본문>"}`; 제목·태그·alias는 아래 플래그로 전달)
+2. `python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py create --title "<제목>" --tags "<태그>" --aliases "<키워드1>,<키워드2>,<키워드3>" --content-file /tmp/setup-guide-content.json` 실행
 3. 저장된 파일 경로 출력
 
 **저장 메타데이터:**

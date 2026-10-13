@@ -6,7 +6,7 @@ description: |
   확정한 스펙은 Notion 업무 노트(notion:add-engineering-note 템플릿)에 저장한다. Obsidian에는 저장하지 않는다.
   사용 시점: (1) 인프라 변경 계획 수립, (2) 설계 의사결정 구조화, (3) 새 프로젝트 킥오프, (4) 대화 내용을 빠르게 스펙 정리,
   (5) notion:add-engineering-note가 grill-me 인터뷰 뒤 호출(eng-note 모드).
-  트리거 키워드: "tech spec", "기술 스펙", "스펙 문서", "tech-spec 작성", "/tasks:tech-spec", "/work:tech-spec".
+  트리거 키워드: "tech spec", "기술 스펙", "스펙 문서", "tech-spec 작성", "/tasks:tech-spec".
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
@@ -55,7 +55,7 @@ args에 eng-note 모드, 연결할 Task page_id, grill-me 인터뷰 결과가 �
 
 | 조건 | 모드 |
 |------|------|
-| `/work:tech-spec` 또는 "빠르게 스펙 정리", "스펙으로 정리해줘" | **Quick mode** |
+| "빠르게 스펙 정리", "스펙으로 정리해줘" | **Quick mode** |
 | `/tasks:tech-spec` 또는 기본 | **Standard mode** |
 
 ---

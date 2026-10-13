@@ -3,7 +3,7 @@ name: learn:unknown-unknown
 description: |
   존재 자체를 모르는 subsystem·failure mode·trade-off를 발견시키는 멘토 스킬. 외부 Reference Model로
   Problem Space를 먼저 펼친 뒤 Lifecycle을 추적시키고, 사용자 답변에서 빠진 컴포넌트를 지목한다.
-  가르치지 않고(=/learn), 커리큘럼도 수준 인터뷰도 질문 목록도 만들지 않는다(=/learn:design, :explore).
+  가르치지 않고(=/learn), 커리큘럼도 수준 인터뷰도 질문 목록도 만들지 않는다(=/learn:explore).
   사용 시점: (1) 써봤는데 전체 그림이 안 보일 때, (2) 뭘 모르는지조차 모를 때,
   (3) Happy Path만 알고 Failure Surface를 모를 때, (4) 장애 가설-변별 증거 사고를 훈련할 때.
   트리거 키워드: "/learn:unknown-unknown", "모르는 걸 모르겠어", "전체 그림", "내가 뭘 놓치고 있지",
@@ -91,13 +91,13 @@ Apply the five detection rules in `references/gap-detection.md`
 (Missing Component / Layer / Lifecycle / Failure Surface / Scale).
 
 For each gap: name it, state why the flow breaks without it, and list the specific area to add.
-Do not grade with praise ("좋은 답변입니다") — state coverage plainly.
+Do not grade with praise ("좋은 답변입니다"): state coverage plainly.
 
 ### Step 4: Deep Dive Questions 생성
 
 Generate questions across all five types in `references/question-patterns.md`
 (Lifecycle / Boundary / Failure / Diagnosis / Trade-off). Boundary and Diagnosis questions are the
-highest-yield for surfacing unknown unknowns — never omit them.
+highest-yield for surfacing unknown unknowns; never omit them.
 
 If the user brings an incident instead of a topic, switch to the incident reasoning chain in
 `references/incident-reasoning.md` (Symptom → Scope → Hypothesis → Discriminating Evidence → Root Cause)
@@ -130,7 +130,7 @@ Before ending the session, confirm all of the following. If any fails, return to
 - [ ] Lifecycle을 사용자가 먼저 답한 뒤 reference trace를 보여줬는가? (실패 → Step 2, 답을 먼저 준 세션은 무효)
 - [ ] 빠진 컴포넌트를 **이름과 함께** 지목했는가? ("더 있습니다" 같은 모호한 지적은 실패 → Step 3)
 - [ ] Diagnosis 질문("같은 symptom을 만드는 여러 원인을 어떤 관측 하나로 가르는가")이 포함되었는가? (실패 → Step 4)
-- [ ] Lab이 Prediction을 Experiment보다 먼저 요구했는가? 그리고 대상 환경이 prod/stg/global/idc가 아닌가? (실패 → Step 5)
+- [ ] Lab이 Prediction을 Experiment보다 먼저 요구했는가? 그리고 대상 환경이 사용자 단독 disposable 환경(로컬 VM·kind 등)이고 공유 클러스터(dev 포함)가 아닌가? (실패 → Step 5)
 - [ ] 세션 종료 시 사용자가 **시작 시점에는 이름조차 몰랐던 영역**을 질문했는가? (실패 → 그 영역으로 Step 2 재진입)
 
 ---

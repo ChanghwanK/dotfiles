@@ -1,9 +1,7 @@
 # Shared Documentation
 
 The files below are shared across all Claude Code sessions and agents.
-Add a new `@` import line here whenever you add a document to ~/.claude/docs/.
-
-<!-- @~/.claude/docs/example.md -->
+~/.claude/docs/에 문서를 추가하면 아래 Registry에 한 줄 등록한다 (import 자체는 CLAUDE.md에서 관리).
 
 ## Registry
 

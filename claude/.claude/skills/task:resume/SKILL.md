@@ -28,7 +28,7 @@ Notion Task 링크 하나로 "지금까지 뭘 했는지"와 "지금 상태"를 
   덮어쓰지 않는다).
 - **update-status 로직은 재구현하지 않는다**: 상태 변경은 반드시
   `tasks:manage/scripts/notion-task.py update-status`를 호출한다. 이 스크립트가
-  Done 체크박스 동기화, `started_at` backfill을 이미 처리한다.
+  `started_at` backfill을 이미 처리한다.
 - `/task:resume <링크>` 호출 자체가 착수 의사표시이므로, 상태 전환 전 별도
   확인 질문은 하지 않는다(alfred의 `resume --task` 로더와 달리, 여기서는
   브리핑 매니페스트를 거치지 않고 사용자가 링크를 직접 골라 왔기 때문).
@@ -85,6 +85,8 @@ mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
 - 지금까지 진행된 작업(로그/체크리스트 중 완료 항목)
 - 아직 안 된 것(미완료 체크박스, "다음 단계" 류 섹션)
 - 막혔던 지점이나 의사결정이 필요했던 부분
+
+Task에 Working Note relation이 있으면 그 노트의 `## 실행 기록`도 함께 읽는다. 진행 로그는 Task가 아니라 노트에 쌓인다.
 
 ### Step 4: 컨텍스트 요약 출력
 

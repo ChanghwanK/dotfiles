@@ -1,7 +1,7 @@
 ---
 name: tasks:tech-spec-ops
 description: |
-  Tech Spec 운영 스킬. 동적 분석/검토, Phase 4 실행 추적, Phase 5 측정/완료 처리, validate, list, migrate.
+  과거 Obsidian Tech Spec 운영 스킬. 동적 분석/검토, Phase 4 실행 추적, Phase 5 측정/완료 처리, validate, list, migrate.
   사용 시점: (1) Tech Spec 검토/분석 요청, (2) 실행 시작/진행 기록, (3) 완료 후 결과 측정, (4) 스펙 검증, (5) 목록 조회.
   트리거 키워드: "스펙 검토", "스펙 분석", "스펙 업데이트해줘", "진행 상황 반영",
   "스펙 진행", "스펙 완료", "스펙 검증", "tech spec ops", "/tasks:tech-spec-ops".
@@ -16,6 +16,7 @@ allowed-tools:
 # tasks:tech-spec-ops: 운영 스킬 (Phase 4-5 + 유틸리티)
 
 `tasks:tech-spec`에서 생성된 Tech Spec의 실행 추적, 완료 측정, 검증, 목록 조회를 담당한다.
+대상은 2026-09-27 이전 Obsidian 스펙뿐이다. Notion 업무 노트의 진행·결과 기록은 `notion:add-engineering-note`의 "생성 이후 갱신" 절차를 쓴다.
 
 **스크립트**: `~/.claude/skills/tasks:tech-spec/scripts/tech-spec.py` (계획 스킬과 공유)
 **Tech Spec 경로**: `03. Resources/tech-specs/`
@@ -77,7 +78,7 @@ allowed-tools:
 
 | ID | 탐지 규칙 | 예시 |
 |----|-----------|------|
-| D-1 | 필수 H2 섹션 4개(`배경 및 목표`, `현재 상태와 목표`, `실행 계획`, `실제 결과 (Outcome)`) 중 누락 | validate 결과로 확인 |
+| D-1 | 필수 H2 섹션 4개(`왜 이걸 해야 하는가?`, `현재 상태와 목표`, `실행 계획`, `임팩트 측정`) 중 누락 | validate 결과로 확인 |
 | D-2 | `### 성공 기준`이 없거나 측정 불가능한 기술 (숫자/Before-After 없음) | "성능이 개선된다" → 측정 불가 |
 | D-3 | `### 롤백 계획`이 없음 | 실행 계획에 롤백 언급 없음 |
 | D-4 | `domain/` 태그가 없음 | tags: ["Observability"] → domain/ 없음 |

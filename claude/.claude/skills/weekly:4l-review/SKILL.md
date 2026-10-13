@@ -24,7 +24,7 @@ Daily DB를 분석해 이번 주 한 일을 리스트업하고, 4L(Liked/Learned
 ## 핵심 원칙
 
 - 스크립트만 호출한다. Notion MCP 도구는 사용하지 않는다 (토큰 효율).
-- Daily DB 조회는 이 스킬의 `scripts/notion-weekly.py`를 쓴다 (2026-09-18 weekly:start 제거 시 이관).
+- Daily DB 조회는 이 스킬의 `scripts/notion-weekly.py`를 쓴다.
 - Notion 페이지는 **반드시 사용자 확인 후에만** 생성한다. 초안은 반드시 먼저 화면에 출력한다.
 - 같은 기간의 페이지가 이미 존재하면 중복 생성하지 않고 사용자에게 알린다 (이 스킬은 생성 전용이며 기존 페이지 수정은 지원하지 않는다).
 - Notion 본문 문장 스타일은 `~/.claude/docs/notion-writing-style.md`를 따른다 (짧고 단순하게, 핵심만). em dash/본문 이모지는 쓰기 스크립트가 자동 정리한다.

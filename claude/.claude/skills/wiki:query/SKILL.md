@@ -30,9 +30,9 @@ Obsidian vault(217개+ 노트)에서 키워드/태그/연관 링크 그래프로
 ### Step 1: 검색 실행
 
 ```bash
-# 키워드 검색 (기본 scope: 02. Notes + 03. Resources)
+# 키워드 검색 (기본 scope: Notes + Resources + Wiki)
 python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \
-  search --query "검색어" [--tags domain/kubernetes] [--type learning-note] [--limit 10]
+  search --query "검색어" [--tags kubernetes] [--type learning-note] [--limit 10]
 
 # 연관 노트 탐색 (링크 그래프 BFS)
 python3 /Users/changhwan/.claude/skills/wiki:query/scripts/obsidian-query.py \

@@ -12,5 +12,5 @@ Given the channel name provided in $ARGUMENTS (strip any leading `#`):
    - Key decisions or action items mentioned
    - Notable announcements or updates
    - Active threads and their conclusions (if any)
-5. Keep the summary scannable — use short bullet points grouped by topic. Mention who said what when it's relevant (e.g., decisions, action items).
+5. Keep the summary scannable: use short bullet points grouped by topic. Mention who said what when it's relevant (e.g., decisions, action items).
 6. If the channel has very little recent activity, say so and note the last time a message was posted.

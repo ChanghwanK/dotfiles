@@ -1,7 +1,7 @@
 ---
 name: notion:send-task-plan
 description: |
-  Plan 파일(.claude/plans/*.md)을 Notion 페이지에 전송하는 스킬.
+  Plan 파일(~/.claude/plans/*.md)을 Notion 페이지에 전송하는 스킬.
   사용 시점: (1) 설계 완료 후 Notion에 공유, (2) plan 문서를 팀원과 공유.
   트리거 키워드: "send-plan", "plan 전송", "plan 노션으로", "plan 보내줘".
 model: sonnet
@@ -12,7 +12,7 @@ allowed-tools:
 
 # Send Plan Skill
 
-Plan 모드에서 작성한 설계 문서(`.claude/plans/*.md`)를 Notion 페이지에 전송하는 워크플로우.
+Plan 모드에서 작성한 설계 문서(`~/.claude/plans/*.md`)를 Notion 페이지에 전송하는 워크플로우.
 
 ---
 
@@ -20,7 +20,7 @@ Plan 모드에서 작성한 설계 문서(`.claude/plans/*.md`)를 Notion 페이
 
 - 본문 작성 시 `~/.claude/docs/notion-writing-style.md`의 "쓰기 시점 체크리스트"를 초안 단계부터 직접 적용한다:
   - 불릿 `레이블: 내용`은 레이블을 `*레이블:*`(이탤릭)로 직접 쓴다.
-  - 레이블을 상위 불릿, 내용을 한 단계 들여쓴 하위 불릿으로 항상 중첩한다. 내용이 한 줄이어도 인라인으로 붙이지 않는다.
+  - 중첩 불릿은 전송 시 평탄화되므로(제한사항 참조) 레이블·내용 쌍은 `*레이블:* 내용` 한 줄로 쓴다.
   - 버전/태그/상태 전환은 "to" 대신 화살표(`→`)로 직접 쓴다.
   - Goals/Non-Goals류 구조적 섹션은 볼드 텍스트가 아니라 실제 헤딩(`##`/`###`)으로 직접 쓴다.
   - 여러 섹션에 같은 사실을 재진술하지 않는다: 한 사실은 가장 적합한 섹션에만 쓴다.
@@ -39,7 +39,7 @@ Plan 모드에서 작성한 설계 문서(`.claude/plans/*.md`)를 Notion 페이
 ### Step 1: Plan 파일 확인
 
 사용자가 파일 경로를 제공하지 않으면, Glob 도구로 plan 파일을 탐색한다:
-- 패턴: `.claude/plans/*.md`
+- 패턴: `~/.claude/plans/*.md`
 
 파일 목록을 보여주고 어떤 파일을 전송할지 선택 요청.
 

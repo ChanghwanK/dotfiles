@@ -11,7 +11,7 @@ allowed-tools:
   - Read
   - Agent
   - AskUserQuestion
-  - mcp__aws-pricing
+  - mcp__awslabs_aws-pricing-mcp-server
 ---
 # infra-design Skill
 

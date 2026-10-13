@@ -7,15 +7,15 @@ description: Generate a standup update based on your recent Slack activity
 2. Search for the user's recent messages using `slack_search_public` with the filter `from:<@USER_ID>` and `after:` set to yesterday's date. This captures messages from the last working day.
 
 3. Review the messages found and categorize them into standup themes:
-   - **What I worked on** — Topics, projects, or tasks the user discussed or contributed to
-   - **What I'm working on next** — Any mentions of upcoming work, plans, or follow-ups
-   - **Blockers** — Any questions asked that went unanswered, issues raised, or explicit mentions of being stuck
+   - **What I worked on**: Topics, projects, or tasks the user discussed or contributed to
+   - **What I'm working on next**: Any mentions of upcoming work, plans, or follow-ups
+   - **Blockers**: Any questions asked that went unanswered, issues raised, or explicit mentions of being stuck
 
 4. For messages in threads, use `slack_read_thread` to get the full context so you can accurately describe what the user contributed.
 
 5. Format the standup as:
    ```
-   *Standup for <display name> — <today's date>*
+   *Standup for <display name>: <today's date>*
 
    *Done:*
    - Item 1

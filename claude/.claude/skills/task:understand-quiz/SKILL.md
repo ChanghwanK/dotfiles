@@ -68,17 +68,16 @@ python3 /Users/changhwan/.claude/skills/task:understand-quiz/scripts/collect_wor
 python3 /Users/changhwan/.claude/skills/task:understand-quiz/scripts/collect_work_context.py plan --name scalable-wishing-floyd
 ```
 
-For a **Notion Task**, read the page with `API-retrieve-page-markdown`. The 6-field body maps as follows:
+For a **Notion Task**, read the page with `API-retrieve-page-markdown`. The Task template body (see `tasks:capture`) maps as follows:
 
 | Body section | Use it for |
 |--------------|------------|
-| `00. Summary` | one-line framing |
-| `01. 문제 정의` (As-Is / To-Be) | 목적 axis |
-| `02. 문제 분석` | evidence for every answer |
-| `03. 해결 이유` | 목적 axis, urgency |
-| `04. 기대효과` 측정 기준 | completion criteria |
-| `05. Goals/Non Goals` | **방향성 axis. Non-Goals is the richest source.** |
-| `06. 세부 계획` checkboxes | the `units` for phase/step granularity |
+| `문제` | 목적 axis |
+| `근본 원인` | evidence for every answer, 해결 방법 axis |
+| `기대 가치` (`*가설:*`, `*검증 기준:*`) | 목적 axis, completion criteria |
+| `작업 Context` checkboxes | evidence; the `units` for phase/step granularity |
+
+The 방향성 axis has no dedicated section: use Non-Goals stated in `작업 Context`, else `GAP`.
 
 For **session context** (no artifact), use the conversation itself and say so in the scope line.
 

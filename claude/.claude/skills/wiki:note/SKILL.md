@@ -61,7 +61,7 @@ allowed-tools:
 - **대화 내용 기반**: 현재 대화에서 설명된 내용을 구조화된 마크다운으로 정리한다.
 - **파일명 규칙**: `slugified-title.md` 형식으로 자동 생성된다 (날짜 prefix 없음).
 - **태그**: `kubernetes`, `aws`, `observability`, `networking`, `terraform`, `database`, `on-premise`, `security`, `ai` 중 선택.
-- **aliases (Claude 결정)**: 노트 내용을 바탕으로 핵심 키워드 3개를 Claude가 직접 판단하여 `--aliases`로 전달한다. Quick Switcher(Cmd+O) 검색을 활성화한다.
+- **aliases**: Step 2.5의 alias-suggester Agent가 아래 기준으로 3개를 제안하고, 그 값을 `--aliases`로 전달한다. Quick Switcher(Cmd+O) 검색을 활성화한다.
 - **날짜 자동화**: 오늘 날짜가 `date`, `last_reviewed` 두 필드에 모두 기록된다.
 - **관련 노트 자동 링크**: 같은 태그를 가진 기존 노트를 탐색하여 "관련 노트" 섹션에 wikilink로 자동 추가.
 
@@ -83,7 +83,7 @@ allowed-tools:
 
 ## aliases 결정 기준
 
-노트 저장 전에 Claude가 직접 **3개**를 선택하여 `--aliases`로 전달한다. 3개는 각기 다른 역할을 맡는다.
+Agent가 제안하는 3개는 각기 다른 역할을 맡는다.
 
 **3개 역할 구성 (모두 채울 것):**
 1. **Role A (기술 약어/공식 명칭)**: 영어 약어 또는 제품명 (예: `IRSA`, `mTLS`, `KEDA`, `CloudFront`)
@@ -223,9 +223,10 @@ OBSIDIAN_CONTENT_EOF
 
 `/wiki:note 무지` 또는 사용자가 "무지 노트로 저장"이라고 하면 `--type ignorance-note`를 사용한다.
 
-`--category` 옵션: `engineering` (기본값) | `career`
+`--category` 옵션: `engineering` (기본값) | `others` | `history`
 - `engineering`: 기술 노트 전체 (개념, 장애 분석, 인사이트 포함) → `04. Wiki/engineering/`
-- `career`: 엔지니어링 철학/성장/팀 운영 노트 → `04. Wiki/career/`
+- `others`: 엔지니어링 철학/성장/팀 운영 노트 → `04. Wiki/career/`
+- `history`: → `04. Wiki/incidents/`
 
 ### Step 4: 노트 품질 리뷰 (Agent)
 

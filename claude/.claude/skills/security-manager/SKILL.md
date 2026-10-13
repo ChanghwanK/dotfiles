@@ -89,19 +89,7 @@ security add-generic-password -a "claude-mcp" -s "<service>-token" \
 실행 전 어떤 1Password 항목을 사용할지 사용자에게 확인.
 
 ### 전체 재동기화 (rotate-all)
-```bash
-declare -A TOKEN_MAP=(
-  [grafana-token]="op://Employee/Claude MCP - Grafana/token"
-  [slack-token]="op://Employee/Claude MCP - Slack/token"
-  [github-token]="op://Employee/Claude Desktop - GitHub PAT/token"
-  [notion-personal-token]="op://Employee/Claude MCP - Notion-Personal/token"
-)
-for svc in "${!TOKEN_MAP[@]}"; do
-  security add-generic-password -a "claude-mcp" -s "$svc" \
-    -w "$(op read "${TOKEN_MAP[$svc]}")" -T "" -U \
-    && echo "✓ $svc" || echo "✗ $svc FAILED"
-done
-```
+아래 "전체 재동기화 (rotate-all): 스크립트 사용" 절의 `keychain-manager.sh rotate-all`을 쓴다.
 
 ### 삭제 (delete \<service\>)
 ```bash

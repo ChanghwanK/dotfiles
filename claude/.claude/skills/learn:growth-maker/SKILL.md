@@ -49,10 +49,10 @@ SOCRAAI DevOps 엔지니어 성장 플래닝 워크플로우. 3가지 모드로 
 | 주제 | SOCRAAI 연결 | 관련 팀 기조 |
 |------|------------|-------------|
 | Karpenter Consolidation 알고리즘 | 전 클러스터 노드 프로비저닝 | 비용 |
-| KEDA ScaledObject / 트리거 체인 | tech/socraai 워크로드 스케일링 | 생산성 |
+| KEDA ScaledObject / 트리거 체인 | tech/socraai 워크로드 스케일링 | 안정성 |
 | Istio mTLS + SPIFFE | 전 서비스 간 통신 보안 | 안정성 |
-| Argo Rollouts 카나리 + 미러링 | santa/tech 점진적 배포 | 생산성 |
-| ArgoCD ApplicationSet 패턴 | 127개 앱 GitOps 자동화 | 생산성 |
+| Argo Rollouts 카나리 + 미러링 | santa/tech 점진적 배포 | 안정성 |
+| ArgoCD ApplicationSet 패턴 | 127개 앱 GitOps 자동화 | 안정성 |
 | GPU Operator + MPS (mps10/mps16) | infra-k8s-idc A6000 GPU 공유 | 비용 |
 | Rook-Ceph OSD 배치 / PG 튜닝 | IDC 스토리지 백엔드 | 비용 |
 
@@ -65,7 +65,7 @@ SOCRAAI DevOps 엔지니어 성장 플래닝 워크플로우. 3가지 모드로 
 | VPC TGW 라우팅 + BGP | Seoul-Tokyo + IDC VPN 연결 | 비용 |
 | NAT Gateway 회피 패턴 | Cross-zone 비용 최적화 | 비용 |
 | CNPG vs Aurora RDS | PostgreSQL 운영 비용 비교 | 비용 |
-| External-Secrets + ASM | 시크릿 동기화 패턴 | 생산성 |
+| External-Secrets + ASM | 시크릿 동기화 패턴 | 안정성 |
 
 ### CS 기초
 
@@ -82,9 +82,9 @@ SOCRAAI DevOps 엔지니어 성장 플래닝 워크플로우. 3가지 모드로 
 | 주제 | SOCRAAI 연결 | 관련 팀 기조 |
 |------|------------|-------------|
 | VictoriaMetrics 카디널리티 관리 | 메트릭 스토리지 비용 최적화 | 비용 |
-| Loki LogQL + 파이프라인 최적화 | 로그 쿼리 성능 개선 | 생산성 |
-| Tempo TraceQL + Exemplar 연결 | 분산 트레이싱 + 메트릭 연결 | 생산성 |
-| Pyroscope eBPF 프로파일링 | 앱 성능 병목 탐지 | 생산성 |
+| Loki LogQL + 파이프라인 최적화 | 로그 쿼리 성능 개선 | 안정성 |
+| Tempo TraceQL + Exemplar 연결 | 분산 트레이싱 + 메트릭 연결 | 안정성 |
+| Pyroscope eBPF 프로파일링 | 앱 성능 병목 탐지 | 안정성 |
 | OTel Collector 파이프라인 설계 | Alloy → VictoriaMetrics/Loki/Tempo | 엔지니어링 |
 
 ---

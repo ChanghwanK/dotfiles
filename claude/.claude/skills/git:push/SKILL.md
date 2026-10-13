@@ -34,7 +34,7 @@ git log --oneline @{upstream}..HEAD 2>/dev/null || git log --oneline -5
 ```
 
 **중단 조건:**
-- 미커밋 변경사항이 있으면 → "커밋되지 않은 변경사항이 있습니다. `/commit`을 먼저 실행하세요." 출력 후 중단
+- 미커밋 변경사항이 있으면 → "커밋되지 않은 변경사항이 있습니다. `/git:commit`을 먼저 실행하세요." 출력 후 중단
 - unpushed 커밋이 없으면 → "push할 커밋이 없습니다." 출력 후 중단
 
 ### Step 2: yamllint 검증
@@ -132,12 +132,12 @@ push 성공 후, 영향도 분석 결과를 기반으로 검증 체크리스트�
 git diff --name-status @{upstream}~{pushed_count}..@{upstream} | python3 /Users/changhwan/.claude/skills/git:push/scripts/analyze_push_impact.py verify-plan
 ```
 
-출력된 체크리스트를 사용자에게 보여준다. `deploy-verify-agent`를 사용한 검증을 제안한다.
+출력된 체크리스트를 사용자에게 보여준다. `/devops:deploy-check`로 sync·Pod 상태 검증을 제안한다.
 
 실패 시:
-- yamllint 에러 → 에러 파일/라인 수정 후 커밋, `/push` 재실행
-- rebase 충돌 → `git rebase --abort` 후 수동 해결, 재커밋, `/push` 재실행
-- push 거부 → `git pull --rebase` 후 `/push` 재실행
+- yamllint 에러 → 에러 파일/라인 수정 후 커밋, `/git:push` 재실행
+- rebase 충돌 → `git rebase --abort` 후 수동 해결, 재커밋, `/git:push` 재실행
+- push 거부 → `git pull --rebase` 후 `/git:push` 재실행
 
 ---
 

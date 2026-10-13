@@ -36,7 +36,7 @@ Take a mechanism hypothesis formed during troubleshooting or deep analysis, spli
 ## Core principles
 
 - **Neither agreement nor disagreement is the goal.** The weight of evidence decides. Forced contrarianism is a bias too.
-- **Mechanism claims are verified against the version we run.** A doc for another version is not evidence. Anchor the component version first (values, kustomization, `cluster-summary.md`), then read that version's docs, release notes, or source.
+- **Mechanism claims are verified against the version we run.** A doc for another version is not evidence. Anchor the component version first (values, kustomization, `cluster-summary.md`), then read that version's docs and release notes (source only when the user explicitly asked for source level, see `references/evidence-tiers.md`).
 - **Disconfirm first.** For each mechanism claim, look for the condition that makes it false before looking for support.
 - **Observations are data only when they come with the query.** A sentence written earlier in the session ("CPU was fine") is not an observation; the query and its result are. Negative observations ("no OOM") need the query that returned zero.
 - **The inference is where sycophancy bites.** "Your theory fits the data" is the answer the user hopes for during an RCA. The `blind-evaluator` judges the inference without knowing whose theory it is.
@@ -58,7 +58,7 @@ Take a mechanism hypothesis formed during troubleshooting or deep analysis, spli
 
 | Kind | Definition | Example | Falsified if |
 |------|-----------|---------|--------------|
-| **M** mechanism | General statement about how a component works | "Envoy closes an idle upstream connection after `idleTimeout` and a request racing that close gets 503 UC" | The doc or source for our version says otherwise, or the behavior is version-gated |
+| **M** mechanism | General statement about how a component works | "Envoy closes an idle upstream connection after `idleTimeout` and a request racing that close gets 503 UC" | The doc for our version says otherwise, or the behavior is version-gated |
 | **O** observation | A fact about our system, with the query that produced it | "503 UC count rose 40x at 14:02 (Loki query Q1)" | Re-running the query gives a different result, or the claim has no query |
 | **I** inference | The causal link: M plus O explains the symptom | "Therefore the 503s are idle-close races, not upstream crashes" | An alternative mechanism explains O equally well, or M and O do not predict the symptom's shape (timing, magnitude, distribution) |
 | **P** premise | Unstated assumption everything rests on | "The app uses keep-alive", "traffic is HTTP/1.1" | Checked against config or a measurement |

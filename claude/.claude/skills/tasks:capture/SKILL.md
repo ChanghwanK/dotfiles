@@ -12,6 +12,7 @@ description: |
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py link-related-task *)
   - AskUserQuestion
   - Write
 ---
@@ -302,7 +303,7 @@ Task를 만들기 전에 확인할게요.
 #### Step 2-A - 템플릿 경로
 
 합성한 Description + 섹션 초안 + 확정될 속성(Due/Type)을 **한 번에** 보여주고 단일 확인한다.
-추천 Due가 기본값(이번 주 금요일)과 다르면 **왜 다른지 한 줄로 적는다**.
+Due를 추천값으로 채웠다면 어떤 신호로 골랐는지 한 줄로 적는다.
 
 ```
 다음 내용으로 Task를 생성할까요? (Type: Task [추천] · ~2026-03-27)
@@ -336,7 +337,7 @@ Description: {어떤 작업인지 한 줄}
 - "1. 생성" → Step 3 진행.
 - "2. 수정" (또는 번호 없이 수정 요청을 자유 문장으로 보낸 경우) → 반영한 뒤, **바로 생성하지 않고 바뀐 섹션만
   다시 보여주며 같은 3지선다로 재확인한다.** "1. 생성"을 받은 뒤에만 Step 3을 실행한다. 수정 요청은
-  "생성 승인"이 아니다 (2026-09-24: 수정 요청 직후 바로 생성했는데 사용자가 뒤이어 "생성"을 입력해 중복 생성 직전까지 감).
+  "생성 승인"이 아니다.
 - "0. 취소" → 중단.
 
 #### Step 2-B - simple 경로 (사용자가 pass/simple을 명시한 경우만)
@@ -418,8 +419,7 @@ Notion이 bare URL을 자동으로 언마크(unfurl)해 리치 프리뷰/멘션�
 JSON의 `url` 필드(Notion 페이지 URL)를 제목 텍스트 자체의 markdown 링크로 건다 (URL을 별도로 노출하지 않는다).
 사용자가 제목을 클릭해 캡처된 내용을 바로 확인할 수 있게 하기 위함이다.
 
-**절대 생략 금지**: 이 줄은 성공 응답마다 예외 없이 포함한다. 완료 메시지만 출력하고
-제목/링크 줄을 빠뜨리는 실수가 있었으므로, 최종 답변을 보내기 전에 이 줄이 있는지 반드시 확인한다.
+성공 응답마다 이 줄을 포함한다.
 
 ```
 📥 캡처 완료
@@ -459,4 +459,4 @@ JSON의 `url` 필드(Notion 페이지 URL)를 제목 텍스트 자체의 markdow
 - 이 스킬은 **Task 생성 전담**. Task 상태 변경/삭제는 Alfred week·task 모드(`notion-task.py update-status`/`delete-task`), 이월은 `notion-task.py carry-over` 사용.
 - **확인은 1회**로 속성과 섹션을 확정한 후 즉시 실행한다. 단, 확인 화면에서 수정 요청이 오면 반영본으로 한 번 더 확인한다(Step 2-A "2. 수정" 참조).
 - 업무 노트를 쓸 때(`notion:add-engineering-note`) 노트의 문제/근본 원인/기대 가치가 최종본이 되고, 이 Task의 같은 섹션은 `notion-task.py update-why`로 그 최종본으로 교체된다. 작업 Context는 캡처 기록이므로 교체되지 않는다.
-- 동일 이름 Task가 이미 존재해도 중복 생성됨 (의도적 설계, GTD 원칙). 중복 정리는 `/tasks:manage`에서.
+- 동일 이름 Task가 이미 존재해도 중복 생성됨 (의도적 설계, GTD 원칙). 중복 정리는 Notion에서 직접 한다.

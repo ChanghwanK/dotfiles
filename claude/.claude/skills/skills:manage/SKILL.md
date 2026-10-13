@@ -382,7 +382,7 @@ python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py de
 
 - `allowed-tools`의 스크립트 경로: user scope는 **절대 경로**, project scope는 `${CLAUDE_PROJECT_DIR}/` 접두사 사용
 - TODO placeholder가 남아 있으면 validate가 warning을 출력한다 (에러는 아님)
-- 스킬 이름: `^[a-z][a-z0-9]*([:-][a-z0-9]+)*$` 형식, 최대 64자, colon 최대 2개
+- 스킬 이름: `^[a-z0-9]+([:-][a-z0-9]+)*$` 형식, 최대 64자 (`manage_skill.py` 검증과 동일)
 - Python 스크립트는 `yaml`, `requests` 등 서드파티 라이브러리 사용 금지
 - delete는 hard delete: 백업 기능이 없으므로 삭제 시 영구 손실. 실행 전 사용자 동의 필수
 - `--scope` 미지정 시 CWD 기반 auto-detect: 프로젝트 디렉토리에서 user scope 작업이 필요하면 `--scope user` 명시

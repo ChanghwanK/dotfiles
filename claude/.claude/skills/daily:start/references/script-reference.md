@@ -9,9 +9,8 @@
 
 ## `read-weekly` 커맨드
 
-- Task DB (`2da64745-3170-8072-80bd-fb05cf592929`)를 이번 주 월~일 Due Date 범위로 필터
-- Priority 오름차순 정렬 (P1 먼저)
-- 반환 필드: `page_id`, `name`, `priority`, `status`, `due_start`, `due_end`, `tags`, `level`
+- Task DB (`2da64745-3170-8072-80bd-fb05cf592929`)를 이번 주 월요일~다음 주 일요일 Due Date 범위로 필터, Due Date 오름차순 정렬
+- 반환 필드: `page_id`, `name`, `status`, `due_start`, `due_end`, `tags`, `level`
 - `level` 분류:
   - `weekly_project`: `due_end`가 있고 `status == "진행 중"` (주간 프로젝트 목표)
   - `daily`: 그 외 일반 Task
