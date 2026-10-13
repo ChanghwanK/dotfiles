@@ -50,12 +50,12 @@
 
 - (뼈대 기준 예시, 사용자 확정 2026-09-26) "Consolidation 후 Image Pull 병목으로 인한 파드 시작 지연을 root
   볼륨 처리량 포화로 규명, gp3 throughput 125 → 250 MiB/s 상향 및 이미지 경량화로 최대 10배 단축"
-- "Nginx Ingress 재배치 시 preStop/SIGTERM 이슈로 [N건/월] 발생하던 5xx 에러를, preStop 드레이닝 방식
-  및 NLB draining 설정 변경으로 [0건 / N% 감소]"
-- "CronJob 지연으로 인한 데이터 유실을 gp2 burst 한계 기반 디스크 병목으로 진단, gp3 전환으로 유실
-  [N건→0건] / 지연 [N분→M분] 해소"
-- "AWS 비용 최적화를 위해 idle 리소스 rightsizing 및 Spot/RI 전환을 수행, 비용 [50% 절감
-  ($100K/month)]"
+- "Nginx Ingress 재배치 후 [N건/월] 5xx를 preStop/SIGTERM 처리 순서 문제로 규명, NLB draining
+  [N → M초] 조정 및 preStop 드레이닝으로 5xx [N건 → 0건]"
+- "CronJob 실행 시 디스크 병목으로 인한 지연·데이터 유실을 gp2 burst 한계로 규명, 볼륨 gp2 → gp3
+  전환으로 유실 [N건 → 0건]·지연 [N분 → M분] 해소"
+- "AWS 비용 점검 중 과다 지출을 idle 리소스와 On-Demand 위주 구매로 규명, rightsizing 및
+  On-Demand → Spot/RI 전환으로 비용 [50% 절감 ($100K/month)]"
 
 ## 나쁜 예 (수정 전)
 
@@ -69,8 +69,8 @@
   발화 라벨만으로 대상 DB 즉시 식별 / 조회→개선 셀프서비스 대응 경로] 확보"
   (PAAR 내용물을 한 줄에 압축한 형태: 진단 서사 포함, 내부 고유명사 과다, 대괄호에 성과 3개,
   구현 산출물 수치(1룰→6룰)를 성과로 사용, 110자 초과)
-  → 수정: "전 prod Aurora slow query 알럿이 단일 룰 합산 발화로 대상 DB 식별이 불가하던 문제를,
-  DB별 알럿 분리와 대응 runbook 연동으로 재구성해 초동 식별 [즉시 식별 / MTTR N분→M분] 확보"
+  → 수정: "prod Aurora slow query 알럿 발화 시 대상 DB 식별 불가를 전 DB 합산 단일 알럿 구조로 규명,
+  알럿 단일 → DB별 분리 및 runbook 연동으로 MTTR [N분 → M분] 단축"
 
 ## 적용 범위
 
