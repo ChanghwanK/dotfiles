@@ -50,7 +50,7 @@
 
 - (뼈대 기준 예시, 사용자 확정 2026-09-26) "Consolidation 후 Image Pull 병목으로 인한 파드 시작 지연을 root
   볼륨 처리량 포화로 규명, gp3 throughput 125 → 250 MiB/s 상향 및 이미지 경량화로 최대 10배 단축"
-- "Nginx Ingress 재배치 후 [N건/월] 5xx를 preStop/SIGTERM 처리 순서 문제로 규명, NLB draining
+- "Istio Ingress Gateway 재배치 후 [N건/월] 5xx를 preStop/SIGTERM 순서 문제로 규명, NLB draining
   [N → M초] 조정 및 preStop 드레이닝으로 5xx [N건 → 0건]"
 - "CronJob 실행 시 디스크 병목으로 인한 지연·데이터 유실을 gp2 burst 한계로 규명, 볼륨 gp2 → gp3
   전환으로 유실 [N건 → 0건]·지연 [N분 → M분] 해소"
