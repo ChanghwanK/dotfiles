@@ -30,17 +30,25 @@ git status --short   # 전체 변경사항 파악
 ```
 
 - 변경 파일이 없으면 → "커밋할 변경사항이 없습니다." 출력 후 종료.
-- 변경 파일이 있으면 → 파일 목록을 다음 형식으로 출력 후 `git add .` 실행:
+- 변경 파일이 있으면 → 이번 작업에서 변경한 파일만 경로를 지정해 스테이징한다 (`git add .` 금지):
+
+```bash
+git add <path1> <path2> ...
+```
+
+- 그 외 변경(이번 작업과 무관한 수정 파일, untracked 파일)은 스테이징하지 않고 목록을 보여준 뒤 포함 여부를 사용자에게 묻는다:
 
 ```
-스테이징할 파일:
+스테이징한 파일 (이번 작업):
   M  src/tech/ai-gateway/infra-k8s-dev/values.yaml
   M  src/tech/ai-gateway/infra-k8s-stg/values.yaml
-  ?? src/tech/new-service/common/values.yaml
-→ git add . 실행
+
+이번 작업과 무관해 보이는 변경 (포함할까요?):
+  M  src/santa/worker/infra-k8s-dev/values.yaml
+  ?? scratch.txt
 ```
 
-`git add .` 실행 후 `git diff --cached` 로 staged diff를 수집하고 Step 2로 진행한다.
+스테이징 후 `git diff --cached` 로 staged diff를 수집하고 Step 2로 진행한다.
 
 ### Step 2: 레포 타입 감지
 
@@ -140,7 +148,7 @@ chore(santa/authentication): bump image to dev-4164f0a for OTel trace fix
 - subject는 `동작 + 대상 + 의도/효과` 한 줄(~72자). generic한 `Update X` 금지
 - subject 다음 빈 줄 + body 1~3 bullet로 "무엇을 왜" 요약. diff 자명한 내용 반복 금지
 - 원인·해결·롤백·blast radius는 커밋이 아닌 PR 본문에 적는다 (squash로 body는 main에서 휘발)
-- staged 파일이 없으면 `git status --short`로 변경 목록을 출력한 뒤 `git add .`로 자동 add 후 진행한다
+- staged 파일이 없으면 `git status --short`로 변경 목록을 확인하고, 이번 작업에서 변경한 파일만 `git add <path>`로 스테이징한다. 그 외 변경은 목록을 보여주고 포함 여부를 묻는다 (`git add .` 금지)
 - push는 실행하지 않는다
 - 이모지를 커밋 메시지에 절대 사용하지 않는다
 - Co-Authored-By 라인을 커밋 메시지에 추가하지 않는다

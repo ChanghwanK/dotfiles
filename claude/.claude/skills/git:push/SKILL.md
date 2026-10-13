@@ -34,6 +34,7 @@ git log --oneline @{upstream}..HEAD 2>/dev/null || git log --oneline -5
 ```
 
 **중단 조건:**
+- 현재 브랜치가 `main`/`master`이면 → 사용자가 직접 push를 명시적으로 요청했거나 긴급 핫픽스인 경우가 아니면 중단한다. PR-first 흐름(`EnterWorktree` → commit → 브랜치 push → `/git:pr`)으로 안내한다
 - 미커밋 변경사항이 있으면 → "커밋되지 않은 변경사항이 있습니다. `/git:commit`을 먼저 실행하세요." 출력 후 중단
 - unpushed 커밋이 없으면 → "push할 커밋이 없습니다." 출력 후 중단
 
@@ -55,7 +56,7 @@ yamllint -c .yamllint.yml src/ --no-warnings
 # 1. main 브랜치가 아닌 경우 → origin/main...HEAD
 # 2. main 브랜치이고 upstream이 있는 경우 → @{upstream}..HEAD (unpushed commits만)
 
-# main 브랜치에서 직접 push하는 경우
+# main 브랜치에서 직접 push하는 경우 (Step 1 게이트를 통과한 경우만: 직접 push 명시 요청 또는 긴급 핫픽스)
 git diff --name-status @{upstream}..HEAD | python3 /Users/changhwan/.claude/skills/git:push/scripts/analyze_push_impact.py analyze
 
 # feature 브랜치인 경우

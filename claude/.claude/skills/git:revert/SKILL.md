@@ -177,10 +177,16 @@ git diff HEAD --stat
 Push하시겠습니까? (y/n)
 ```
 
-push 승인 시:
-```bash
-git push origin main
-```
+push 승인 시 기본 흐름은 PR-first다 (revert도 PR로 이유와 이력을 남긴다):
+
+1. 현재 브랜치가 `main`/`master`이면 그대로 push하지 않는다. `EnterWorktree`로 revert 브랜치를 만들어 그 안에서 revert 커밋을 만든다 (이미 main에서 커밋했다면 그 커밋을 worktree 브랜치로 옮긴다).
+2. 브랜치를 push한다:
+   ```bash
+   git push -u origin <revert-branch>
+   ```
+3. `/git:pr`로 PR을 연다.
+
+`main`에 직접 push(`git push origin main`)는 사용자가 직접 push를 명시적으로 요청했거나 긴급 핫픽스일 때만 한다.
 
 ---
 
@@ -188,5 +194,6 @@ git push origin main
 
 - `git reset --hard` 절대 사용 금지
 - push 전 반드시 사용자 확인
+- 기본은 브랜치 push + `/git:pr`. `main` 직접 push는 명시 요청 또는 긴급 핫픽스일 때만
 - prod 환경 롤백은 이중 확인 (Step 3 + Step 6)
 - revert 후 ArgoCD auto-sync 결과를 `/devops:deploy-check`로 확인한다.

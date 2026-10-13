@@ -456,7 +456,7 @@ JSON의 `url` 필드(Notion 페이지 URL)를 제목 텍스트 자체의 markdow
 
 ## 주의사항
 
-- 이 스킬은 **Task 생성 전담**. Task 상태 변경/삭제는 Alfred week·task 모드(`notion-task.py update-status`/`delete-task`), 이월은 `notion-task.py carry-over` 사용.
+- 이 스킬은 **Task 생성 전담**. Task 상태 변경은 Alfred week·task 모드(`notion-task.py update-status`), Task 삭제는 Notion에서 직접 한다(Alfred는 Task를 삭제하지 않는다, 필요 시 `대기` 상태로 변경), 이월은 `notion-task.py carry-over` 사용.
 - **확인은 1회**로 속성과 섹션을 확정한 후 즉시 실행한다. 단, 확인 화면에서 수정 요청이 오면 반영본으로 한 번 더 확인한다(Step 2-A "2. 수정" 참조).
 - 업무 노트를 쓸 때(`notion:add-engineering-note`) 노트의 문제/근본 원인/기대 가치가 최종본이 되고, 이 Task의 같은 섹션은 `notion-task.py update-why`로 그 최종본으로 교체된다. 작업 Context는 캡처 기록이므로 교체되지 않는다.
 - 동일 이름 Task가 이미 존재해도 중복 생성됨 (의도적 설계, GTD 원칙). 중복 정리는 Notion에서 직접 한다.

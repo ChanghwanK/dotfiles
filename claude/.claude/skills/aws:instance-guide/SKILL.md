@@ -211,7 +211,7 @@ aws rds describe-orderable-db-instance-options \
 ## 주의사항
 
 - 가격 정보는 **AWS Pricing API 런타임 조회**. 하드코딩 금지 (spec-explorer agent 담당)
-- Dev/Stg 환경은 Single AZ, Prod 환경은 Multi-AZ 구성 권장 (CLAUDE.md 원칙 준수)
+- Multi-AZ는 가용성 수준 투자로 보고 비용 대비로 판단한다 (team-engineering-principles.md: 안정성 > 비용 > 가용성 수준).
 - Graviton(ARM64) 권장 시 반드시 컨테이너 이미지 ARM64 호환 여부 확인 안내
 - Terraform 변경이 필요한 경우 파일 경로 안내: `terraform/src/{sphere}/domain/{env}/rds/` 또는 `ec2/`
 - `kubectl edit/delete` 금지: GitOps 워크플로우 보호

@@ -1,11 +1,10 @@
 ---
 name: learn
 description: |
-  기술 개념 심층 학습 세션 (Why → How → What-if → Apply → Summary). 학습 로드맵 추천과 장애 시나리오 훈련 포함.
+  기술 개념 심층 학습 세션 (Why → How → What-if → Apply → Summary). 장애 시나리오 훈련 포함.
   사용 시점: (1) 새로운 기술 개념을 체계적으로 학습할 때, (2) 아키텍처/설계 철학을 깊이 이해하고 싶을 때,
-  (3) 소스코드 레벨의 동작 원리를 파악하고 싶을 때, (4) 학습 후 연관 장애 시나리오를 훈련하고 싶을 때,
-  (5) 특정 도메인의 학습 주제를 시니어/스태프 관점에서 추천받고 싶을 때.
-  트리거 키워드: "/learn", "학습", "deep-dive", "개념 학습", "원리 파악", "학습 추천", "학습 주제 추천".
+  (3) 소스코드 레벨의 동작 원리를 파악하고 싶을 때, (4) 학습 후 연관 장애 시나리오를 훈련하고 싶을 때.
+  트리거 키워드: "/learn", "학습", "deep-dive", "개념 학습", "원리 파악".
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/wiki:note/scripts/obsidian-note.py *)
@@ -72,7 +71,7 @@ Phase 5: Summary      → 구조화된 요약, 학습 로드맵, 장애 시나�
 | 모드 | 트리거 패턴 | 흐름 |
 |------|------------|------|
 | **Deep-dive** (기본) | `/learn {topic}`, "학습", "deep-dive" | Phase 0 수행 항목 → Phase 1 → 2 → 3 → 4 → 5 |
-| **Recommend** | "추천", "recommend", "뭐 공부", "어떤 주제", "학습 주제", "학습 추천" + 도메인 키워드 | Recommend 모드 섹션으로 이동 |
+| **Recommend** | `/learn` 세션 중 "다음에 뭘 볼까", "이어서 볼 주제" | Recommend 모드 섹션으로 이동 (세션 밖의 학습 주제·로드맵 추천 요청은 /learn:explore로 안내) |
 
 Deep-dive 모드는 아래 수행 항목을 그대로 진행한다.
 
@@ -485,6 +484,8 @@ Phase 5 Summary 출력 완료 후 반드시 아래 프롬프트를 출력하고,
 ---
 
 ## Recommend 모드: 도메인별 학습 주제 추천
+
+학습 주제·로드맵 추천 요청은 /learn:explore가 받는다. 이 모드는 /learn 세션 중 다음 주제를 이어서 고를 때만 쓴다.
 
 Phase 0에서 Recommend 모드로 분기된 경우 이 섹션을 따른다.
 목표: 시니어/스태프 엔지니어 성장에 필요한 학습 주제를 도메인별로 구조화하여 추천한다.

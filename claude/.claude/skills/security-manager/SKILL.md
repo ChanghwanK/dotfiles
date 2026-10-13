@@ -47,39 +47,43 @@ for block in blocks:
 " | sort
 ```
 
-### 값 확인 (show \<service\>)
+### 존재 확인 (show \<service\>)
+토큰 문자는 한 글자도 출력하지 않는다. `-w` 없이 조회해 항목 존재와 메타데이터(service, account, 생성·수정 시각)만 확인한다:
 ```bash
-security find-generic-password -a "claude-mcp" -s "<service>-token" -w | head -c 20
-echo "..."
+security find-generic-password -a "claude-mcp" -s "<service>-token"
 ```
 
-### 추가 (add \<service\> \<token-value\>)
-토큰 값을 직접 입력받아 **Keychain과 1Password에 동시에 저장**한다.
+### 추가 (add \<service\>)
+토큰 값은 채팅에 붙여넣게 하지 않는다. 값이 채팅·명령 인자에 나타나지 않는 경로만 쓴다.
 
-먼저 사용자에게 다음 두 가지를 확인한다:
-- service name (예: `newservice-token`)
-- token 값 (직접 붙여넣기)
+먼저 사용자에게 service name(예: `newservice-token`)과 토큰이 이미 1Password에 있는지만 확인한다.
 
-그 다음 실행:
+**A. 토큰이 이미 1Password에 있는 경우**: 업데이트·rotate와 같이 `op read` 명령 치환으로 Claude가 실행한다:
 ```bash
-# 1) Keychain 저장
 security add-generic-password -a "claude-mcp" -s "<service>-token" \
-  -w "<token-value>" -T "" -U
+  -w "$(op read 'op://Employee/<1pw-item>/token')" -T "" -U
+```
 
-# 2) 1Password 저장 (신규 항목 생성)
+**B. 토큰이 1Password에 없는 경우**: 아래 명령을 사용자에게 안내하고 사용자가 자기 터미널에서 직접 실행하게 한다 (Claude가 실행하지 않는다):
+```bash
+# 1) Keychain 저장: -w를 마지막에 값 없이 두면 security가 토큰을 대화형으로 묻는다 (화면·셸 히스토리에 남지 않음)
+security add-generic-password -a "claude-mcp" -s "<service>-token" -T "" -U -w
+
+# 2) 1Password 저장: Keychain에 넣은 값을 명령 치환으로 읽어 신규 항목 생성
 op item create \
   --category "API Credential" \
   --title "Claude MCP - <Service>" \
   --vault "Employee" \
-  "token[password]=<token-value>"
+  "token[password]=$(security find-generic-password -a 'claude-mcp' -s '<service>-token' -w)"
 ```
 
-1Password 항목이 이미 존재하는 경우 create 대신:
+1Password 항목이 이미 존재하는 경우 2)의 create 대신:
 ```bash
-op item edit "Claude MCP - <Service>" --vault "Employee" "token[password]=<token-value>"
+op item edit "Claude MCP - <Service>" --vault "Employee" \
+  "token[password]=$(security find-generic-password -a 'claude-mcp' -s '<service>-token' -w)"
 ```
 
-저장 완료 후 `~/.claude/SECURITY.md` 토큰 목록 테이블에 행 추가.
+사용자가 실행을 마쳤다고 하면 "존재 확인(show)"으로 등록 여부만 확인한다. 저장 완료 후 `~/.claude/SECURITY.md` 토큰 목록 테이블에 행 추가.
 
 ### 업데이트 (update \<service\>)
 ```bash
@@ -149,9 +153,8 @@ bash /Users/changhwan/.claude/skills/security-manager/scripts/keychain-manager.s
 각 작업 완료 후 결과를 반드시 확인한다.
 
 ```bash
-# 토큰 저장 확인
-security find-generic-password -a "claude-mcp" -s "<service>-token" -w | head -c 20
-echo "..."
+# 토큰 저장 확인 (값은 출력하지 않고 존재·메타데이터만 확인)
+security find-generic-password -a "claude-mcp" -s "<service>-token"
 ```
 
 실패 시:
