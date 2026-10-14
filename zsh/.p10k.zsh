@@ -26,6 +26,26 @@
   # restarting zsh. Edit ~/.p10k.zsh and type `source ~/.p10k.zsh`.
   unset -m '(POWERLEVEL9K_*|DEFAULT_USER)~POWERLEVEL9K_GITSTATUS_DIR'
 
+  # Color scheme: light (Gruvbox Light on Rose Pine Dawn) or dark (Gruvbox Dark).
+  # Select with P10K_COLOR_SCHEME=light|dark|auto in ~/.zshenv (default: light).
+  # auto follows the macOS appearance, which matches the terminal only when the terminal theme
+  # also follows it (Ghostty: theme = light:Rose Pine Dawn,dark:Rose Pine).
+  local scheme=${P10K_COLOR_SCHEME:-light}
+  if [[ $scheme == auto ]]; then
+    [[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == Dark ]] && scheme=dark || scheme=light
+  fi
+  if [[ $scheme == dark ]]; then
+    typeset -g _p10k_c_text='#ebdbb2' _p10k_c_dir='#a89984' _p10k_c_short='#7c6f64' \
+               _p10k_c_anchor='#83a598' _p10k_c_clean='#b8bb26' _p10k_c_modified='#fabd2f' \
+               _p10k_c_untracked='#d3869b' _p10k_c_k8s='#d3869b' _p10k_c_aws='#fe8019' \
+               _p10k_c_ok='#b8bb26' _p10k_c_error='#fb4934'
+  else
+    typeset -g _p10k_c_text='#3c3836' _p10k_c_dir='#7c6f64' _p10k_c_short='#a89984' \
+               _p10k_c_anchor='#076678' _p10k_c_clean='#79740e' _p10k_c_modified='#b57614' \
+               _p10k_c_untracked='#8f3f71' _p10k_c_k8s='#8f3f71' _p10k_c_aws='#af3a03' \
+               _p10k_c_ok='#79740e' _p10k_c_error='#9d0006'
+  fi
+
   # Zsh >= 5.1 is required.
   [[ $ZSH_VERSION == (5.<1->*|<6->.*) ]] || return
 
@@ -189,15 +209,15 @@
 
   #################################[ os_icon: os identifier ]##################################
   # OS identifier color.
-  typeset -g POWERLEVEL9K_OS_ICON_FOREGROUND=
+  typeset -g POWERLEVEL9K_OS_ICON_FOREGROUND=$_p10k_c_text
   # Custom icon.
   # typeset -g POWERLEVEL9K_OS_ICON_CONTENT_EXPANSION='⭐'
 
   ################################[ prompt_char: prompt symbol ]################################
   # Green prompt symbol if the last command succeeded.
-  typeset -g POWERLEVEL9K_PROMPT_CHAR_OK_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=76
+  typeset -g POWERLEVEL9K_PROMPT_CHAR_OK_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=$_p10k_c_ok
   # Red prompt symbol if the last command failed.
-  typeset -g POWERLEVEL9K_PROMPT_CHAR_ERROR_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=196
+  typeset -g POWERLEVEL9K_PROMPT_CHAR_ERROR_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=$_p10k_c_error
   # Default prompt symbol.
   typeset -g POWERLEVEL9K_PROMPT_CHAR_{OK,ERROR}_VIINS_CONTENT_EXPANSION='❯'
   # Prompt symbol in command vi mode.
@@ -214,17 +234,17 @@
 
   ##################################[ dir: current directory ]##################################
   # Default current directory color.
-  typeset -g POWERLEVEL9K_DIR_FOREGROUND=31
+  typeset -g POWERLEVEL9K_DIR_FOREGROUND=$_p10k_c_dir
   # If directory is too long, shorten some of its segments to the shortest possible unique
   # prefix. The shortened directory can be tab-completed to the original.
   typeset -g POWERLEVEL9K_SHORTEN_STRATEGY=truncate_to_unique
   # Replace removed segment suffixes with this symbol.
   typeset -g POWERLEVEL9K_SHORTEN_DELIMITER=
   # Color of the shortened directory segments.
-  typeset -g POWERLEVEL9K_DIR_SHORTENED_FOREGROUND=103
+  typeset -g POWERLEVEL9K_DIR_SHORTENED_FOREGROUND=$_p10k_c_short
   # Color of the anchor directory segments. Anchor segments are never shortened. The first
   # segment is always an anchor.
-  typeset -g POWERLEVEL9K_DIR_ANCHOR_FOREGROUND=39
+  typeset -g POWERLEVEL9K_DIR_ANCHOR_FOREGROUND=$_p10k_c_anchor
   # Display anchor directory segments in bold.
   typeset -g POWERLEVEL9K_DIR_ANCHOR_BOLD=true
   # Don't shorten directories that contain any of these files. They are anchors.
@@ -375,11 +395,11 @@
 
     if (( $1 )); then
       # Styling for up-to-date Git status.
-      local       meta='%f'     # default foreground
-      local      clean='%76F'   # green foreground
-      local   modified='%178F'  # yellow foreground
-      local  untracked='%39F'   # blue foreground
-      local conflicted='%196F'  # red foreground
+      local       meta="%F{$_p10k_c_text}"
+      local      clean="%F{$_p10k_c_clean}"
+      local   modified="%F{$_p10k_c_modified}"
+      local  untracked="%F{$_p10k_c_untracked}"
+      local conflicted="%F{$_p10k_c_error}"
     else
       # Styling for incomplete and stale Git status.
       local       meta='%244F'  # grey foreground
@@ -492,7 +512,7 @@
   typeset -g POWERLEVEL9K_VCS_{STAGED,UNSTAGED,UNTRACKED,CONFLICTED,COMMITS_AHEAD,COMMITS_BEHIND}_MAX_NUM=-1
 
   # Icon color.
-  typeset -g POWERLEVEL9K_VCS_VISUAL_IDENTIFIER_COLOR=76
+  typeset -g POWERLEVEL9K_VCS_VISUAL_IDENTIFIER_COLOR=$_p10k_c_clean
   typeset -g POWERLEVEL9K_VCS_LOADING_VISUAL_IDENTIFIER_COLOR=244
   # Custom icon.
   # typeset -g POWERLEVEL9K_VCS_VISUAL_IDENTIFIER_EXPANSION='⭐'
@@ -506,9 +526,9 @@
 
   # These settings are used for repositories other than Git or when gitstatusd fails and
   # Powerlevel10k has to fall back to using vcs_info.
-  typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=76
-  typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND=76
-  typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND=178
+  typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=$_p10k_c_clean
+  typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND=$_p10k_c_untracked
+  typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND=$_p10k_c_modified
 
   ##########################[ status: exit code of the last command ]###########################
   # Enable OK_PIPE, ERROR_PIPE and ERROR_SIGNAL status states to allow us to enable, disable and
@@ -1266,7 +1286,7 @@
       # '*prod*'  PROD    # These values are examples that are unlikely
       # '*test*'  TEST    # to match your needs. Customize them as needed.
       '*'       DEFAULT)
-  typeset -g POWERLEVEL9K_KUBECONTEXT_DEFAULT_FOREGROUND=134
+  typeset -g POWERLEVEL9K_KUBECONTEXT_DEFAULT_FOREGROUND=$_p10k_c_k8s
   # typeset -g POWERLEVEL9K_KUBECONTEXT_DEFAULT_VISUAL_IDENTIFIER_EXPANSION='⭐'
 
   # Use POWERLEVEL9K_KUBECONTEXT_CONTENT_EXPANSION to specify the content displayed by kubecontext
@@ -1391,7 +1411,7 @@
       # '*prod*'  PROD    # These values are examples that are unlikely
       # '*test*'  TEST    # to match your needs. Customize them as needed.
       '*'       DEFAULT)
-  typeset -g POWERLEVEL9K_AWS_DEFAULT_FOREGROUND=208
+  typeset -g POWERLEVEL9K_AWS_DEFAULT_FOREGROUND=$_p10k_c_aws
   # typeset -g POWERLEVEL9K_AWS_DEFAULT_VISUAL_IDENTIFIER_EXPANSION='⭐'
 
   # AWS segment format. The following parameters are available within the expansion.
