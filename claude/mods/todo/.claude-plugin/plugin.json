@@ -1,0 +1,7 @@
+{
+  "name": "todo",
+  "version": "0.7.0",
+  "description": "Notion Daily Todo DB의 오늘 할 일을 사이드바에 띄우고, 체크하면 완료 섹션으로 옮겨 Notion에 반영한다",
+  "author": { "name": "changhwan" },
+  "types": "./types/index.d.ts"
+}

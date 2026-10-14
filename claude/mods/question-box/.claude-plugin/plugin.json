@@ -1,0 +1,7 @@
+{
+  "name": "question-box",
+  "version": "0.1.0",
+  "description": "세션 도중 떠오른 궁금증을 우측 사이드바의 들여쓰기 불릿 목록으로 모으고, 세션별로 아카이빙한다",
+  "author": { "name": "changhwan" },
+  "types": "./types/index.d.ts"
+}

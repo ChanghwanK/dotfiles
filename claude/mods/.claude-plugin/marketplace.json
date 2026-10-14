@@ -1,0 +1,16 @@
+{
+  "name": "changhwan-mods",
+  "owner": {
+    "name": "changhwan"
+  },
+  "plugins": [
+    {
+      "name": "todo",
+      "source": "./todo"
+    },
+    {
+      "name": "question-box",
+      "source": "./question-box"
+    }
+  ]
+}

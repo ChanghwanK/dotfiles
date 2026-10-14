@@ -246,7 +246,9 @@
     "session-report@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "serena@claude-plugins-official": true,
-    "diagram-design@diagram-design": true
+    "diagram-design@diagram-design": true,
+    "todo@changhwan-mods": true,
+    "question-box@changhwan-mods": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -259,6 +261,12 @@
       "source": {
         "source": "github",
         "repo": "cathrynlavery/diagram-design"
+      }
+    },
+    "changhwan-mods": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/changhwan/.dotfiles/claude/mods"
       }
     }
   },
