@@ -1,6 +1,28 @@
 -- ~/.config/nvim/lua/plugins/themes.lua
 return {
   {
+    -- Ghostty 터미널 테마(Rose Pine Dawn)와 맞추기 위한 테마
+    "rose-pine/neovim",
+    name = "rose-pine",
+    lazy = false,
+    priority = 1000,
+    enabled = vim.g.nvim_theme == "rose-pine",
+    config = function()
+      require("rose-pine").setup({
+        variant = "dawn",      -- auto, main, moon, dawn
+        dark_variant = "main", -- background=dark로 전환할 때 쓸 변형
+        styles = {
+          bold = true,
+          italic = true,
+          -- Ghostty config가 배경을 테마 기본값(#faf4ed)이 아닌 #fcf7f3으로 덮어쓰므로,
+          -- nvim이 배경을 칠하지 않게 해서 터미널 배경과 정확히 일치시킨다
+          transparency = true,
+        },
+      })
+      vim.cmd("colorscheme rose-pine-dawn")
+    end,
+  },
+  {
     "sainnhe/gruvbox-material",
     lazy = false,
     priority = 1000,

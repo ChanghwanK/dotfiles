@@ -1,5 +1,6 @@
 -- return "gruvbox"
-return "onedark_pro"
+-- return "onedark_pro"
+return "rose-pine"
 -- -- return "gruvbox-material"
 -- return "kanagawa"
 -- -- return "tender"
