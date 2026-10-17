@@ -1,0 +1,111 @@
+# Ghostty Configuration
+# Migrated from iTerm2
+
+# Theme
+# theme = Guezwhoz
+# theme = Aizen Dark
+theme = Rose Pine Dawn
+# 참고 화면과 동일한 배경으로 맞춤 (테마 기본값 #faf4ed보다 밝고 분홍 쪽)
+background = #fcf7f3
+
+# Window & General
+window-decoration = true
+macos-titlebar-style = tabs
+window-padding-y = 4,0
+window-padding-x = 10
+
+# Window Size (터미널 크기)
+window-width = 140
+window-height = 50
+window-save-state = always
+
+# Font Configuration (based on iTerm2 MesloLGS-NF)
+font-family = MesloLGS NF
+# font-family = SF Mono
+font-family = Noto Sans CJK KR
+font-size = 13.5
+
+# Option key as Meta (left only — right Option still types special chars)
+macos-option-as-alt = left
+
+# Keybindings
+
+# option+delete: delete word backward (meta+backspace)
+keybind = opt+backspace=text:\x1b\x08
+
+# option+left: move word backward
+keybind = opt+left=text:\x1b\x62
+
+# option+right: move word forward
+keybind = opt+right=text:\x1b\x66
+
+# cmd+left: move to start of line
+keybind = cmd+left=text:\x01
+
+# cmd+right: move to end of line
+keybind = cmd+right=text:\x05
+
+# cmd+backspace: delete to start of line
+keybind = cmd+backspace=text:\x15
+
+# tmux keybindings (IME 우회 — raw bytes 전송)
+# Ctrl+B prefix + key를 단일 시퀀스로 전송하여 한글 IME 간섭 방지
+keybind = ctrl+b>n=text:\x02n
+keybind = ctrl+b>p=text:\x02p
+keybind = ctrl+b>c=text:\x02c
+keybind = ctrl+b>x=text:\x02x
+keybind = ctrl+b>z=text:\x02z
+keybind = ctrl+b>d=text:\x02d
+keybind = ctrl+b>comma=text:\x02,
+keybind = ctrl+b>period=text:\x02.
+keybind = ctrl+b>one=text:\x021
+keybind = ctrl+b>two=text:\x022
+keybind = ctrl+b>three=text:\x023
+keybind = ctrl+b>four=text:\x024
+keybind = ctrl+b>five=text:\x025
+keybind = ctrl+b>six=text:\x026
+keybind = ctrl+b>seven=text:\x027
+keybind = ctrl+b>eight=text:\x028
+keybind = ctrl+b>nine=text:\x029
+keybind = ctrl+b>[=text:\x02[
+keybind = ctrl+b>w=text:\x02w
+
+# herdr keybindings (IME 우회 — herdr 기본 prefix도 ctrl+b라 tmux와 동일 패턴)
+keybind = ctrl+b>shift+n=text:\x02N
+keybind = ctrl+b>shift+g=text:\x02G
+keybind = ctrl+b>shift+w=text:\x02W
+keybind = ctrl+b>shift+d=text:\x02D
+keybind = ctrl+b>shift+r=text:\x02R
+keybind = ctrl+b>shift+t=text:\x02T
+keybind = ctrl+b>shift+x=text:\x02X
+keybind = ctrl+b>shift+p=text:\x02P
+keybind = ctrl+b>shift+h=text:\x02H
+keybind = ctrl+b>shift+j=text:\x02J
+keybind = ctrl+b>shift+k=text:\x02K
+keybind = ctrl+b>shift+l=text:\x02L
+keybind = ctrl+b>tab=text:\x02\x09
+keybind = ctrl+b>minus=text:\x02-
+keybind = ctrl+b>q=text:\x02q
+keybind = ctrl+b>f=text:\x02f
+keybind = ctrl+b>shift+f=text:\x02F
+keybind = ctrl+b>ctrl+b=text:\x02\x02
+keybind = ctrl+b>o=text:\x02o
+
+# Shell Integration
+shell-integration = zsh
+
+# Link clicking (cmd+click to open URLs)
+link-url = true
+
+# cmd+shift+r: 탭 이름 변경 (Rename Tab...)
+keybind = cmd+shift+r=prompt_tab_title
+
+# 회색 보조 텍스트(ANSI bright black, Claude Code dim 텍스트 등)가 밝은 배경에서 옅어 대비를 올림
+# Rose Pine Dawn 기본값 8=#9893a5 (muted) -> 더 진한 톤
+palette = 8=#6e6a86
+
+# dim(faint) 속성으로 렌더링되는 보조 텍스트가 배경에 묻혀 불투명도를 올림 (기본값 0.5)
+faint-opacity = 0.8
+
+# split 구분선이 밝은 배경에서 거의 안 보여 진한 톤으로 변경 (기본값은 테마 배경 기반의 옅은 색)
+split-divider-color = #6e6a86

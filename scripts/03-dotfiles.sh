@@ -41,7 +41,7 @@ if [ -d "$HOME/.claude" ] && [ ! -L "$HOME/.claude" ]; then
 fi
 
 # 모든 stow 패키지 restow
-PACKAGES=(bash gh git karabiner nvim ssh vim zsh claude tmux)
+PACKAGES=(bash gh git karabiner nvim ssh vim zsh claude tmux ghostty)
 for pkg in "${PACKAGES[@]}"; do
   if [ -d "$pkg" ]; then
     stow --restow "$pkg"
