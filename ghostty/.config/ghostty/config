@@ -93,6 +93,17 @@ keybind = ctrl+b>o=text:\x02o
 
 # Shell Integration
 shell-integration = zsh
+# 셸 통합이 프롬프트에서 커서 모양을 덮어쓰지 않도록 끄고, 아래 cursor-style로 고정
+shell-integration-features = no-cursor
+
+# 커서: 두꺼운 블록 대신 얇은 세로선, 깜빡임 없음
+cursor-style = bar
+cursor-style-blink = false
+# bar 두께 보정값(px): 1은 너무 얇아 2로 상향, 여전히 얇으면 3, 굵으면 1.5처럼 조정
+adjust-cursor-thickness = 2
+# 줄 높이를 늘리면 글자와 커서는 셀 가운데에 놓여 윗줄 세그먼트와 간격이 생김
+# (powerline 세그먼트는 셀 높이에 맞춰 같이 늘어남). adjust-cursor-height는 반영이 안 되어 제거
+adjust-cell-height = 30%
 
 # Link clicking (cmd+click to open URLs)
 link-url = true
