@@ -48,6 +48,13 @@ keybind = cmd+right=text:\x05
 # cmd+backspace: delete to start of line
 keybind = cmd+backspace=text:\x15
 
+# ctrl+hjkl: Ghostty 분할 간 포커스 이동 (기존 cmd+alt+방향키는 그대로 유지)
+# performable: 분할이 없어 이동할 수 없으면 키를 터미널 앱(readline, nvim)에 그대로 전달
+keybind = performable:ctrl+h=goto_split:left
+keybind = performable:ctrl+j=goto_split:down
+keybind = performable:ctrl+k=goto_split:up
+keybind = performable:ctrl+l=goto_split:right
+
 # tmux keybindings (IME 우회 — raw bytes 전송)
 # Ctrl+B prefix + key를 단일 시퀀스로 전송하여 한글 IME 간섭 방지
 keybind = ctrl+b>n=text:\x02n
