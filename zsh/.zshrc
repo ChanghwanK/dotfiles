@@ -37,6 +37,16 @@ setopt SHARE_HISTORY
 export EDITOR='nvim'
 export PATH=/opt/homebrew/bin:$PATH
 
+# fzf 색상: Ghostty 테마(Rose Pine Dawn)와 맞춘다.
+# fzf는 터미널 배경을 감지하지 않고 dark 스킴을 기본값으로 쓰므로, 밝은 배경에서
+# 현재 줄만 어둡게 반전되는 문제를 막기 위해 명시한다. 테마를 바꾸면 이 값도 함께 바꾼다.
+# 회색 계열(info, border)은 Ghostty config의 palette 8과 같은 #6e6a86으로 대비를 맞췄다.
+export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS} \
+  --color=bg:-1,bg+:#f2e9e1,fg:#575279,fg+:#575279 \
+  --color=hl:#d7827e,hl+:#b4637a \
+  --color=info:#6e6a86,border:#cecacd,gutter:-1 \
+  --color=prompt:#286983,pointer:#b4637a,marker:#ea9d34,spinner:#907aa9,header:#56949f"
+
 # build_prompt() {
 #   RETVAL=$?
 #   prompt_newline
