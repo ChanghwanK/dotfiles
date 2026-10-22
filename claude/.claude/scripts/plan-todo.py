@@ -93,6 +93,39 @@ def parse_steps(body: str) -> list[str]:
     return steps
 
 
+# 이 기간 넘게 갱신이 없는 active 플랜은 대개 관찰 대기 스텝이나 포기된 작업에 걸려 있다.
+STALE_DAYS_DEFAULT = 14
+
+
+def days_since_updated(fm: dict) -> int | None:
+    updated = fm.get("updated")
+    if not updated:
+        return None
+    if isinstance(updated, datetime):
+        ts = updated
+    else:
+        try:
+            ts = datetime.fromisoformat(str(updated))
+        except ValueError:
+            return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=KST)
+    return (datetime.now(KST) - ts).days
+
+
+def count_followups(body: str) -> int:
+    """Count bullet items under `## 후속 판정` (waits that were kept out of Steps)."""
+    count = 0
+    in_section = False
+    for line in body.splitlines():
+        if line.startswith("## "):
+            in_section = line.strip().startswith("## 후속 판정")
+            continue
+        if in_section and re.match(r"^-\s+\S", line):
+            count += 1
+    return count
+
+
 def find_plan_file(name_or_id: str) -> Path | None:
     """Partial match: plan-elegant-tiger.md matches 'elegant', 'tiger', 'elegant-tiger'."""
     for p in sorted(PLANS_DIR.glob("*.md")):
@@ -216,7 +249,11 @@ def cmd_list(args):
                 title = fm.get("title") or parse_title(body) or pid
                 if len(title) > 72:
                     title = title[:69] + "…"
-                print(f"  {title}  [{done}/{total}]  {updated}")
+                age = days_since_updated(fm)
+                stale = (f"  (stale {age}d)"
+                         if grp == "active" and age is not None and age > STALE_DAYS_DEFAULT
+                         else "")
+                print(f"  {title}  [{done}/{total}]  {updated}{stale}")
             else:
                 mtime = datetime.fromtimestamp(p.stat().st_mtime, KST).isoformat()[:10]
                 print(f"  {pid}  [legacy]  {mtime}")
@@ -334,6 +371,10 @@ def cmd_check(args):
             state["active"].remove(pid)
         save_state(state)
         print(f"[plan-todo] Step {step_num} done. All steps complete → plan status: completed")
+        followups = count_followups(body)
+        if followups:
+            print(f"[plan-todo] 후속 판정 {followups}건은 플랜 승인 때 장부(hypothesis-ledger.md)에 "
+                  f"미판정으로 옮겨졌습니다. 판정일이 되면 SessionStart 훅이 알립니다.")
     else:
         print(f"[plan-todo] Step {step_num} marked done.")
 
@@ -428,6 +469,55 @@ def cmd_uncheck(args):
     print(f"[plan-todo] Step {step_num} restored to pending.")
 
 
+def cmd_stale(args):
+    """Active plans untouched for more than --days. Prints nothing when there are none,
+    so hooks can treat empty output as "nothing to report"."""
+    rows = []
+    for p in PLANS_DIR.glob("*.md"):
+        if p.name.startswith(".") or p.name == "CLAUDE.md":
+            continue
+        fm, body = parse_plan_file(p)
+        if not fm or fm.get("status", "active") != "active":
+            continue
+        age = days_since_updated(fm)
+        if age is None or age <= args.days:
+            continue
+        todos = fm.get("todos", [])
+        done = sum(1 for t in todos if t.get("status") == "done")
+        title = fm.get("title") or parse_title(body) or plan_id_from_file(p)
+        if len(title) > 60:
+            title = title[:57] + "…"
+        rows.append((age, fm.get("plan_id", plan_id_from_file(p)), done, len(todos), title))
+
+    for age, pid, done, total, title in sorted(rows, reverse=True):
+        print(f"{age}d\t{pid}\t[{done}/{total}]\t{title}")
+
+
+def cmd_abandon(args):
+    # find_plan_file()은 부분 일치라 짧은 id가 엉뚱한 플랜을 고를 수 있다.
+    # 상태를 바꾸는 명령이므로 plan_id 정확 일치만 받는다.
+    path = next((p for p in PLANS_DIR.glob("*.md")
+                 if not p.name.startswith(".") and plan_id_from_file(p) == args.plan_id), None)
+    if path is None:
+        print(f"[plan-todo] Plan not found (exact plan_id required): {args.plan_id}",
+              file=sys.stderr)
+        sys.exit(1)
+    fm, body = parse_plan_file(path)
+    if fm is None:
+        print(f"[plan-todo] Legacy plan without frontmatter: {path.name}", file=sys.stderr)
+        sys.exit(1)
+
+    fm["status"] = "abandoned"
+    fm["updated"] = now_kst()
+    write_plan_file(path, fm, body)
+
+    state = load_state()
+    if args.plan_id in state.get("active", []):
+        state["active"].remove(args.plan_id)
+    save_state(state)
+    print(f"[plan-todo] {args.plan_id} → status: abandoned")
+
+
 def cmd_statusline(args):
     session_id = args.session_id
     if session_id:
@@ -517,6 +607,14 @@ def main():
     p_uncheck.add_argument("--session-id", default="")
     p_uncheck.add_argument("--plan-id", default="", dest="plan_id")
 
+    # stale
+    p_stale = sub.add_parser("stale", help="List active plans not updated for N days")
+    p_stale.add_argument("--days", type=int, default=STALE_DAYS_DEFAULT)
+
+    # abandon
+    p_abandon = sub.add_parser("abandon", help="Mark a plan as abandoned (exact plan_id)")
+    p_abandon.add_argument("--plan-id", required=True, dest="plan_id")
+
     # steps-fzf
     p_sfzf = sub.add_parser("steps-fzf", help="Print plan steps as fzf TSV")
     p_sfzf.add_argument("--plan-id", required=True, dest="plan_id")
@@ -536,6 +634,8 @@ def main():
         "todo": cmd_todo,
         "check": cmd_check,
         "uncheck": cmd_uncheck,
+        "stale": cmd_stale,
+        "abandon": cmd_abandon,
         "steps-fzf": cmd_steps_fzf,
         "list-fzf": cmd_list_fzf,
         "statusline": cmd_statusline,

@@ -1,22 +1,11 @@
-# Shared Documentation
+---
+paths:
+  - "**/.claude/docs/**"
+  - "**/.dotfiles/claude/.claude/**"
+  - "**/.claude/projects/**/memory/**"
+---
 
-The files below are shared across all Claude Code sessions and agents.
-~/.claude/docs/에 문서를 추가하면 아래 Registry에 한 줄 등록한다 (import 자체는 CLAUDE.md에서 관리).
+# 지침 문서를 고칠 때
 
-## Registry
-
-각 문서의 active import는 `CLAUDE.md`에서 관리한다 (여기서 중복 import하지 않는다).
-
-### 상시 import (CLAUDE.md에서 @ import)
-
-- `code-quality-convention.md`: 코드 작성·수정·리팩터링·테스트 전역 품질 기준
-- `plan-format.md`: Plan 모드 출력 형식
-- `kubectl-contexts.md`: K8s 컨텍스트·네임스페이스 맵·리포지토리·배포 워크플로우
-
-### on-demand 참조 (전역 import 아님, 필요 시점에 Read)
-
-- `notion-writing-style.md`: Notion 문서 문장 톤·문법 + 시각적 포맷·구조 기본값 (notion:add-* 스킬 + alfred(gate·task·week 모드)·tasks:capture의 Task DB 5-필드 본문이 참조, 2026-07-09 상시 import에서 전환, 2026-07-09 Task DB 생성 경로 추가)
-- `plan-html-template.md`: Plan HTML 렌더링 템플릿 (plan-preview.sh 등 훅 스크립트가 소비, Claude는 읽지 않음)
-- `resume-format-convention.md`: 이력서 work experience bullet 표준 포맷 (task:review 스킬이 참조)
-- `hypothesis-ledger.md`: 가설 장부. CLAUDE.md 9번(Hypothesis-First) "판정과 갱신"이 판정일에 한 줄씩 기록, 월 1회 집계(판정 완료율·빗나감률)가 규칙 개정의 유일한 근거 (2026-10-14 신규)
-- `par-format-convention.md`: 경력기술서·성과평가용 PAR(Problem/Action/Result) 포맷 단일 출처. 채팅 간이형(프로파일 A) / Notion 문서형(프로파일 B) 2개 프로파일 (task:review Part A.5 + resume:bullet Step 3이 참조, 2026-09-05 신규)
+`~/.claude/docs/`, 전역 `CLAUDE.md`, 메모리를 추가·수정·삭제하기 전에 `~/.claude/docs/rules-map.md`(규칙 정본 지도)를 Read한다.
+새 문서를 만들면 그 지도의 "정본과 로딩 방식" 표에 한 줄을 추가하고, 로딩 방식(상시 / 훅 / Read 지시)을 정한다.

@@ -148,7 +148,7 @@ tech-spec 산출물을 아래 표로 sections 키에 옮긴다.
 
 - **Goals는 가설의 검증 기준을 동작 단위로 쪼갠 검증 시나리오다.** "무엇을 한다"가 아니라 작업이 끝났을 때 시스템이
   어떤 조건에서 어떻게 동작해야 하는지를 쓴다. 문장 형식·작성 규칙은 검증 시나리오 규칙
-  (`~/.claude/projects/-Users-changhwan-workspace-riiid-kubernetes/memory/feedback_verification_scenario_causal_sentence.md`)을 따른다.
+  (`~/.claude/docs/verification-scenario.md`)을 따른다.
   - 조건이 적용되는 경우: `{조건}이 적용된 경우, {상황}해도 {결과}해야 한다.`
   - 조건이 적용되지 않는 경우: `{상황}은 {이유}로 {조건}이 적용되지 않기 때문에, {상황}하면 {결과}해야 한다.`
 - **억제 케이스와 정상 케이스를 쌍으로 쓴다.** "X일 때 안 온다"만 쓰면 과잉 억제(전면 침묵) 회귀를 잡지 못하므로

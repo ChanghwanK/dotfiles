@@ -7,7 +7,7 @@
 | `k8s-dev` | infra-k8s-dev | 개발 | Tokyo |
 | `k8s-global` | infra-k8s-global | 공용 인프라 | Tokyo |
 | `k8s-idc` | infra-k8s-idc | On-Premise GPU | Seoul (Proxmox) |
-| `k8s-office` | — | 오피스 테스트 | Seoul (Proxmox) |
+| `k8s-office` | (없음) | 오피스 테스트 | Seoul (Proxmox) |
 
 # 핵심 네임스페이스 맵
 
@@ -19,8 +19,8 @@ GitOps 리포 구조: `kubernetes/src/<sphere>/` = 네임스페이스 단위
 | `socraai` | domain, celery-worker, celery-beat | SOCRAAI 제품 (AI 튜터) |
 | `infra` | argocd, istio, keda, cnpg, cert-manager, external-secrets, velero, kyverno | 플랫폼 인프라 컴포넌트 |
 | `observability` | victoriametrics, loki, alloy, tempo, grafana, pyroscope, opentelemetry | 모니터링/로깅/트레이싱 |
-| `data-platform` | — | 데이터 파이프라인 |
-| `tech` | — | 기술 공통 |
+| `data-platform` | (미기재) | 데이터 파이프라인 |
+| `tech` | (미기재) | 기술 공통 |
 
 # 주요 리포지토리
 

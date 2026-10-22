@@ -13,7 +13,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "sonnet",
   "skillOverrides": {
     "claude-mem:babysit": "off",
     "claude-mem:design-is": "off",
@@ -34,11 +34,6 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/scripts/return-briefing.py prompt",
-            "timeout": 5
-          },
           {
             "type": "command",
             "command": "python3 $HOME/.claude/scripts/review-trigger.py",
@@ -62,6 +57,20 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/alfred-session-start.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/scripts/inject-devops-rules.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/scripts/ledger.py overdue --hook",
+            "timeout": 10
           }
         ]
       },
@@ -96,16 +105,6 @@
         ]
       },
       {
-        "matcher": "ExitPlanMode",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/plan-preview.sh",
-            "timeout": 900
-          }
-        ]
-      },
-      {
         "matcher": "*",
         "hooks": [
           {
@@ -127,6 +126,16 @@
         ]
       },
       {
+        "matcher": "EnterPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/.claude/scripts/inject-plan-format.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "*",
         "hooks": [
           {
@@ -143,15 +152,6 @@
           {
             "type": "command",
             "command": "$HOME/.claude/scripts/notify-on-stop.sh"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/scripts/plan-text-preview.sh"
-          },
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/scripts/return-briefing.py stop",
-            "timeout": 5
           }
         ]
       },
@@ -247,6 +247,7 @@
     "claude-md-management@claude-plugins-official": true,
     "serena@claude-plugins-official": true,
     "diagram-design@diagram-design": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
     "todo@changhwan-mods": true,
     "question-box@changhwan-mods": true
   },
@@ -263,6 +264,12 @@
         "repo": "cathrynlavery/diagram-design"
       }
     },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
+    },
     "changhwan-mods": {
       "source": {
         "source": "directory",
@@ -273,7 +280,10 @@
   "effortLevel": "high",
   "modelSettings": {
     "claude-opus-5": {
-      "effortLevel": "medium"
+      "effortLevel": "high"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "high"
     },
     "claude-sonnet-5": {
       "effortLevel": "medium"
@@ -283,7 +293,7 @@
     }
   },
   "skipDangerousModePermissionPrompt": true,
-  "theme": "dark",
+  "theme": "light",
   "editorMode": "vim",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true
