@@ -39,9 +39,9 @@ SKILL.md Step 3 for the resolved granularity, not the ones below verbatim.
 
 {include only for phase-level or step-level quizzes. one line each.}
 
-- *앞 단계:* {what must already be true}
-- *이 단계:* {what changes here}
-- *뒤 단계:* {what becomes possible}
+- 앞 단계: {what must already be true}
+- 이 단계: {what changes here}
+- 뒤 단계: {what becomes possible}
 
 ---
 

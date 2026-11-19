@@ -401,7 +401,7 @@ D) 종료
 ### Option B: Task 등록만
 
 `tasks:capture`를 Skill 도구로 호출하고 args에 인터뷰 결과와 "grill-me 인터뷰 완료"를 넘긴다. 남은 Gap은 Task의
-`작업 Context` > `*미결 질문:*`에 남아, 나중에 업무 노트를 쓸 때 출발점이 된다.
+`작업 Context` > `미결 질문:`에 남아, 나중에 업무 노트를 쓸 때 출발점이 된다.
 
 ---
 

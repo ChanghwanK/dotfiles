@@ -931,7 +931,7 @@ def parse_rich_text(text):
     """인라인 **bold** / *italic* / `code` 를 Notion rich_text 배열로 변환.
 
     **bold**를 *italic*보다 먼저 매칭해야 `**` 안의 `*`가 오탐되지 않는다
-    (레이블 이탤릭 표기 `*레이블:*` 지원, notion-writing-style.md 참조).
+    (레이블은 평문 `레이블:`로 쓴다, notion-writing-style.md 참조).
     """
     text = sanitize_body(text)  # 하드룰 backstop: fenced 코드블록은 별도 빌더라 제외됨
     tokens = re.split(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)", text)
