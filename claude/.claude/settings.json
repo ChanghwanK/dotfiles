@@ -9,7 +9,31 @@
   "permissions": {
     "allow": [
       "Bash(kubectl config use-context:*)",
-      "Bash($HOME/.claude/scripts/notify-slack.sh *)"
+      "Bash($HOME/.claude/scripts/notify-slack.sh *)",
+      "Bash",
+      "mcp__claude_ai_Gmail__search_threads",
+      "mcp__claude_ai_Gmail__get_thread",
+      "mcp__claude_ai_Gmail__get_message",
+      "mcp__claude_ai_Gmail__list_labels",
+      "mcp__claude_ai_Slack__slack_read_thread",
+      "mcp__claude_ai_Slack__slack_read_channel",
+      "mcp__claude_ai_Slack__slack_read_canvas",
+      "mcp__claude_ai_Slack__slack_read_user_profile",
+      "mcp__claude_ai_Slack__slack_search_channels",
+      "mcp__claude_ai_Slack__slack_search_public",
+      "mcp__claude_ai_Slack__slack_search_public_and_private",
+      "mcp__claude_ai_Slack__slack_search_users",
+      "mcp__grafana__list_alert_groups",
+      "mcp__grafana__get_alert_group",
+      "mcp__grafana__query_prometheus",
+      "mcp__grafana__query_loki_logs",
+      "mcp__grafana__search_dashboards",
+      "mcp__grafana__get_dashboard_summary",
+      "mcp__claude_ai_Google_Calendar__list_events",
+      "mcp__claude_ai_Google_Calendar__get_event",
+      "mcp__claude_ai_Google_Calendar__search_events",
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-fetch"
     ],
     "defaultMode": "auto"
   },
@@ -100,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $HOME/.claude/scripts/guard-kubectl-mutate.py"
+            "command": "python3 $HOME/.claude/scripts/guard-aws-delete.py"
           }
         ]
       },
