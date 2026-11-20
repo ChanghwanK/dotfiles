@@ -371,10 +371,6 @@ def cmd_check(args):
             state["active"].remove(pid)
         save_state(state)
         print(f"[plan-todo] Step {step_num} done. All steps complete → plan status: completed")
-        followups = count_followups(body)
-        if followups:
-            print(f"[plan-todo] 후속 판정 {followups}건은 플랜 승인 때 장부(hypothesis-ledger.md)에 "
-                  f"미판정으로 옮겨졌습니다. 판정일이 되면 SessionStart 훅이 알립니다.")
     else:
         print(f"[plan-todo] Step {step_num} marked done.")
 

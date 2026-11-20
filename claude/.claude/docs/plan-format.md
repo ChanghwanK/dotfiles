@@ -124,8 +124,7 @@ Summary → Context → [문제와 가설] → Goals → [Non-Goals] → [옵션
 
 ### 후속 판정
 - 넣을 자격(방법의 결과 검증만, 판정 기회의 기저율, 적용 상태가 곧 결과인 변경 제외)은 `docs/hypothesis-first.md` "후속 판정 자격"이 정본입니다
-- 형식은 `- YYYY-MM-DD: (판정 내용) / (판정 쿼리·명령) / (기준)`입니다. 날짜로 시작하지 않는 줄은 장부로 옮겨지지 않습니다
-- 장부 이관과 판정일 알림은 아래 "플랜 TODO 운영"을 따릅니다
+- 형식은 `- YYYY-MM-DD: (판정 내용) / (판정 쿼리·명령) / (기준)`입니다
 
 ### 옵션 비교
 설계 과정에서 복수의 접근 방식이 존재할 때만 씁니다. 옵션이 1개뿐이면 생략합니다.
@@ -178,7 +177,7 @@ Summary → Context → [문제와 가설] → Goals → [Non-Goals] → [옵션
 
 ## 플랜 TODO 운영
 
-ExitPlanMode 훅(`notify-plan-done.sh`)이 `## Steps`에서 frontmatter TODO를 만들고, 후속 판정을 장부로 옮기고, 14일 넘게 멈춘 active 플랜을 알려 줍니다.
+ExitPlanMode 훅(`notify-plan-done.sh`)이 `## Steps`에서 frontmatter TODO를 만들고, 14일 넘게 멈춘 active 플랜을 알려 줍니다.
 
 - 각 step을 마칠 때마다 `/plan:check <n>`을 부릅니다. 스킬 밖에서 스크립트를 직접 부를 때는 `python3 ~/.claude/scripts/plan-todo.py check <n> --plan-id <plan_id>`처럼 부릅니다(`--plan-id`는 전역 하드 가드레일). 모든 step이 끝나면 플랜이 `completed`로 바뀝니다
 - 남은 작업: `plan-todo.py todo --plan-id <plan_id>` / 본문: `/plan:show [name]` / 목록: `/plan:list`

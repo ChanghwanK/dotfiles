@@ -90,11 +90,6 @@
             "type": "command",
             "command": "python3 $HOME/.claude/scripts/inject-devops-rules.py",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/scripts/ledger.py overdue --hook",
-            "timeout": 10
           }
         ]
       },

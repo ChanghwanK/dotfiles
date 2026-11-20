@@ -31,8 +31,6 @@ if [ -n "$PLAN_FILE" ] && [ -f "$PLAN_FILE" ]; then
     # stdout은 마지막 additionalContext JSON 전용이다. 텍스트가 섞이면 JSON 파싱이 실패한다.
     python3 "${HOME}/.claude/scripts/plan-todo.py" init "$PLAN_FILE" \
         --session-id "$SESSION_ID" >/dev/null 2>&1 || true
-    # 후속 판정을 장부에 미판정 행으로 옮긴다(멱등). 판정일 알림은 SessionStart 훅(ledger.py overdue)이 맡는다
-    python3 "${HOME}/.claude/scripts/ledger.py" import-followups "$PLAN_FILE" --quiet >/dev/null 2>&1 || true
 fi
 
 # ── 4. Slack 알림 (기존 로직 유지) ───────────────────────────────────────────

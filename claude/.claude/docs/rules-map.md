@@ -7,7 +7,7 @@
 | 규칙 범주 | 정본 | 로딩 |
 |-----------|------|------|
 | 우선순위, 응답 기본값, 조건부 덧붙임, 작업 원칙, 하드 가드레일, 라우팅 표, 규칙 생애주기 | `~/.claude/CLAUDE.md` | 상시 |
-| 문제와 가설, 원인 가설 단계, 검증 설계, 후속 판정 자격, 장부 판정 | `docs/hypothesis-first.md` | Read (CLAUDE.md 라우팅 표) |
+| 문제와 가설, 원인 가설 단계, 검증 설계, 후속 판정 자격, 판정과 갱신 | `docs/hypothesis-first.md` | Read (CLAUDE.md 라우팅 표) |
 | 검증 시나리오·테스트 케이스·DoD 판정 기준 문장 | `docs/verification-scenario.md` | Read |
 | 플랜 섹션 순서·이름, 플랜 TODO 운영(`plan-todo.py`) | `docs/plan-format.md` | 훅 (PostToolUse `EnterPlanMode`) |
 | 코드 작성·리팩터링·테스트 품질 | `docs/code-quality-convention.md` | Read |
@@ -17,7 +17,6 @@
 | 이력서 bullet | `docs/resume-format-convention.md` | Read (task:review, resume:bullet) |
 | 경력기술서·성과평가 PAR | `docs/par-format-convention.md` | Read |
 | 면접 준비·학습 세션·브리핑 같은 개인 업무 방식 | `docs/personal-workflow.md` | Read |
-| 가설 판정 기록 | `docs/hypothesis-ledger.md` (데이터) | SessionStart 훅이 기한 지난 행을 표시 |
 | 팀 운영 표준(GitOps 가드레일, 팀 원칙, wiki 규칙) | kubernetes 레포 `CLAUDE.md`, `devops-wiki/` | 프로젝트 로딩 (팀 소유, 개인 문서가 바꾸지 않음) |
 | 사실·결정 이력·사례(누가 무엇을 언제 정했나, 장애 기록) | 프로젝트 auto memory | 상시 (MEMORY.md는 목차만) |
 

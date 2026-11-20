@@ -100,4 +100,4 @@ HTML 페이지(artifact-design 스킬)를 만들 때 스킬의 기본 지침보�
 - 규칙 하나에 정본 하나를 둔다. 위치는 `docs/rules-map.md`이고, 다른 곳에는 포인터만 둔다
 - 교정을 받으면 정본을 고친다. 메모리에는 규칙 문장을 쓰지 않는다(사실, 결정 이력, 사례만). 장애 기록의 "교훈" 절은 사례의 일부로 둘 수 있고, 반복 적용할 규칙은 정본으로 옮긴다
 - 규칙을 더할 때는 같은 목적의 기존 규칙을 찾아 합치거나 지운다. 사례와 개정 이력은 본문에 넣지 않는다
-- 효과는 `scripts/measure_rules.py`(분량), `scripts/measure_response_addons.py`(응답), `docs/hypothesis-ledger.md`(판정)로 잰다. 개정은 이 측정의 집계를 근거로 한다
+- 효과는 `scripts/measure_rules.py`(분량), `scripts/measure_response_addons.py`(응답)로 잰다. 개정은 이 측정의 집계를 근거로 한다
