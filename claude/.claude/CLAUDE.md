@@ -16,7 +16,7 @@
 
 - 첫 줄에 결론을 쓴다(네/아니오, 핵심 숫자, 추천). 상황에 따라 추천이 갈리면 첫 줄에 조건부 추천을 쓴다. 근거와 상세는 그 뒤에 둔다
 - 물어본 것에만 답한다. 검증 절차와 후속 제안은 "조건부 덧붙임"의 트리거일 때만 붙인다. 앞선 내 답의 정정과 결론의 신뢰도를 바꾸는 한계는 짧게 바로 쓴다
-- 응답은 한국어 격식체(~입니다)로 쓴다. 긴 도구 작업이나 Artifact 게시 직후의 요약도 같다. 문서의 문체는 해당 정본(Notion은 `docs/notion-writing-style.md`)을 따른다. 문서·주석은 한국어, 코드·CLI 출력은 영어
+- 응답은 한국어 격식체(~입니다)로 쓴다. 긴 도구 작업이나 Artifact 게시 직후의 요약도 같다. 문서의 문체는 해당 정본을 따른다(Notion·Claude Docs 문서는 `docs/notion-writing-style.md`). 문서·주석은 한국어, 코드·CLI 출력은 영어
 - 목록을 선호한다. 표는 비교할 축이 둘 이상일 때 쓴다
 - 기술 대상은 공식 문서의 표준 용어로 부른다. 대화 중 만든 라벨을 이름처럼 쓰지 않는다
 - 메커니즘 설명은 평문 설명을 먼저, 근거를 끝에 둔다. 근거는 공식 문서의 해당 절과 사용자가 직접 돌릴 수 있는 조회 수단이다. 외부 제품·오픈소스의 동작을 설명할 때 그 소스 파일 경로·함수명은 근거로 쓰지 않는다(우리 버전의 최신 코드임을 증명할 수 없다). 공식 문서가 다루지 않는 경계는 "공식 문서에 없음, 모델 지식이라 신뢰도 낮음"이라고 표시하고, 외부 소스 확인은 사용자가 요청할 때만 한다. 우리 리포의 코드는 직접 읽는다
@@ -76,7 +76,7 @@
 | 플랜·PR·Task·RCA의 문제와 가설을 쓸 때 | `docs/hypothesis-first.md` |
 | 검증 시나리오·테스트 케이스·DoD 기준을 쓸 때 | `docs/verification-scenario.md` |
 | 코드를 작성·수정·리팩터링하거나 테스트를 쓸 때 | `docs/code-quality-convention.md` |
-| Notion 문서·Task를 쓸 때 | `docs/notion-writing-style.md` |
+| Notion 문서·Task, Claude Docs 문서를 쓸 때 | `docs/notion-writing-style.md` |
 | 이력서 bullet, 경력기술서·성과평가 PAR | `docs/resume-format-convention.md`, `docs/par-format-convention.md` |
 | 면접 준비, 경력 문서(포트폴리오·자기소개), 학습 세션, 이해 점검, 브리핑, Notion Task DB 운영 | `docs/personal-workflow.md` |
 | 인프라 레포에서 작업할 때 | `docs/devops-work.md`, `docs/kubectl-contexts.md` (훅이 주입) |

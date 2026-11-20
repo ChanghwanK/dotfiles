@@ -13,7 +13,7 @@
 | 코드 작성·리팩터링·테스트 품질 | `docs/code-quality-convention.md` | Read |
 | DevOps·SOCRA 작업 방식(GitOps, prod 체크리스트, 알럿·runbook, ROI, 내재화 가중치, 레거시 재설계) | `docs/devops-work.md` | 훅 (SessionStart, 인프라 레포 cwd) |
 | kubectl context·네임스페이스·리포지토리 지도 | `docs/kubectl-contexts.md` | 훅 (devops-work와 함께) |
-| Notion 문서 문장·포맷 | `docs/notion-writing-style.md` | Read |
+| Notion·Claude Docs 문서 문장·포맷 | `docs/notion-writing-style.md` | Read |
 | 이력서 bullet | `docs/resume-format-convention.md` | Read (task:review, resume:bullet) |
 | 경력기술서·성과평가 PAR | `docs/par-format-convention.md` | Read |
 | 면접 준비·학습 세션·브리핑 같은 개인 업무 방식 | `docs/personal-workflow.md` | Read |
