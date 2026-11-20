@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["issues", "summary"],
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sentence", "kind", "claim_ids", "suggestion"],
+        "properties": {
+          "sentence": {"type": "string"},
+          "kind": {"type": "string", "enum": ["unsourced", "distorted", "overstated", "uses_refuted", "wrong_citation"]},
+          "claim_ids": {"type": "array", "items": {"type": "string"}},
+          "suggestion": {"type": "string"}
+        }
+      }
+    },
+    "summary": {"type": "string"}
+  }
+}

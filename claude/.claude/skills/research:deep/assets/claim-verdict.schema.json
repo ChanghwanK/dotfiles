@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdicts"],
+  "properties": {
+    "verdicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "verdict", "url_opened", "quote", "counter_evidence", "note"],
+        "properties": {
+          "claim_id": {"type": "string"},
+          "verdict": {"type": "string", "enum": ["SUPPORTED", "PARTIAL", "REFUTED", "UNVERIFIABLE"]},
+          "url_opened": {"type": "boolean"},
+          "quote": {"type": "string"},
+          "counter_evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["url", "quote"],
+              "properties": {"url": {"type": "string"}, "quote": {"type": "string"}}
+            }
+          },
+          "note": {"type": "string"}
+        }
+      }
+    }
+  }
+}
