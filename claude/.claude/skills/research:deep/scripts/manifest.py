@@ -537,8 +537,26 @@ def cmd_ledger(args) -> int:
             r.setdefault("url", src.get("url", ""))
             r.setdefault("tier", src.get("tier", ""))
             rows.append(r)
-    for i, r in enumerate(rows, 1):
-        r["claim_id"] = f"c{i:03d}"
+    # 기존 claims.jsonl의 id를 보존한다(재실행·notes 추가로 id가 밀리면 초안·계획의 [@cNNN] 인용이 엉뚱한 주장을 가리킨다)
+    prev = read_jsonl(run / "claims.jsonl")
+    by_quote = {(p.get("source_id", ""), normalize(p.get("quote", ""))): p["claim_id"] for p in prev if p.get("claim_id")}
+    by_claim = {(normalize(p.get("claim", "")), p.get("source_id", "")): p["claim_id"] for p in prev if p.get("claim_id")}
+    used = set(by_quote.values())
+    next_n = max([int(i[1:]) for i in used if i[1:].isdigit()] or [0]) + 1
+    deduped, seen_q = [], set()
+    for r in rows:
+        qk = (r.get("source_id", ""), normalize(r.get("quote", "")))
+        if qk in seen_q:
+            continue  # 같은 출처·같은 인용은 한 번만
+        seen_q.add(qk)
+        cid = by_quote.get(qk) or by_claim.get((normalize(r.get("claim", "")), r.get("source_id", "")))
+        if cid and cid in used and cid not in {x.get("claim_id") for x in deduped}:
+            r["claim_id"] = cid
+        else:
+            r["claim_id"] = f"c{next_n:03d}"
+            next_n += 1
+        deduped.append(r)
+    rows = sorted(deduped, key=lambda r: int(r["claim_id"][1:]))
     res = _check(run, [(r["claim_id"], r.get("source_id", ""), r.get("quote", "")) for r in rows])
     missing = {m["id"] for m in res["missing"]}
     kept = [r for r in rows if r["claim_id"] not in missing]

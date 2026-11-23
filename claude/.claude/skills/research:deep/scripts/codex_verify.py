@@ -168,7 +168,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--effort", default="high")
     p.add_argument("--timeout", type=int, default=1200, help="codex 호출 1회 제한(초)")
-    p.add_argument("--model", default="", help="비우면 ~/.codex/config.toml의 model")
+    p.add_argument("--model", default="gpt-6.1-sol", help="codex 모델(빈 값이면 ~/.codex/config.toml의 model)")
     sub = p.add_subparsers(dest="mode", required=True)
     s = sub.add_parser("claims")
     s.add_argument("run_dir")
