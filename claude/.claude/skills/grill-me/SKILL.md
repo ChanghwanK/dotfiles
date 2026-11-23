@@ -93,7 +93,7 @@ allowed-tools:
 - Decision Tree의 Root 후보에 아래 4개 축을 반드시 포함한다(대화에 이미 확정된 축은 제외):
   - 문제·근본 원인: 현상이 아니라 메커니즘인가(`tasks:capture`의 "현상을 빼고 문제를 쓴다" 판별)
   - Before → After: 같은 축으로 대응되는가
-  - Goals / Non Goals: 조건-결과 쌍으로 검증 가능한가, 범위 경계가 분명한가
+  - Goals / Key Result / Non Goals: Goals는 개선 뒤의 모습(수치 없음, 수단 이름은 수단이 정해진 작업일 때만)인가, Key Result는 지표 하나·목표값 하나의 제목과 구체 기준(대상 범위·기준값)을 갖췄는가, 범위 경계가 분명한가(구분 정본: `task:keyresult` 스킬)
   - 설계 선택: 이유와 기각한 대안이 있는가
 - Step 5 후속 액션은 고정이다: 검증 결과(확정된 결정, 해소된 Gap, 남은 Gap)를 호출한 스킬에 돌려주고,
   호출한 스킬이 `tasks:tech-spec`으로 이어간다. A~D 선택지를 보여주지 않는다.
