@@ -357,23 +357,99 @@ TODOS_PROP = "Todo's"
 JIRA_BROWSE = "https://riiid-pioneer.atlassian.net/browse/"
 
 
-def todo_block_rich(text, link=None, children=None, checked=False):
-    """to_do 블록. link(Jira 키)가 있으면 글 끝에 링크 텍스트로 붙이고, children은 하위 to_do로 넣는다."""
-    rich = [{"type": "text", "text": {"content": text}}]
-    if link:
-        url = link if link.startswith("http") else JIRA_BROWSE + link
-        label = link.rsplit("/", 1)[-1]
-        rich += [{"type": "text", "text": {"content": "  "}},
-                 {"type": "text", "text": {"content": label, "link": {"url": url}}}]
+JIRA_KEY_RE = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
+
+
+def normalize_link(link):
+    """링크 하나를 {label, url}로 바꾼다. 받는 형태: Jira 키("PLE-6"), URL 문자열, {"url", "label"?}.
+    라벨을 주지 않으면 URL 종류로 정한다: Jira → 키, GitHub PR·이슈 → #번호, Gmail → 메일, 그 밖 → 호스트."""
+    if isinstance(link, dict):
+        url, label = str(link.get("url", "")).strip(), str(link.get("label", "")).strip()
+    else:
+        url, label = str(link or "").strip(), ""
+    if not url:
+        return None
+    if JIRA_KEY_RE.match(url):
+        url = JIRA_BROWSE + url
+    if not url.startswith("https://"):
+        return None  # https가 아닌 값은 링크로 쓰지 않는다
+    if not label:
+        m = re.search(r"/browse/([A-Z][A-Z0-9]+-\d+)", url)
+        g = re.search(r"github\.com/[^/]+/([^/]+)/(?:pull|issues)/(\d+)", url)
+        if m:
+            label = m.group(1)
+        elif g:
+            label = f"{g.group(1)}#{g.group(2)}" if g.group(1) != "kubernetes" else f"#{g.group(2)}"
+        elif "mail.google.com" in url:
+            label = "메일"
+        else:
+            label = re.sub(r"^https://(www\.)?", "", url).split("/", 1)[0]
+    return {"label": label, "url": url}
+
+
+def entry_links(entry):
+    """항목의 link(예전 형식, 하나)와 links(여러 개)를 합쳐 중복 없이 {label, url} 목록으로."""
+    raw = ([entry["link"]] if entry.get("link") else []) + list(entry.get("links") or [])
+    out, seen = [], set()
+    for r in raw:
+        n = normalize_link(r)
+        if n and n["url"] not in seen:
+            seen.add(n["url"])
+            out.append(n)
+    return out
+
+
+def link_segments(links):
+    """글 뒤에 붙일 rich_text 조각: "  라벨 · 라벨" (라벨마다 링크)."""
+    segs = []
+    for i, l in enumerate(links):
+        segs.append({"type": "text", "text": {"content": "  " if i == 0 else " · "}})
+        segs.append({"type": "text", "text": {"content": l["label"], "link": {"url": l["url"]}}})
+    return segs
+
+
+def todo_block_rich(text, link=None, children=None, checked=False, links=None):
+    """to_do 블록. 링크(Jira 키, 메일·PR URL 등)는 글 끝에 라벨 링크로 붙이고, children은 하위 to_do로 넣는다."""
+    ls = entry_links({"link": link, "links": links})
+    rich = [{"type": "text", "text": {"content": text}}] + link_segments(ls)
     block = {"object": "block", "type": "to_do", "to_do": {"rich_text": rich, "checked": bool(checked)}}
     if children:
-        block["to_do"]["children"] = [todo_block_rich(c["text"]) for c in children if c.get("text", "").strip()]
+        block["to_do"]["children"] = [todo_block_rich(c["text"], c.get("link"), links=c.get("links"))
+                                      for c in children if c.get("text", "").strip()]
     return block
 
 
 def read_todos_prop(token, page_id):
     page = notion_request(token, "GET", f"/pages/{page_id}")
     return rich_text_to_plain(page.get("properties", {}).get(TODOS_PROP, {}).get("rich_text", []))
+
+
+def read_todos_prop_rich(token, page_id):
+    """Todo's property의 rich_text를 쓰기용 조각으로 읽는다(기존 링크를 지우지 않으려고)."""
+    page = notion_request(token, "GET", f"/pages/{page_id}")
+    segs = []
+    for r in page.get("properties", {}).get(TODOS_PROP, {}).get("rich_text", []):
+        content = r.get("plain_text", "")
+        seg = {"type": "text", "text": {"content": content}}
+        href = r.get("href") or ((r.get("text") or {}).get("link") or {}).get("url")
+        if href:
+            seg["text"]["link"] = {"url": href}
+        segs.append(seg)
+    return segs
+
+
+def trim_trailing_bullet(segs):
+    """끝에 남은 빈 글머리표 자리("  • ")는 새 항목이 채운다."""
+    while segs:
+        c = segs[-1]["text"]["content"]
+        t = re.sub(r"\n?[ \t]*•?[ \t]*$", "", c) if not segs[-1]["text"].get("link") else c
+        if t == c:
+            break
+        if t:
+            segs[-1]["text"]["content"] = t
+            break
+        segs.pop()
+    return segs
 
 
 def cmd_append_todos(args):
@@ -391,7 +467,13 @@ def cmd_append_todos(args):
         for e in entries:
             e["text"] = e["text"].strip()
     else:
-        entries = [{"text": x.strip()} for x in json.loads(args.items or "[]") if x.strip()]
+        # --items: 문자열 또는 {"text", "links"?} (링크: Jira 키, 메일·PR URL)
+        entries = []
+        for x in json.loads(args.items or "[]"):
+            e = dict(x) if isinstance(x, dict) else {"text": str(x)}
+            e["text"] = str(e.get("text", "")).strip()
+            if e["text"]:
+                entries.append(e)
     _, sections = parse_body(fetch_tree(token, args.page_id))
 
     todos = sections.get("Todos")
@@ -407,7 +489,8 @@ def cmd_append_todos(args):
         (skipped if norm(e["text"]) in already_written else new_entries).append(e)
         already_written.add(norm(e["text"]))
 
-    blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked) for e in new_entries]
+    blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked, e.get("links"))
+              for e in new_entries]
     if args.parent_block:
         top_ids = {n["id"].replace("-", "") for n in todos["nodes"] if n["type"] == "to_do"}
         if args.parent_block.replace("-", "") not in top_ids:
@@ -421,21 +504,26 @@ def cmd_append_todos(args):
         insert_after = todos["last_block_id"]
         target, body = todos["parent_id"], {"children": blocks, "after": insert_after}
 
+    # property: 기존 rich_text 조각(링크 포함)을 그대로 두고 끝에 "  • 글  라벨 · 라벨" 줄을 덧붙인다
     prop_before = prop_after = None
+    prop_segs = None
     if not args.no_prop:
-        prop_before = read_todos_prop(token, args.page_id)
-        lines = [f"  • {e['text']}" + (f" ({e['link'].rsplit('/', 1)[-1]})" if e.get("link") else "")
-                 for e in new_entries]
-        kept = prop_before.split("\n")
-        while kept and kept[-1].strip() in ("", "•"):  # 끝에 남은 빈 글머리표 자리는 새 항목이 채운다
-            kept.pop()
-        prop_after = "\n".join(kept + lines) if lines else prop_before
+        before = read_todos_prop_rich(token, args.page_id)
+        prop_before = "".join(s["text"]["content"] for s in before)
+        prop_segs = trim_trailing_bullet([dict(s, text=dict(s["text"])) for s in before])
+        for e in new_entries:
+            lead = "\n" if prop_segs else ""
+            prop_segs.append({"type": "text", "text": {"content": f"{lead}  • {e['text']}"}})
+            prop_segs.extend(link_segments(entry_links(e)))
+        prop_after = "".join(s["text"]["content"] for s in prop_segs) if new_entries else prop_before
+        for s in prop_segs:  # rich_text 조각 하나는 2000자 상한
+            s["text"]["content"] = s["text"]["content"][:2000]
 
     if new_entries and not args.dry_run:
         notion_request(token, "PATCH", f"/blocks/{target}/children", body)
         if not args.no_prop and prop_after != prop_before:
             notion_request(token, "PATCH", f"/pages/{args.page_id}", {"properties": {
-                TODOS_PROP: {"rich_text": [{"type": "text", "text": {"content": prop_after[:2000]}}]}}})
+                TODOS_PROP: {"rich_text": prop_segs[:100]}}})
 
     print(json.dumps({"success": True, "dry_run": args.dry_run,
                       "insert_after_block": insert_after, "parent_block": args.parent_block,
@@ -510,6 +598,46 @@ def cmd_check_todos(args):
                      ensure_ascii=False, indent=2))
 
 
+def writable_rich(r):
+    """GET으로 읽은 rich_text 조각을 PATCH에 다시 보낼 수 있는 모양으로(서식·링크·멘션 유지)."""
+    t = r.get("type", "text")
+    out = {"type": t, t: r.get(t, {})}
+    if r.get("annotations"):
+        out["annotations"] = r["annotations"]
+    return out
+
+
+def cmd_add_links(args):
+    """이미 있는 Todos 할 일 끝에 링크를 덧붙인다. 글과 체크 상태는 그대로 둔다.
+
+    - --map: [{"block_id": "<list-todos의 id>", "links": ["PLE-6", "<URL>", {"url", "label"}]}]
+    - 블록에 이미 걸린 URL은 건너뛰어 다시 실행해도 중복되지 않는다
+    - Todo's property는 건드리지 않는다
+    """
+    token = get_token()
+    plan = json.loads(args.map)
+    by_id = {t["id"].replace("-", ""): t for t in todo_nodes_with_ids(load_todos_section(token, args.page_id)["nodes"])}
+    unknown = [p.get("block_id") for p in plan if str(p.get("block_id", "")).replace("-", "") not in by_id]
+    if unknown:
+        print(json.dumps({"success": False, "error": "Todos 칸의 할 일이 아닌 id가 있어 아무것도 쓰지 않았습니다",
+                          "unknown": unknown}, ensure_ascii=False))
+        sys.exit(1)
+    results = []
+    for p in plan:
+        bid = p["block_id"]
+        block = notion_request(token, "GET", f"/blocks/{bid}")
+        rich = block.get("to_do", {}).get("rich_text", [])
+        have = {r.get("href") for r in rich if r.get("href")}
+        new = [l for l in entry_links({"links": p.get("links")}) if l["url"] not in have]
+        if new and not args.dry_run:
+            body = {"to_do": {"rich_text": [writable_rich(r) for r in rich] + link_segments(new)}}
+            notion_request(token, "PATCH", f"/blocks/{bid}", body)
+        results.append({"block_id": bid, "text": by_id[bid.replace("-", "")]["text"],
+                        "added": [f"{l['label']} <{l['url']}>" for l in new],
+                        "already": len(entry_links({"links": p.get("links")})) - len(new)})
+    print(json.dumps({"success": True, "dry_run": args.dry_run, "results": results}, ensure_ascii=False, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Notion Daily Work Log CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -554,6 +682,13 @@ def main():
     check_parser.add_argument("--uncheck", action="store_true", help="체크를 해제한다")
     check_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 바뀔 항목만 출력한다")
 
+    links_parser = subparsers.add_parser(
+        "add-links", help="이미 있는 Todos 할 일 끝에 링크(Jira 키, 메일·PR URL)를 덧붙인다")
+    links_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
+    links_parser.add_argument("--map", required=True,
+                              help='JSON 배열: [{"block_id": "<list-todos id>", "links": ["PLE-6", "<URL>"]}]')
+    links_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 붙일 링크만 출력한다")
+
     args = parser.parse_args()
 
     if args.command == "read":
@@ -570,6 +705,8 @@ def main():
         cmd_list_todos(args)
     elif args.command == "check-todos":
         cmd_check_todos(args)
+    elif args.command == "add-links":
+        cmd_add_links(args)
 
 
 if __name__ == "__main__":

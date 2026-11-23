@@ -18,6 +18,9 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py read *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py list-todo-parents *)
+  - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py list-todos *)
+  - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py check-todos *)
+  - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py add-links *)
   - ArtifactData
   - mcp__claude_ai_Atlassian_MCP__createJiraIssue
   - Read
@@ -133,8 +136,13 @@ date '+%s'
 - Todos: dry-run 먼저 실행하고 이어서 실제 실행한다. `success: false`면 오류를 그대로 전하고 Todos만 멈춘다
   ```bash
   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos \
-    --page-id {today_page_id} --items '["항목1", "항목2"]' --dry-run
+    --page-id {today_page_id} --items '[{"text": "항목1", "links": ["PLE-6", "<메일 link>"]}, "링크 없는 항목"]' --dry-run
   ```
+  - 항목마다 근거 링크를 `links`에 넣는다. 본문 할 일 끝과 `Todo's` property 줄 끝에 라벨 링크로 붙는다(Jira 키는 키, GitHub PR은 `#번호`, Gmail은 "메일"로 표시)
+    - 메일 할 일: 그 메일의 `link`
+    - Jira가 걸린 항목: 키(`PLE-6`처럼 키만 써도 된다). 메일 본문에서 나온 키면 메일 링크와 함께 넣는다
+    - Top 3·스레드: `resume`이 https URL(PR)이면 그 URL, 스레드의 open PR URL
+    - https가 아닌 값과 개인 페이지(하루 시작 Artifact)는 넣지 않는다
 - 메일 보관: 승인했으면 후보마다 `mcp__claude_ai_Gmail__unlabel_thread(threadId, labelIds=["INBOX"])`를 한 메시지에 병렬로 부른다. 실패한 thread id는 HTML 바닥글에 남긴다
 - 아무것도 고르지 않으면 쓰지 않는다
 
@@ -198,9 +206,9 @@ date '+%s'
 5. **일지 쓰기**: dry-run으로 위치·property 전후를 보이고 이어서 실행한다(3번 선택이 승인이다)
    ```bash
    python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos --page-id <page_id> \
-     --tree '[{"text": "<상위>", "link": "<PLE-키 | 생략>", "children": [{"text": "<하위>"}]}]' [--parent-block <상위 항목 id>] --dry-run
+     --tree '[{"text": "<상위>", "links": ["<PLE-키>", "<메일·PR URL>"], "children": [{"text": "<하위>", "links": []}]}]' [--parent-block <상위 항목 id>] --dry-run
    ```
-   본문 to_do(하위 포함, Jira 키 링크)와 `Todo's` property 한 줄(기존 값 끝에 덧붙임)을 함께 쓴다. `skipped`에 들어가면 이미 일지에 있는 항목이다
+   본문 to_do(하위 포함, 링크)와 `Todo's` property 한 줄(기존 값 끝에 덧붙임, 기존 링크 유지)을 함께 쓴다. `links`에는 4번에서 만든 Jira 키와, 항목 `text`에 들어 있는 https 링크(메일, PR, Jira)를 넣는다. `skipped`에 들어가면 이미 일지에 있는 항목이다
 6. **반영 상태 되돌려 적기**: 성공한 항목마다 `ArtifactData` `update`(`collection: board_items`, list에서 본 `version`을 `if_version`으로)로 `ledger: {daily: true, jira: <키 | null>, at: <ISO 시각>}`을 쓴다. 보드 카드 칩이 "원장 대기"에서 "원장 반영"으로 바로 바뀐다(재게시 불필요)
 7. **완료 체크 반영**: 같은 `artifact_url`의 `item_state`를 `ArtifactData` `list`로 읽어 반영할 것을 고른다. `board_items`가 0건이어도 이 단계는 한다
    - 대상: `done: true`인데 `ledger.daily`가 없는 문서(체크 반영), `done: false`인데 `ledger.daily`가 true인 문서(체크 해제)
