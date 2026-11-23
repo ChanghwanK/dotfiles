@@ -77,6 +77,7 @@
 | 검증 시나리오·테스트 케이스·DoD 기준을 쓸 때 | `docs/verification-scenario.md` |
 | 코드를 작성·수정·리팩터링하거나 테스트를 쓸 때 | `docs/code-quality-convention.md` |
 | Notion 문서·Task, Claude Docs 문서를 쓸 때 | `docs/notion-writing-style.md` |
+| Jira 티켓을 만들거나 설명을 다시 쓸 때 | `docs/jira-ticket-template.md` |
 | 이력서 bullet, 경력기술서·성과평가 PAR | `docs/resume-format-convention.md`, `docs/par-format-convention.md` |
 | 면접 준비, 경력 문서(포트폴리오·자기소개), 학습 세션, 이해 점검, 브리핑, Notion Task DB 운영 | `docs/personal-workflow.md` |
 | 인프라 레포에서 작업할 때 | `docs/devops-work.md`, `docs/kubectl-contexts.md` (훅이 주입) |

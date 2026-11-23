@@ -1,0 +1,291 @@
+<title>{{TITLE}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 결론과 반영 상태 → 목표 후보(노트에 쓰일 내용) → 리마인드(노트에 쓰일 내용) → Task 상태 제안
+   → 지난주 스레드(월~일 막대) → capture 후보·손대지 않은 Task. 단일 라이트 테마(전역 CLAUDE.md Artifact 절),
+   daily:start 리포트와 같은 토큰을 쓴다 */
+:root {
+  --bg: #ffffff;
+  --fg: #1b2430;
+  --muted: #5d6b7a;
+  --line: #dde3ea;
+  --soft: #f1f4f7;
+  --accent: #2f5d8a;
+  --red: #b42318; --red-bg: #fdecea;
+  --amber: #8a5a00; --amber-bg: #fff4d6;
+  --green: #1d6b3a; --green-bg: #e5f4ea;
+  --day-on: #2f5d8a; --day-off: #e6ebf0;
+  --font-head: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.6 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1200px; margin: 0 auto; padding-block: 28px 48px; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--font-head); text-wrap: balance; margin: 0; }
+h1 { font-size: 26px; font-weight: 700; }
+h2 { font-size: 17px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+h2 .n { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-weight: 400; }
+h3 { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.lede { font-size: 16px; margin: 6px 0 0; max-width: 72ch; }
+.note { font-size: 13px; color: var(--muted); margin: 0; max-width: 80ch; }
+header { display: grid; gap: 10px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.meta b { color: var(--fg); font-weight: 500; font-family: var(--font-mono); }
+section { display: grid; gap: 12px; min-width: 0; border-top: 1px solid var(--line); padding-top: 20px; }
+
+.chip { display: inline-block; font-size: 11px; font-weight: 500; line-height: 1; padding: 4px 7px; border-radius: 4px; white-space: nowrap; vertical-align: 1px; }
+.chip.red { color: var(--red); background: var(--red-bg); }
+.chip.amber { color: var(--amber); background: var(--amber-bg); }
+.chip.green { color: var(--green); background: var(--green-bg); }
+.chip.gray { color: var(--muted); background: var(--soft); }
+
+.state { border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 6px; padding: 10px 14px; display: grid; gap: 4px; max-width: 80ch; }
+.state.applied { border-left-color: var(--green); }
+.state p { margin: 0; font-size: 13px; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--soft); font-weight: 500; color: var(--muted); font-size: 12px; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.idx { font-family: var(--font-mono); color: var(--muted); width: 32px; }
+td .t { font-weight: 500; }
+td .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.goals td:nth-child(2) { min-width: 200px; }
+.goals td:nth-child(4), .goals td:nth-child(5) { min-width: 220px; }
+
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.checks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 7px; }
+.checks li { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 9px; font-size: 13px; }
+.checks li::before { content: ""; width: 12px; height: 12px; margin-top: 4px; border: 1.5px solid var(--muted); border-radius: 3px; }
+.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.plain li { padding-left: 12px; border-left: 2px solid var(--line); }
+
+.week { display: grid; grid-template-columns: repeat(7, 18px); gap: 3px; }
+.week span { height: 14px; border-radius: 2px; background: var(--day-off); }
+.week span.on { background: var(--day-on); }
+.week-head { display: grid; grid-template-columns: repeat(7, 18px); gap: 3px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-align: center; }
+.threads td:nth-child(1) { min-width: 220px; }
+.threads td:nth-child(5) { min-width: 240px; }
+.errors { font-size: 12px; color: var(--muted); margin: 0; padding-left: 18px; }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function link(text, url) {
+  if (!url) return el("span", "t", text);
+  const a = el("a", "t", text);
+  a.href = url; a.target = "_blank"; a.rel = "noopener";
+  return a;
+}
+function chip(text, tone) { return el("span", "chip " + tone, text); }
+function statusChip(s) {
+  return chip(s, s === "완료" ? "green" : s === "중단" ? "red" : s === "진행 중" ? "amber" : "gray");
+}
+function section(title, count, note) {
+  const s = el("section");
+  const h = el("h2", null, title);
+  if (count != null) h.append(el("span", "n", String(count)));
+  s.append(h);
+  if (note) s.append(el("p", "note", note));
+  return s;
+}
+function table(cls, heads, rows) {
+  const w = el("div", "table-wrap");
+  const t = el("table", cls);
+  const tr = el("tr");
+  heads.forEach(h => tr.append(el("th", null, h)));
+  const thead = el("thead");
+  thead.append(tr);
+  t.append(thead);
+  const tb = el("tbody");
+  rows.forEach(cells => {
+    const r = el("tr");
+    cells.forEach(c => { const td = el("td", c && c.cls); (c && c.nodes || []).forEach(n => td.append(n)); r.append(td); });
+    tb.append(r);
+  });
+  t.append(tb); w.append(t);
+  return w;
+}
+const cell = (...nodes) => ({ nodes: nodes.filter(Boolean) });
+const txt = (s, cls) => s ? el("span", cls || null, s) : null;
+
+function weekDays(start) {
+  const d0 = new Date(start + "T00:00:00");
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(d0); d.setDate(d0.getDate() + i);
+    const mmdd = String(d.getMonth() + 1).padStart(2, "0") + "." + String(d.getDate()).padStart(2, "0");
+    return { mmdd, dow: DOW[d.getDay()] };
+  });
+}
+
+function render(D) {
+  const app = document.getElementById("app");
+  const days = D.range ? weekDays(D.range.start) : [];
+
+  // 머리: 결론과 반영 상태
+  const head = el("header");
+  head.append(el("div", "eyebrow", [D.week, D.range ? `지난주 ${D.range.start} ~ ${D.range.end}` : null].filter(Boolean).join(" · ")));
+  head.append(el("h1", null, D.title));
+  head.append(el("p", "lede", D.headline));
+  const t = D.totals || {};
+  const meta = el("div", "meta");
+  [["세션", t.sessions], ["스레드", t.threads], ["머지 PR", t.prs_merged], ["열린 PR", t.prs_open], ["4주 넘게 방치된 진행 중 Task", D.stale_in_progress_count]]
+    .filter(([, v]) => v != null).forEach(([k, v]) => { const s = el("span", null, k + " "); s.append(el("b", null, String(v))); meta.append(s); });
+  head.append(meta);
+  const st = el("div", "state" + (D.applied ? " applied" : ""));
+  const p1 = el("p");
+  p1.append(D.applied ? chip("노트에 반영됨", "green") : chip("리뷰 중, 노트에 아직 쓰지 않음", "amber"), " ");
+  if (D.note_url) p1.append(link(D.week + " 노트 열기", D.note_url));
+  st.append(p1);
+  if (!D.applied) st.append(el("p", null, "아래 '이번 주 목표'와 '이번 주 리마인드'가 그대로 Notion 노트에 쓰입니다. 고칠 곳은 대화창에 말씀해 주시고, 그대로 좋으면 '반영해'라고 답해 주시면 됩니다."));
+  head.append(st);
+  app.append(head);
+
+  // 목표 후보
+  const g = section("이번 주 목표", (D.goals || []).length, "노트의 목표 1~3 체크박스와 완료 기준에 쓰입니다.");
+  g.append(table("goals", ["#", "목표", "근거", "남은 것", "완료 기준"], (D.goals || []).map((x, i) => [
+    { cls: "idx", nodes: [el("span", null, String(i + 1))] },
+    cell(link(x.title, x.url), txt((x.linked_tasks || []).join(", "), "sub")),
+    cell(x.status ? statusChip(x.status) : null, txt(x.last_worked ? ` ${x.last_worked}까지` : "", "mono"), txt(x.why, "sub")),
+    cell(txt(x.remaining)),
+    cell(txt(x.done_when)),
+  ])));
+  if ((D.reserve || []).length) {
+    g.append(el("h3", null, "예비 후보"));
+    const ul = el("ul", "plain");
+    D.reserve.forEach(r => { const li = el("li"); li.append(link(r.title, r.url)); if (r.why) li.append(el("span", "note", " " + r.why)); ul.append(li); });
+    g.append(ul);
+  }
+  app.append(g);
+
+  // 리마인드
+  const total = (D.reminders || []).reduce((n, r) => n + r.items.length, 0);
+  const rm = section("이번 주 리마인드", total, "목표 바로 아래 '이번 주 리마인드' 구역에 체크박스로 쓰입니다. 다시 반영하면 이 구역만 새로 씁니다.");
+  const cols = el("div", "cols");
+  (D.reminders || []).forEach(grp => {
+    const box = el("div");
+    box.append(el("h3", null, grp.label + " (" + grp.items.length + ")"));
+    const ul = el("ul", "checks");
+    grp.items.forEach(it => { const li = el("li"); const span = el("span"); span.append(link(it.text, it.url)); li.append(span); ul.append(li); });
+    box.append(ul); cols.append(box);
+  });
+  rm.append(cols);
+  app.append(rm);
+
+  // Jira 티켓: 기존 티켓 연결과 새 티켓 제안
+  const J = D.jira;
+  if (J && ((J.linked || []).length || (J.proposals || []).length)) {
+    const s = section("Jira 티켓", null,
+      "목표와 '해야할 것'을 " + (J.project || "PLE") + " 티켓과 대조했습니다. 새 티켓은 승인하신 것만 만들고, 기존 티켓의 상태와 담당자는 바꾸지 않습니다.");
+    if (J.board_url) { const p = el("p", "note"); p.append(link(J.project + " 보드 열기", J.board_url)); s.append(p); }
+    if ((J.linked || []).length) {
+      s.append(el("h3", null, "이미 있는 티켓 (" + J.linked.length + ")"));
+      s.append(table("", ["항목", "티켓", "상태", "담당", "메모"], J.linked.map(x => [
+        cell(el("span", null, x.item)),
+        cell(link(x.key, x.url), txt(x.summary, "sub")),
+        cell(chip(x.status, x.status === "DONE" ? "green" : x.status === "In Progress" ? "amber" : "gray")),
+        cell(txt(x.assignee || "없음", x.assignee ? null : "sub")),
+        cell(txt(x.note || "", "sub")),
+      ])));
+    }
+    if ((J.proposals || []).length) {
+      const made = J.proposals.filter(p => p.created_key).length;
+      s.append(el("h3", null, "새로 만들 티켓 제안 (" + J.proposals.length + (made ? ", 생성 " + made : "") + ")"));
+      s.append(table("goals", ["#", "요약", "유형·상위", "라벨", "완료 기준"], J.proposals.map(p => [
+        { cls: "idx", nodes: [el("span", null, p.id)] },
+        cell(p.created_key ? link(p.created_key + " " + p.summary, p.created_url) : el("span", "t", p.summary),
+             txt("연결 항목: " + p.item, "sub")),
+        cell(chip(p.created_key ? "생성됨" : "제안", p.created_key ? "green" : "amber"),
+             txt(" " + p.issue_type + (p.priority ? " · " + p.priority : ""), "mono"),
+             txt(p.parent ? "상위 " + p.parent + (p.parent_summary ? " " + p.parent_summary : "") : "상위 Epic 없음", "sub")),
+        cell(txt((p.labels || []).join(", "), "mono")),
+        cell(txt(p.done_when || "")),
+      ])));
+      if (!made) s.append(el("p", "note", "만들려면 대화창에 'Jira 등록해'(전부) 또는 'J1, J3만 등록해'처럼 답해 주십시오. 담당자는 본인으로 만듭니다."));
+    }
+    app.append(s);
+  }
+
+  // Task 상태 제안
+  if ((D.task_status_suggestions || []).length) {
+    const s = section("Task 상태 제안", D.task_status_suggestions.length, "자동으로 바꾸지 않습니다. 승인하신 것만 Task DB에 반영합니다.");
+    s.append(table("", ["Task", "현재", "제안"], D.task_status_suggestions.map(x => [
+      cell(link(x.task, x.url)), cell(chip(x.current, "gray")), cell(chip(x.suggest, "amber")),
+    ])));
+    app.append(s);
+  }
+
+  // 지난주 스레드
+  if ((D.threads || []).length) {
+    const order = { "진행 중": 0, "중단": 1, "완료": 2 };
+    const rows = [...D.threads].sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
+    const s = section("지난주 작업 스레드", rows.length, "세션 로그와 PR을 주제별로 묶어 판정했습니다. 막대는 월~일 중 작업한 날입니다.");
+    const wh = el("div", "week-head"); days.forEach(d => wh.append(el("span", null, d.dow)));
+    s.append(table("threads", ["스레드", "판정", "작업한 날", "연결 Task", "남은 것"], rows.map(x => {
+      const w = el("div", "week");
+      days.forEach(d => { const b = el("span", (x.active_days || []).includes(d.mmdd) ? "on" : ""); b.title = d.mmdd + " " + d.dow; w.append(b); });
+      return [
+        cell(el("span", "t", x.title)),
+        cell(statusChip(x.status), x.confidence === "low" ? el("span", "sub", "근거 약함") : null),
+        cell(w, txt(x.last_worked ? "마지막 " + x.last_worked : "", "sub mono")),
+        cell(txt((x.linked_tasks || []).join(", ") || "없음", (x.linked_tasks || []).length ? null : "sub")),
+        cell(txt(x.remaining || "")),
+      ];
+    })));
+    s.querySelector("thead th:nth-child(3)").append(wh);
+    app.append(s);
+  }
+
+  // capture 후보와 손대지 않은 Task
+  const cap = D.capture_candidates || [], un = D.untouched_in_progress || [];
+  if (cap.length || un.length) {
+    const s = section("Task 정리 후보");
+    const c2 = el("div", "cols");
+    if (cap.length) {
+      const b = el("div"); b.append(el("h3", null, "Task가 없는 진행 중·중단 스레드 (" + cap.length + ")"));
+      const ul = el("ul", "plain"); cap.forEach(x => ul.append(el("li", null, x))); b.append(ul);
+      b.append(el("p", "note", "/tasks:capture로 Task를 만들 후보입니다.")); c2.append(b);
+    }
+    if (un.length) {
+      const b = el("div"); b.append(el("h3", null, "지난주 손대지 않은 진행 중 Task (" + un.length + ")"));
+      const ul = el("ul", "plain");
+      un.forEach(x => { const li = el("li"); li.append(link(x.name, x.url)); if (x.last_edited) li.append(el("span", "note mono", " " + x.last_edited)); ul.append(li); });
+      b.append(ul); c2.append(b);
+    }
+    s.append(c2); app.append(s);
+  }
+
+  if ((D.errors || []).length) {
+    const s = section("수집 한계");
+    const ul = el("ul", "errors"); D.errors.forEach(e => ul.append(el("li", null, e))); s.append(ul);
+    app.append(s);
+  }
+}
+
+if (DATA) render(DATA);
+else document.getElementById("app").append(el("p", "note", "리뷰 데이터가 비어 있습니다. render-review.py로 다시 만들어 주십시오."));
+</script>
