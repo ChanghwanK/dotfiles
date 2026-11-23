@@ -1,0 +1,670 @@
+{
+  "date": "2026-11-20",
+  "weekday": "금",
+  "title": "11월 20일 하루 시작",
+  "window": "11-19 20:00 ~ 11-20 09:29",
+  "headline": "밤사이 #notification_infra 긴급 건은 없습니다. 오늘은 AWS 멀티 어카운트의 Airflow IAM 권한 건부터 이어 가시길 권합니다. 오늘 마감 Task 2건 중 XFF는 이어가기 2순위와 같고, k6 복제 슬롯 정리는 마감 섹션을 보십시오.",
+  "stats": {
+    "urgent": 1,
+    "alerts_open": 0,
+    "alerts_resolved": 4,
+    "threads": 13,
+    "open_threads": 10,
+    "archived": 5
+  },
+  "urgent": [
+    {
+      "title": "PLE-6 JIRA 도입 및 업무 프로세스 구축",
+      "severity": "마감",
+      "cluster": "Jira",
+      "started_at": "11-20 마감",
+      "why": "오늘 마감이 적힌 요청 메일입니다. 어제 일지에도 미체크로 남았고, 오늘 Todos에 들어 있습니다",
+      "responder": "오늘 Todos 1번",
+      "link": "https://mail.google.com/mail/#all/1a1f63595665821b"
+    }
+  ],
+  "urgent_none": "",
+  "yesterday": {
+    "date": "2026-11-19",
+    "minor_sessions": 3,
+    "threads": [
+      {
+        "id": "t5",
+        "project": "AWS 멀티 어카운트 / IAM 최소 권한",
+        "title": "AWS 멀티 어카운트 분리 설계와 IAM 최소 권한",
+        "status": "진행 중",
+        "done": "dev/stg 분리 시 S3·RDS 처리 방식을 따졌고, dev/stg Airflow IAM 역할이 prod 버킷과 데이터레이크 버킷에 s3:* 권한을 가진 것을 발견했습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "16:37",
+            "end": "18:18"
+          },
+          {
+            "start": "17:23",
+            "end": "17:28"
+          },
+          {
+            "start": "17:26",
+            "end": "18:24"
+          }
+        ],
+        "prs": [],
+        "evidence": "PR 없음. 마지막 발화가 다음 단계와 발견한 권한 문제를 말합니다",
+        "cwd": null
+      },
+      {
+        "id": "t4",
+        "project": "riiid/kubernetes",
+        "title": "XFF 위조 차단 EnvoyFilter",
+        "status": "진행 중",
+        "done": "stg 공개 게이트웨이가 XFF를 판정된 클라이언트 IP 하나로 덮어쓰는 EnvoyFilter를 머지했고, 도입 문서를 'EnvoyFilter 동작 원리' 문서로 다시 썼습니다. stg kyverno 장애로 PLE-20을 만들었습니다.",
+        "follow_up": "PLE-20 kyverno stg 장애 후속",
+        "sessions": [
+          {
+            "start": "12:43",
+            "end": "13:19"
+          },
+          {
+            "start": "12:49",
+            "end": "13:52"
+          },
+          {
+            "start": "14:12",
+            "end": "14:13"
+          }
+        ],
+        "prs": [
+          {
+            "number": 10195,
+            "repo": "riiid/kubernetes",
+            "title": "[stg] 공개 게이트웨이가 XFF를 판정된 클라이언트 IP 하나로 덮어써 위조 차단",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10195",
+            "at": "12:48"
+          }
+        ],
+        "cwd": null
+      },
+      {
+        "id": "t1",
+        "project": "riiid/kubernetes, riiid/pgbouncer-lab",
+        "title": "PgBouncer 도입 설계와 검증",
+        "status": "진행 중",
+        "done": "dev에 Aurora 직접 연결 기준선과 PgBouncer(transaction) 경유 구성을 배포해 검증하고 실험 circle을 철거했습니다. 도입 설계 Notion 문서에 기대 효과 섹션을 넣었습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "00:00",
+            "end": "23:15"
+          },
+          {
+            "start": "16:38",
+            "end": "23:10"
+          },
+          {
+            "start": "17:53",
+            "end": "23:15"
+          }
+        ],
+        "prs": [
+          {
+            "number": 10221,
+            "repo": "riiid/kubernetes",
+            "title": "실험 앱을 Aurora에 직접 연결해 비교 기준선 배포",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10221",
+            "at": "18:22"
+          },
+          {
+            "number": 10223,
+            "repo": "riiid/kubernetes",
+            "title": "PgBouncer(transaction)를 Aurora 앞에 두고 앱 연결 전환",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10223",
+            "at": "18:32"
+          },
+          {
+            "number": 10225,
+            "repo": "riiid/kubernetes",
+            "title": "검증을 마친 PgBouncer 실험 circle 철거",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10225",
+            "at": "18:40"
+          },
+          {
+            "number": 1,
+            "repo": "riiid/pgbouncer-lab",
+            "title": "Item CRUD API와 PgBouncer 경유 검증 스크립트",
+            "state": "merged",
+            "url": "https://github.com/riiid/pgbouncer-lab/pull/1",
+            "at": "18:44"
+          }
+        ],
+        "cwd": null
+      },
+      {
+        "id": "t8",
+        "project": "riiid/kubernetes (IDC)",
+        "title": "idc-etcd-sync p99 급증 RCA",
+        "status": "진행 중",
+        "done": "node01과 CP 호스트 3대에 1초 간격 NIC 수집기를 띄워 정상 수집을 확인했습니다. 수집은 11-22 22:52에 자동 종료됩니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "20:28",
+            "end": "22:53"
+          }
+        ],
+        "prs": [],
+        "evidence": "수집기 가동 후 big merge 대기",
+        "stopped_at": "NIC 수집기 가동, big merge 발생 대기",
+        "next_action": "big merge 구간의 NIC 수집값과 etcd p99를 대조하기",
+        "resume": null,
+        "cwd": null
+      },
+      {
+        "id": "t2",
+        "project": "riiid/pe-agent-plugins",
+        "title": "Platform Claude Code 플러그인 마켓플레이스",
+        "status": "진행 중",
+        "done": "skill-creator, dns-record 스킬과 사용자·환경 가이드까지 PR 6건을 머지했고 claude plugin validate --strict가 통과했습니다. e2e에서 SKILL.md 쓰기 거부로 스킬 생성이 끝나지 못했습니다.",
+        "follow_up": "demo-check 뼈대(TODO) 잔존 여부 확인",
+        "sessions": [
+          {
+            "start": "00:00",
+            "end": "09:16"
+          },
+          {
+            "start": "09:08",
+            "end": "09:13"
+          }
+        ],
+        "prs": [
+          {
+            "number": 2,
+            "repo": "riiid/pe-agent-plugins",
+            "title": "add dns-record skill",
+            "state": "merged",
+            "url": "https://github.com/riiid/pe-agent-plugins/pull/2",
+            "at": "12:48"
+          },
+          {
+            "number": 1,
+            "repo": "riiid/pe-agent-plugins",
+            "title": "replace example skill with skill-creator",
+            "state": "merged",
+            "url": "https://github.com/riiid/pe-agent-plugins/pull/1",
+            "at": "18:11"
+          },
+          {
+            "number": 6,
+            "repo": "riiid/pe-agent-plugins",
+            "title": "add environment setup guide",
+            "state": "merged",
+            "url": "https://github.com/riiid/pe-agent-plugins/pull/6",
+            "at": "18:27"
+          }
+        ],
+        "cwd": null
+      },
+      {
+        "id": "t10",
+        "project": "engineering_home",
+        "title": "개인 워크플로우: task-coach, AWS delete 훅, 메일 정리",
+        "status": "진행 중",
+        "done": "task-coach 에이전트를 만들어 검증했고, AWS 삭제 훅으로 바꿔 dotfiles 537a593으로 커밋했습니다(push 전). 메일함을 12건으로 정리했습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "08:07",
+            "end": "10:12"
+          },
+          {
+            "start": "08:52",
+            "end": "13:41"
+          },
+          {
+            "start": "13:33",
+            "end": "14:00"
+          }
+        ],
+        "prs": [],
+        "evidence": "dotfiles push 전, 메일 조치 필요 6건 남음",
+        "cwd": null
+      },
+      {
+        "id": "t11",
+        "project": "riiid/kubernetes (온보딩)",
+        "title": "신규 DevOps 온보딩 카탈로그",
+        "status": "진행 중",
+        "done": "인프라 기술 카탈로그를 src/infra, src/observability 약 50개 컴포넌트로 직접 쓰기로 정했고, 온보딩 문서 저장소 표를 정리했습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "00:00",
+            "end": "14:07"
+          },
+          {
+            "start": "15:58",
+            "end": "16:08"
+          }
+        ],
+        "prs": [],
+        "evidence": "방향만 정하고 본문 작성 전",
+        "cwd": null
+      },
+      {
+        "id": "t7",
+        "project": "riiid/kubernetes (IDC)",
+        "title": "IDC 개발자용 kubeconfig 발급 설계",
+        "status": "중단",
+        "done": "IDC에 riiid-developer ClusterRole이 이미 있음을 확인했고, 비어 있는 인증기는 장기적으로 Okta OIDC, 급하면 단기 인증서를 권했습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "10:32",
+            "end": "10:41"
+          }
+        ],
+        "prs": [],
+        "evidence": "사용자 결정 대기에서 끝남",
+        "cwd": null
+      },
+      {
+        "id": "t9",
+        "project": "riiid/kubernetes",
+        "title": "소크라 채팅 지표와 Sentry/Grafana 표준 모니터링",
+        "status": "중단",
+        "done": "채팅은 분당 턴 수와 동시 진행 턴 수를 짝으로 보도록 권했고, 도구별 정본을 정하는 표준을 제안했습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "00:00",
+            "end": "08:04"
+          }
+        ],
+        "prs": [],
+        "evidence": "제안 후 결정 없이 끝남",
+        "cwd": null
+      },
+      {
+        "id": "t12",
+        "project": "Jira PLE",
+        "title": "장애 대응 문화 Epic(PLE-19) 삭제",
+        "status": "중단",
+        "done": "PLE-19가 하위 이슈가 없어 지워도 영향이 없음을 확인했습니다. 실제 삭제 여부는 확인되지 않았습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "09:33",
+            "end": "09:36"
+          }
+        ],
+        "prs": [],
+        "evidence": "삭제 방법 안내에서 끝남",
+        "cwd": null
+      },
+      {
+        "id": "t3",
+        "project": "riiid/kubernetes",
+        "title": "Global: containerd pull 동시성 실측과 coroot ghcr proxy",
+        "status": "완료",
+        "done": "containerd 노드 전역 다운로드 동시성 3을 실측으로 확정하고 실험 노드를 반납했습니다. coroot 이미지 4개를 harbor ghcr proxy로 옮겨 prod/global에 머지했습니다.",
+        "follow_up": "coroot prod 반영 후 파드 정상 기동 확인",
+        "sessions": [],
+        "prs": [
+          {
+            "number": 10192,
+            "repo": "riiid/kubernetes",
+            "title": "containerd 다운로드 동시성 3을 Flow Logs 실측으로 확정",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10192",
+            "at": "12:41"
+          },
+          {
+            "number": 10231,
+            "repo": "riiid/kubernetes",
+            "title": "containerd pull 동시성 실측 자산 제거",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10231",
+            "at": "19:16"
+          },
+          {
+            "number": 10232,
+            "repo": "riiid/kubernetes",
+            "title": "containerd 2.3.7 다운로드 상한을 CRI 키로 정정",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10232",
+            "at": "19:20"
+          },
+          {
+            "number": 10236,
+            "repo": "riiid/kubernetes",
+            "title": "coroot 이미지 4개를 harbor ghcr proxy로 이전",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10236",
+            "at": "23:03"
+          }
+        ],
+        "cwd": null
+      },
+      {
+        "id": "t6",
+        "project": "riiid/kubernetes",
+        "title": "Route 53 wiki: socratutor.ai zone 추가",
+        "status": "완료",
+        "done": "socratutor.ai zone을 Route 53 wiki에 추가하고 SPF 미적용 상태를 기록해 머지했습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "09:19",
+            "end": "18:39"
+          }
+        ],
+        "prs": [
+          {
+            "number": 10224,
+            "repo": "riiid/kubernetes",
+            "title": "socratutor.ai zone을 Route 53 wiki에 추가",
+            "state": "merged",
+            "url": "https://github.com/riiid/kubernetes/pull/10224",
+            "at": "18:39"
+          }
+        ],
+        "cwd": null
+      },
+      {
+        "id": "t13",
+        "project": "Downloads (draw.io)",
+        "title": "draw.io 인프라 아키텍처 AWS 스타일 재작성",
+        "status": "완료",
+        "done": "참고 이미지 스타일로 2페이지 draw.io 파일과 미리보기 PNG 2장을 새로 그렸습니다.",
+        "follow_up": null,
+        "sessions": [
+          {
+            "start": "13:56",
+            "end": "14:11"
+          }
+        ],
+        "prs": [],
+        "cwd": null
+      }
+    ]
+  },
+  "retro_notes": [
+    {
+      "source": "Tomorrow",
+      "text": "AWS 멀티 어카운트",
+      "carry_days": null,
+      "note": "어제 작업 스레드와 같아 이어가기 1순위로 합쳤습니다"
+    },
+    {
+      "source": "미체크",
+      "text": "새벽 Global 클러스터 이슈 분석 및 대응",
+      "carry_days": null,
+      "note": "어제 완료로 보입니다(PR #10232 merged). 체크를 권합니다"
+    },
+    {
+      "source": "미체크",
+      "text": "EnvoyFilter 학습 및 정리",
+      "carry_days": 2,
+      "note": "어제 XFF 스레드에서 'EnvoyFilter 동작 원리' 문서를 다시 썼습니다. 학습을 끝낸 것으로 볼지 정해 주십시오"
+    },
+    {
+      "source": "미체크",
+      "text": "JIRA 도입 및 업무 프로세스 구축",
+      "carry_days": null,
+      "note": "오늘 Todos에 있습니다(긴급 섹션 PLE-6)"
+    }
+  ],
+  "top3": [
+    {
+      "tag": "이어서",
+      "title": "AWS 멀티 어카운트: Airflow IAM 최소 권한",
+      "stopped_at": "dev/stg Airflow IAM 역할이 prod 버킷과 데이터레이크 버킷에 s3:*를 가진 것을 찾았고, 개념 학습과 현황 조사를 1~2주 병행하자는 결론에서 멈췄습니다",
+      "next_action": "Airflow IAM 역할의 prod 버킷 s3:* 권한을 Jira Task로 등록하거나 범위 축소 PR 초안 만들기",
+      "resume": "cd /Users/changhwan/orca/workspaces/kubernetes/AWS-멀티어카운트-도입 && claude --resume 98651141-fb62-40bc-b512-1a7ed6f95705",
+      "done_when": "Airflow IAM 권한 이슈의 담당 Task가 있고 멀티 어카운트 학습 첫 주 항목이 정해짐",
+      "reason": "7점: 진행 중 스레드 + 어제 Tomorrow",
+      "added": false,
+      "thread_id": "t5",
+      "cwd": "/Users/changhwan/orca/workspaces/kubernetes/AWS-멀티어카운트-도입"
+    },
+    {
+      "tag": "이어서",
+      "title": "XFF 위조 차단: prod 적용 범위 정하기",
+      "stopped_at": "stg 공개 게이트웨이에 EnvoyFilter(#10195)를 머지했고 dev/prod 적용이 남았습니다(추정)",
+      "next_action": "외부 요청으로 stg의 XFF 덮어쓰기 동작을 확인한 뒤 prod 적용 PR의 circle과 롤백 방법 정하기",
+      "resume": "cd /Users/changhwan/orca/workspaces/kubernetes/Envoyfilter && claude --resume 2360cf84-b053-4ba6-b1a3-3723193d8982",
+      "done_when": "prod 게이트웨이에서 위조 XFF가 판정 IP 하나로 덮어써지고 도입 문서가 공유됨",
+      "reason": "5점: 진행 중 스레드 + 연결된 Task 오늘 마감",
+      "added": true,
+      "thread_id": "t4"
+    },
+    {
+      "tag": "이어서",
+      "title": "PgBouncer 도입 설계 문서에 검증 결과 반영",
+      "stopped_at": "dev 검증을 끝내고 실험 circle을 철거했으며, Notion 설계 문서에 기대 효과 섹션을 넣은 시점에서 멈췄습니다",
+      "next_action": "transaction mode 제약(공식 문서 정정 2건)과 검증 결과를 설계 문서에 넣고 SPOF·failover 섹션과 맞추기",
+      "resume": "cd /Users/changhwan/orca/workspaces/kubernetes/pgbouncer-도입 && claude --resume 4c5a99c6-3120-454b-9557-a6226977f05f",
+      "done_when": "설계 문서에 검증 결과, 성능 테스트, failover 절이 들어가 팀 리뷰를 요청할 수 있음",
+      "reason": "4점: 진행 중 스레드, 어제 세션 3개와 PR 4건으로 가장 많이 진행한 작업",
+      "added": true,
+      "thread_id": "t1"
+    }
+  ],
+  "compare": "PgBouncer 문서 vs etcd RCA(둘 다 4점): 기대 효과는 PgBouncer가 팀 리뷰로 이어지고, etcd는 원인 판정입니다. 시급성은 etcd가 높습니다(NIC 수집이 11-22 22:52에 끝나므로 그 전에 big merge 구간을 대조해야 합니다). 기회비용은 etcd가 big merge 발생 전에는 할 일이 없어서, 오늘은 PgBouncer를 진행하고 big merge가 나면 etcd로 바꾸는 순서를 권합니다.",
+  "alerts": {
+    "channel": "#notification_infra",
+    "hourly": [
+      {
+        "hour": "20",
+        "open": 0,
+        "resolved": 1,
+        "max_severity": "none"
+      },
+      {
+        "hour": "21",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "22",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "23",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "00",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "01",
+        "open": 0,
+        "resolved": 3,
+        "max_severity": "WARNING"
+      },
+      {
+        "hour": "02",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "03",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "04",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "05",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "06",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "07",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "08",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      },
+      {
+        "hour": "09",
+        "open": 0,
+        "resolved": 0,
+        "max_severity": "none"
+      }
+    ],
+    "check": []
+  },
+  "mail": {
+    "todos": [
+      {
+        "todo": "GitHub org의 Personal access token 접근 요청 승인 또는 거부하기",
+        "from": "GitHub",
+        "due": null,
+        "link": "https://mail.google.com/mail/#all/1a1f5aa50420d9f2"
+      },
+      {
+        "todo": "Okta SDK 보안 업데이트 대상 여부 확인하고 필요하면 업데이트하기",
+        "from": "Okta Security",
+        "due": null,
+        "link": "https://mail.google.com/mail/#all/1a1f5c052c281085"
+      },
+      {
+        "todo": "Okta LDAP 인증서 연간 갱신이 연동 서비스에 주는 영향 확인하기 (FU)",
+        "from": "Okta",
+        "due": null,
+        "link": "https://mail.google.com/mail/#all/1a1ebc3a45830d2f"
+      },
+      {
+        "todo": "PHP CVE-2026-109618/109619 관련 Palo Alto 대응이 우리 방화벽에 적용됐는지 확인하기 (FU)",
+        "from": "cudo",
+        "due": null,
+        "link": "https://mail.google.com/mail/#all/1a167775081800a1"
+      },
+      {
+        "todo": "NCP 11/24 정기 점검 영향 서비스 확인하기",
+        "from": "NCP",
+        "due": "11-24",
+        "link": "https://mail.google.com/mail/#all/1a1f19c2d2de11c6"
+      }
+    ],
+    "archived_count": 5,
+    "archived": [
+      {
+        "subject": "ProxmoxVE Release 2026-11-19",
+        "from": "GitHub"
+      },
+      {
+        "subject": "commitizen v4.19.4",
+        "from": "GitHub"
+      },
+      {
+        "subject": "Notion 업데이트 알림",
+        "from": "Notion"
+      },
+      {
+        "subject": "1 new project available to import",
+        "from": "Vercel"
+      },
+      {
+        "subject": "You tried agents in Jira Now what?",
+        "from": "Atlassian"
+      }
+    ],
+    "schedule_count": 1
+  },
+  "tasks": {
+    "due": [
+      {
+        "name": "public ingress gateway에서 XFF 위조 차단 구조 도입",
+        "due": "2026-11-20",
+        "overdue_days": 0,
+        "linked_thread": true
+      },
+      {
+        "name": "k6-domain-prod 방치 복제 슬롯 정리와 autovacuum 재개",
+        "due": "2026-11-20",
+        "overdue_days": 0,
+        "linked_thread": false
+      },
+      {
+        "name": "IDC VPN 터널 반쪽 장애 원인 확정과 재발 방지",
+        "due": "2026-11-19",
+        "overdue_days": 1,
+        "linked_thread": false
+      },
+      {
+        "name": "stg kyverno admission self-lockout 재발 방지",
+        "due": "2026-11-13",
+        "overdue_days": 7,
+        "linked_thread": false
+      },
+      {
+        "name": "socraai-domain 앱 메트릭 수집과 asgi multiprocess 적용",
+        "due": "2026-11-13",
+        "overdue_days": 7,
+        "linked_thread": false
+      }
+    ],
+    "overdue_old_count": 48,
+    "in_progress_count": 10,
+    "in_progress_top": [
+      "global ingress gateway NLB 타깃 갱신 레이스",
+      "global 알럿 정리 후속 판정",
+      "RolloutDegraded 알럿 조건 수정"
+    ]
+  },
+  "root_cause": [],
+  "root_cause_more": 0,
+  "stale": [],
+  "calendar": [
+    {
+      "title": "Platform Engineering팀 주간 리뷰",
+      "start": "14:00",
+      "end": "15:00"
+    }
+  ],
+  "todos_added": [
+    "PLE-6 JIRA 도입 및 업무 프로세스 구축",
+    "public ingress gateway XFF 위조 차단 구조 도입",
+    "PgBouncer 도입 설계 문서에 transaction mode 제약과 검증 결과 반영"
+  ],
+  "env": {
+    "brew": "7개 업그레이드(스크립트가 실패로 판정해 마커 미생성)",
+    "gimme": "성공"
+  },
+  "errors": [
+    "Task 조회가 100건 상한에 걸려 일부 Task가 빠졌을 수 있습니다",
+    "진행 중 Task는 due가 있는 상위 10건만 셉니다"
+  ]
+}

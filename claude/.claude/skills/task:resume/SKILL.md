@@ -1,134 +1,78 @@
 ---
 name: task:resume
 description: |
-  Notion Task 링크로 작업을 재개할 때 사용. 본문을 읽어 컨텍스트를 파악하고,
-  상태가 '해야할 것'이면 '진행 중'으로 전환한다(이미 진행 중이면 무변경, 멱등).
-  사용 시점: (1) Task 링크를 주며 "이어서 하자"라고 할 때, (2) 새 세션에서 특정
-  Task를 픽업할 때. 트리거: "/task:resume", "task 이어서", "이 task 재개".
+  하던 작업을 새 세션에서 이어 가는 스킬. 하루 시작 브리핑 항목, Claude 세션 id, 키워드 중 무엇으로 불러도
+  지난 맥락(멈춘 곳, 다음 행동, 지난 세션 마지막 발화)을 5줄로 되살리고, 의도에 따라 구체화(grill-me) 또는
+  실행(플랜 모드)으로 넘긴다.
+  사용 시점: (1) 하루 시작 보드의 "구체화/실행으로 이어가기" 버튼이 연 채팅, (2) "어제 그 작업 이어서",
+  (3) 세션 id로 특정 대화를 이어 갈 때.
+  트리거: "/task:resume", "이어서 하자", "그 작업 이어서", "작업 재개", "어제 하던 거 이어서".
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/task:resume/scripts/resolve_task.py *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py working-note *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
-  - mcp__notion-personal__API-retrieve-page-markdown
+  - Bash(python3 /Users/changhwan/.claude/skills/task:resume/scripts/load-context.py *)
+  - AskUserQuestion
+  - Skill
+  - Read
 ---
 
-# task:resume Skill
+# task:resume
 
-Notion Task 링크 하나로 "지금까지 뭘 했는지"와 "지금 상태"를 파악하고, 착수
-시점(해야할 것 -> 진행 중) 전환까지 한 번에 처리한다.
+하던 작업을 새 세션에서 맥락을 다시 설명하지 않고 이어 간다. 입력이 달라도 같은 흐름을 탄다: 맥락 불러오기 → 5줄 요약 → 의도별 넘기기.
 
----
+## 입력
+
+`/task:resume <대상> [의도]`. 의도는 `구체화` 또는 `실행`이고, 없으면 Step 3에서 한 번 묻는다.
+
+| 대상 모양 | 뜻 | 스크립트 |
+|---|---|---|
+| `2026-11-23 t16` (날짜 + id) | 하루 시작 브리핑 항목. id는 스레드 id 또는 `top1`~`top3` | `brief --date <날짜> --id <id>` |
+| 36자 UUID | Claude 세션 id | `session --id <uuid>` |
+| 그 외 단어 | 키워드 | `search --query "<키워드>"` |
+
+Notion 링크는 지원하지 않는다(스크립트가 그렇게 알린다).
 
 ## 핵심 원칙
 
-- **읽기는 MCP, 쓰기는 스크립트**: 본문 읽기는 `API-retrieve-page-markdown`
-  (렌더링된 마크다운을 그대로 받는다), 속성 조회/상태 변경은 스크립트를 통해서만
-  한다. 블록 파싱을 직접 재구현하지 않는다.
-- **상태 전이는 단방향·멱등**: '해야할 것' -> '진행 중' 전환만 한다. 이미
-  '진행 중'/'완료'/'대기'면 아무것도 바꾸지 않는다(사용자가 이미 손댄 상태를
-  덮어쓰지 않는다).
-- **update-status 로직은 재구현하지 않는다**: 상태 변경은 반드시
-  `tasks:manage/scripts/notion-task.py update-status`를 호출한다. 이 스크립트가
-  `started_at` backfill을 이미 처리한다.
-- `/task:resume <링크>` 호출 자체가 착수 의사표시이므로, 상태 전환 전 별도
-  확인 질문은 하지 않는다(alfred의 `resume --task` 로더와 달리, 여기서는
-  브리핑 매니페스트를 거치지 않고 사용자가 링크를 직접 골라 왔기 때문).
-
----
+- 맥락은 스크립트 출력에서만 가져온다. 출력에 없는 진행 상황을 지어내지 않는다
+- 이 스킬은 읽기만 한다. Notion, Task, 브리핑 파일, 세션 로그를 고치지 않는다
+- 브리핑 JSON의 필드 약속은 `~/.claude/skills/daily:start/SKILL.md`의 "이어가기 흐름"이 정본이다. 필드가 바뀌면 그쪽 표를 먼저 본다
+- 결과에 이모지와 em dash를 쓰지 않는다
 
 ## 워크플로우
 
-### Step 1: 링크 파싱 + Task 속성 조회
+### Step 1: 맥락 불러오기
+
+입력 모양에 맞는 명령 하나를 실행한다.
 
 ```bash
-python3 /Users/changhwan/.claude/skills/task:resume/scripts/resolve_task.py resolve --url "<사용자가 준 노션 링크 또는 page_id>"
+python3 /Users/changhwan/.claude/skills/task:resume/scripts/load-context.py brief --date <날짜> --id <id>
+python3 /Users/changhwan/.claude/skills/task:resume/scripts/load-context.py session --id <session_id>
+python3 /Users/changhwan/.claude/skills/task:resume/scripts/load-context.py search --query "<키워드>"
 ```
 
-출력 JSON: `page_id`, `is_task_db`, `name`, `status`, `due_date`, `category`.
+- `error`가 있으면 그 문장을 그대로 전하고 멈춘다
+- `session_error`만 있으면 지난 발화 없이 계속한다
+- **키워드**: `candidates`(최대 3개)를 AskUserQuestion으로 고르게 한다. 옵션 라벨은 세션 제목, 설명은 `ended_at`(KST, MM-DD HH:MM)과 `first_message` 앞부분이다. 고른 세션으로 `session --id`를 다시 실행한다. 후보가 1개뿐이면 묻지 않고 그 세션으로 간다
 
-- `success: false` → 에러 메시지를 그대로 사용자에게 보여주고 종료.
-- `is_task_db: false` → Task DB 페이지가 아닌 것으로 보인다는 점을 한 줄
-  경고하고 계속 진행한다(본문 읽기는 여전히 유효하나, 상태 값이 없거나
-  의미가 다를 수 있음: Step 2의 상태 전환은 `status` 값 자체가 없으면
-  자연히 스킵된다).
+### Step 2: 5줄 요약 (반드시 먼저 출력)
 
-### Step 2: 상태 전환 ('해야할 것' -> '진행 중', 조건부)
+사용자에게 보이는 첫 응답 텍스트다. 이 요약을 출력하기 전에 Step 3의 Skill이나 EnterPlanMode를 부르지 않는다. 요약 없이 바로 넘기면 사용자는 어떤 맥락을 이어받았는지 확인할 수 없다(2026-11-23 첫 실행에서 요약 없이 grill-me로 넘어간 사례).
 
-Step 1에서 얻은 `status` 값으로 분기한다:
+값이 있는 줄만 쓴다.
+1. 작업: `title` (`status`, `project`)
+2. 멈춘 곳: `stopped_at`. 없으면 `session.last_assistant`에서 추정하고 끝에 "(추정)"을 붙인다
+3. 다음 행동: `next_action` (완료 조건: `done_when`). 없으면 마지막 사용자 질문과 마지막 답변에서 추정하고 "(추정)"을 붙인다
+4. 지난 세션 마지막: `session.last_assistant` 요지 한 문장. 사용자 마지막 질문이 답 없이 열려 있으면 그것도 한 문장
+5. 지금 위치: 현재 작업 디렉터리가 `cwd`와 다르면 "지난 작업 위치: `cwd`"를 적는다
 
-| status | 동작 |
-|--------|------|
-| `해야할 것` | `update-status`로 '진행 중' 전환 |
-| `진행 중` / `완료` / `대기` | 건드리지 않음 (이미 손댄 상태) |
-| 없음 (Task DB 아님) | 건드리지 않음 |
+### Step 3: 의도별로 넘기기
 
-전환이 필요하면:
+의도가 없으면 AskUserQuestion으로 한 번 묻는다(구체화 / 실행). 의도가 있으면 요약을 출력한 같은 응답에서 이어서 부르고 확인을 기다리지 않는다.
 
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-status \
-  --page-id <page_id> --status "진행 중"
-```
-
-이 호출이 실패해도 멈추지 않는다. 경고 한 줄만 남기고 Step 3으로 진행한다
-(상태 전환은 부가 효과이지, 컨텍스트 파악의 필수 전제조건이 아니다).
-
-**검증**: `update-status` 응답 JSON의 `"status": "진행 중"`으로 전환 성공을
-확인한다. 실패(에러 응답)면 Step 4 출력에 "상태 전환 실패, 수동 확인 필요"를
-덧붙인다.
-
-### Step 3: 본문 읽기
-
-```
-mcp__notion-personal__API-retrieve-page-markdown(page_id=<Step 1의 page_id>)
-```
-
-반환된 마크다운을 읽고 다음을 파악한다:
-- 지금까지 진행된 작업(로그/체크리스트 중 완료 항목)
-- 아직 안 된 것(미완료 체크박스, "다음 단계" 류 섹션)
-- 막혔던 지점이나 의사결정이 필요했던 부분
-
-진행 로그는 Task가 아니라 연결된 업무 노트(Working Note relation)에 쌓이므로 노트도 함께 읽는다:
-
-```bash
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py working-note --page-id <Step 1의 page_id>
-python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page --page-id <note_page_id>
-```
-
-- `note_page_id`가 null이면 노트가 없는 Task다. Task 본문만으로 파악한다.
-- 노트에 `## 실행 기록`이 있으면 그 섹션을 진행 로그로 본다. 오래된 템플릿이라 없으면 작업·해결 류 섹션에서 진행 내용을 찾는다.
-
-### Step 4: 컨텍스트 요약 출력
-
-아래 형식으로 정리해 응답한다(짧고 핵심만, 표 대신 목록):
-
-```
-이어서 진행: {name} ({category}) · due {due_date}
-상태: {변경 전} -> {변경 후} (전환됨 / 변경 없음)
-
-지금까지
-- {본문에서 파악한 완료/진행 내용 1}
-- {완료/진행 내용 2}
-
-남은 것
-- {미완료 항목 1}
-- {미완료 항목 2}
-
-이어서 {첫 액션}부터 진행하겠습니다.
-```
-
-이후부터는 일반 작업 세션으로 전환한다(이 스킬은 컨텍스트 로딩과 상태
-전환까지만 담당하고, 실제 작업 수행은 메인 대화 흐름이 이어받는다).
-
----
+- **구체화**: `grill-me` 스킬을 Skill 도구로 부른다. args에 Step 2 요약과 "다음 행동을 구체적인 설계·결정으로 좁힌다"는 목표를 넣는다. 인터뷰 결과가 여러 컴포넌트에 걸친 설계로 커지면 `tasks:tech-spec`을 한 줄로 제안한다
+- **실행**: 다음 행동을 목표로 `EnterPlanMode`에 들어가고, 플랜 Context에 Step 2 요약을 넣는다. 인프라 레포면 프로젝트 CLAUDE.md의 Explore → Plan 절차를 따른다
 
 ## 주의사항
 
-- `resolve_task.py`는 제목 슬러그가 붙은 URL, 대시 없는/있는 UUID, 순수
-  page_id 문자열을 모두 처리한다. 파싱 실패 시(`success: false`) 링크가
-  잘렸거나 잘못 복사됐을 가능성을 안내한다.
-- `NOTION_TOKEN` 환경변수가 없으면 `resolve_task.py`가 즉시 에러를 낸다.
-  `tasks:manage`의 다른 스크립트들과 동일한 토큰을 공유한다.
-- 이 스킬은 Task 속성(상태) 변경만 하며, 본문 콘텐츠는 수정하지 않는다.
-  본문에 진행 로그를 추가하려면 `tasks:manage/scripts/notion-task.py
-  append-content`를 별도로 사용한다.
+- 브리핑 파일은 `~/.claude/tmp/daily-start/<날짜>.json`이다. daily:start가 쓰고, 이 스킬의 `brief`가 읽는다. 하루 시작 보드의 버튼은 `/task:resume <날짜> <id> <의도>`를 첫 프롬프트로 넣는다
+- 세션은 `~/.claude/skills/daily:start/scripts/extract-work.py`로 읽는다. 그 스크립트의 경로와 필드(`session_id`, `title`, `cwd`, `ended_at`, `user_messages`, `last_assistant`)에 기댄다
+- 키워드 검색은 최근 7일 세션의 제목, 사용자 메시지, 마지막 답변을 부분 일치로 찾고, 제목 일치에 가중을 둔다. 기간을 늘리려면 `--days`를 준다

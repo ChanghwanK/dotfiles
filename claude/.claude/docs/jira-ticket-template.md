@@ -1,7 +1,7 @@
 # Jira 티켓 템플릿
 
 Claude가 Jira 티켓을 만들거나 설명을 다시 쓸 때 따르는 정본이다(2026-11-23 사용자 결정). 기본 대상은 PLE Space(riiid-pioneer.atlassian.net)다.
-Goal·Key Result·Todo의 구분과 문체는 `tasks:goal-kr-todo`가 정본이고, 이 문서는 그 구분을 Jira 유형에 맞춰 배치하는 방법만 정한다.
+Goal·Key Result·Todo의 구분과 문체는 `task:keyresult`가 정본이고, 이 문서는 그 구분을 Jira 유형에 맞춰 배치하는 방법만 정한다.
 
 ## 유형 고르기
 
@@ -21,7 +21,7 @@ Goal·Key Result·Todo의 구분과 문체는 `tasks:goal-kr-todo`가 정본이�
 이 티켓이 끝나면 바뀌는 모습 1~2줄. 수단과 수치 없이
 
 ## Key Result (완료 기준)
-- 규칙형 결과 진술 1~3개. 수치와 판정 시점은 문장 끝 괄호
+- 한 줄 지표 제목 1~3개(지표 하나·목표값 하나), 필요하면 구체 기준 하위 불릿
 
 ## Todo
 - [ ] 구체적 행동
@@ -37,6 +37,7 @@ Goal·Key Result·Todo의 구분과 문체는 `tasks:goal-kr-todo`가 정본이�
 - Key Result가 곧 완료 기준이다. "완료 기준" 칸을 따로 두지 않는다
 - Todo는 행동이 2개 이하인 작은 티켓에서 생략할 수 있다. Key Result는 생략하지 않는다
 - Issue의 Background에는 언제, 어디서, 무엇이 얼마나 영향을 받았는지를 측정값으로 쓴다
+- 링크에는 팀원이 열 수 있는 것만 넣는다. 개인 Artifact(하루 시작 보드 등), 개인 Notion 일지처럼 본인만 열 수 있는 페이지는 넣지 않는다. PLE는 공용 팀 스페이스라 열리지 않는 링크는 혼란만 남긴다
 
 ## Epic 템플릿
 

@@ -5,6 +5,8 @@ Usage:
   python3 notion-daily.py read --date today|yesterday|YYYY-MM-DD
   python3 notion-daily.py append-coach-tomorrow --page-id ID --items '["...", "..."]' [--dry-run]
   python3 notion-daily.py append-todos --page-id ID --items '["...", "..."]' [--dry-run]
+  python3 notion-daily.py append-todos --page-id ID --tree '[{"text": "...", "link": "PLE-1", "children": [{"text": "..."}]}]' [--parent-block ID] [--no-prop] [--dry-run]
+  python3 notion-daily.py list-todo-parents --page-id ID
 
 쓰기는 두 명령뿐이고, 둘 다 덧붙이기만 한다. 기존 블록은 고치거나 지우지 않는다.
 - append-coach-tomorrow (daily:retrospective): Tomorrow 칸 아래 "회고 코치 추천" 구역에 할 일을 덧붙인다
@@ -351,13 +353,45 @@ def cmd_append_coach_tomorrow(args):
                       "appended": new_items, "skipped": skipped}, ensure_ascii=False, indent=2))
 
 
-def cmd_append_todos(args):
-    """Todos 칸 끝(마지막 항목 뒤)에 할 일을 최상위 to_do로 덧붙인다.
+TODOS_PROP = "Todo's"
+JIRA_BROWSE = "https://riiid-pioneer.atlassian.net/browse/"
 
+
+def todo_block_rich(text, link=None, children=None):
+    """to_do 블록. link(Jira 키)가 있으면 글 끝에 링크 텍스트로 붙이고, children은 하위 to_do로 넣는다."""
+    rich = [{"type": "text", "text": {"content": text}}]
+    if link:
+        url = link if link.startswith("http") else JIRA_BROWSE + link
+        label = link.rsplit("/", 1)[-1]
+        rich += [{"type": "text", "text": {"content": "  "}},
+                 {"type": "text", "text": {"content": label, "link": {"url": url}}}]
+    block = {"object": "block", "type": "to_do", "to_do": {"rich_text": rich, "checked": False}}
+    if children:
+        block["to_do"]["children"] = [todo_block_rich(c["text"]) for c in children if c.get("text", "").strip()]
+    return block
+
+
+def read_todos_prop(token, page_id):
+    page = notion_request(token, "GET", f"/pages/{page_id}")
+    return rich_text_to_plain(page.get("properties", {}).get(TODOS_PROP, {}).get("rich_text", []))
+
+
+def cmd_append_todos(args):
+    """Todos 칸에 할 일을 덧붙이고, Todo's property 끝에도 같은 줄을 덧붙인다.
+
+    - --items: 글자만 있는 최상위 to_do (daily:start 아침 코치용, 기존 형식)
+    - --tree: [{"text", "link"?, "children": [{"text"}]}] 하위 to_do와 Jira 링크를 포함한 항목
+    - --parent-block: 주면 그 to_do의 하위 끝에, 없으면 Todos 칸 끝에 넣는다
+    - property: 기존 값을 읽어 끝에 "  • <상위 글>"을 덧붙인다(덮어쓰지 않음). --no-prop으로 끈다
     Todos 칸에 이미 있는 글(하위 항목 포함)과 같으면 건너뛰어 다시 실행해도 중복되지 않는다.
     """
     token = get_token()
-    items = [x.strip() for x in json.loads(args.items) if x.strip()]
+    if args.tree:
+        entries = [e for e in json.loads(args.tree) if str(e.get("text", "")).strip()]
+        for e in entries:
+            e["text"] = e["text"].strip()
+    else:
+        entries = [{"text": x.strip()} for x in json.loads(args.items or "[]") if x.strip()]
     _, sections = parse_body(fetch_tree(token, args.page_id))
 
     todos = sections.get("Todos")
@@ -368,19 +402,59 @@ def cmd_append_todos(args):
         sys.exit(1)
 
     already_written = {norm(t["text"]) for t in flatten_todos(todos["nodes"])}
-    new_items, skipped = [], []
-    for item in items:
-        (skipped if norm(item) in already_written else new_items).append(item)
-        already_written.add(norm(item))
+    new_entries, skipped = [], []
+    for e in entries:
+        (skipped if norm(e["text"]) in already_written else new_entries).append(e)
+        already_written.add(norm(e["text"]))
 
-    insert_after = todos["last_block_id"]
-    if new_items and not args.dry_run:
-        notion_request(token, "PATCH", f"/blocks/{todos['parent_id']}/children",
-                       {"children": [todo_block(i) for i in new_items], "after": insert_after})
+    blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children")) for e in new_entries]
+    if args.parent_block:
+        top_ids = {n["id"].replace("-", "") for n in todos["nodes"] if n["type"] == "to_do"}
+        if args.parent_block.replace("-", "") not in top_ids:
+            print(json.dumps({"success": False,
+                              "error": f"--parent-block {args.parent_block}가 Todos 칸의 최상위 할 일이 아닙니다"},
+                             ensure_ascii=False))
+            sys.exit(1)
+        target, body = args.parent_block, {"children": blocks}
+        insert_after = "(상위 항목의 하위 끝)"
+    else:
+        insert_after = todos["last_block_id"]
+        target, body = todos["parent_id"], {"children": blocks, "after": insert_after}
+
+    prop_before = prop_after = None
+    if not args.no_prop:
+        prop_before = read_todos_prop(token, args.page_id)
+        lines = [f"  • {e['text']}" + (f" ({e['link'].rsplit('/', 1)[-1]})" if e.get("link") else "")
+                 for e in new_entries]
+        kept = prop_before.split("\n")
+        while kept and kept[-1].strip() in ("", "•"):  # 끝에 남은 빈 글머리표 자리는 새 항목이 채운다
+            kept.pop()
+        prop_after = "\n".join(kept + lines) if lines else prop_before
+
+    if new_entries and not args.dry_run:
+        notion_request(token, "PATCH", f"/blocks/{target}/children", body)
+        if not args.no_prop and prop_after != prop_before:
+            notion_request(token, "PATCH", f"/pages/{args.page_id}", {"properties": {
+                TODOS_PROP: {"rich_text": [{"type": "text", "text": {"content": prop_after[:2000]}}]}}})
 
     print(json.dumps({"success": True, "dry_run": args.dry_run,
-                      "insert_after_block": insert_after,
-                      "appended": new_items, "skipped": skipped}, ensure_ascii=False, indent=2))
+                      "insert_after_block": insert_after, "parent_block": args.parent_block,
+                      "appended": [e["text"] for e in new_entries], "skipped": [e["text"] for e in skipped],
+                      "prop_before": prop_before, "prop_after": prop_after}, ensure_ascii=False, indent=2))
+
+
+def cmd_list_todo_parents(args):
+    """Todos 칸의 최상위 to_do 목록(id, text, checked). 보드 반영 때 상위 항목 후보로 쓴다."""
+    token = get_token()
+    _, sections = parse_body(fetch_tree(token, args.page_id))
+    todos = sections.get("Todos")
+    if not todos:
+        print(json.dumps({"success": False, "error": "본문에 Todos 칸이 없습니다"}, ensure_ascii=False))
+        sys.exit(1)
+    parents = [{"id": n["id"], "text": n["text"].strip(), "checked": bool(n["checked"]),
+                "children": len(n["children"])}
+               for n in todos["nodes"] if n["type"] == "to_do" and n["text"].strip()]
+    print(json.dumps({"success": True, "parents": parents}, ensure_ascii=False, indent=2))
 
 
 def main():
@@ -403,9 +477,16 @@ def main():
     todos_parser = subparsers.add_parser(
         "append-todos", help="Todos 칸 끝에 할 일을 덧붙인다 (daily:start 아침 코치용)")
     todos_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
-    todos_parser.add_argument("--items", required=True, help='JSON 배열: ["할 일 1", "할 일 2"]')
+    todos_parser.add_argument("--items", help='JSON 배열: ["할 일 1", "할 일 2"] (글자만 있는 최상위 할 일)')
+    todos_parser.add_argument("--tree", help='JSON 배열: [{"text": "...", "link": "PLE-123", "children": [{"text": "..."}]}]')
+    todos_parser.add_argument("--parent-block", help="이 최상위 to_do의 하위 끝에 넣는다 (list-todo-parents의 id)")
+    todos_parser.add_argument("--no-prop", action="store_true", help="Todo's property는 건드리지 않는다")
     todos_parser.add_argument("--dry-run", action="store_true",
                               help="Notion에 쓰지 않고 덧붙일 내용과 위치만 출력한다")
+
+    parents_parser = subparsers.add_parser(
+        "list-todo-parents", help="Todos 칸의 최상위 할 일 목록 (보드 반영 때 상위 항목 후보)")
+    parents_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
 
     args = parser.parse_args()
 
@@ -414,7 +495,11 @@ def main():
     elif args.command == "append-coach-tomorrow":
         cmd_append_coach_tomorrow(args)
     elif args.command == "append-todos":
+        if not args.items and not args.tree:
+            parser.error("append-todos에는 --items 또는 --tree가 필요합니다")
         cmd_append_todos(args)
+    elif args.command == "list-todo-parents":
+        cmd_list_todo_parents(args)
 
 
 if __name__ == "__main__":

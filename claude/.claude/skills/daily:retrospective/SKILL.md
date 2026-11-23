@@ -17,6 +17,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/growth-log.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/task-progress.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks*)
+  - ArtifactData
   - mcp__plugin_claude-mem_mcp-search__timeline
   - mcp__plugin_claude-mem_mcp-search__search
   - Read
@@ -87,6 +88,7 @@ python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/growth-log.p
 | `status` → `stage`, `elapsed_days`, `defers_since_anchor` | 판정일 알림 한 줄(`due`, `overdue`일 때만) |
 | `status` → `no_evidence_streak` | 2 이상이면 "코치가 본 것"에 "성장 증거 없음 {N}일째"를 사실로 쓴다 |
 
+- (8) **보드 미반영 항목**: `~/.claude/tmp/daily-start/{오늘}.json`의 `artifact_url`이 있으면 `ArtifactData` `list`(`collection: board_items`)로 `ledger.daily`가 없는 항목 수를 센다. 1건 이상이면 Step 2 거울 맨 위에 "하루 시작 보드에 원장 미반영 항목 N건이 있습니다. '보드 반영해'로 일지에 기록할 수 있습니다" 한 줄을 둔다. 반영 절차의 정본은 daily:start SKILL.md "보드 반영 (서브 모드)"이고, 이 스킬은 알리기만 한다. 파일이나 URL이 없으면 조용히 건너뛴다
 - `body.missing_sections`가 비어 있지 않으면 템플릿이 바뀐 것이니 한 줄로 알리고 그 칸은 건너뛴다
 - `body_error`가 있거나 오늘 페이지가 없으면 알리고, 세션 로그만으로 진행할지 묻는다
 - 어제 페이지가 없으면(`error` 필드. 주말이나 휴일 다음 날) 하루씩 거슬러 `--date YYYY-MM-DD`로 최대 3번 더 읽는다. 그래도 없으면 어제 Try 확인을 건너뛴다
