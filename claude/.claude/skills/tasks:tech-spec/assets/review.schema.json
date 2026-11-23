@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "verdict", "issues", "expected_questions"],
+  "properties": {
+    "summary": {"type": "string", "description": "2~4문장 총평. 확인한 범위와 가장 큰 문제"},
+    "verdict": {"type": "string", "enum": ["pass", "revise"]},
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "section", "quote", "problem", "fix", "evidence"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["blocker", "major", "minor"]},
+          "section": {"type": "string", "description": "H2 또는 'H2 > H3' 경로"},
+          "quote": {"type": "string", "description": "문제가 되는 원문 문장 그대로. 누락 지적이면 빈 문자열"},
+          "problem": {"type": "string"},
+          "fix": {"type": "string", "description": "구체적 수정안"},
+          "evidence": {"type": "string", "description": "근거: URL, 파일 경로와 줄, 리서치 claim id. 없으면 빈 문자열"}
+        }
+      }
+    },
+    "expected_questions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "리뷰어·운영자가 물을 법한데 문서가 답하지 않는 질문"
+    }
+  }
+}

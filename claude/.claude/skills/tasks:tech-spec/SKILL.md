@@ -1,352 +1,329 @@
 ---
 name: tasks:tech-spec
 description: |
-  인프라/DevOps Tech Spec 스킬. Quick mode(즉시 생성)와 Standard mode(Phase 1-3 대화형) 지원.
-  Quick mode: 대화 맥락을 분석하여 한 번에 Tech Spec 생성. Standard mode: 문제 분석 → 목표 설정 → 계획 설계.
-  확정한 스펙은 Notion 업무 노트(notion:add-engineering-note 템플릿)에 저장한다. Obsidian에는 저장하지 않는다.
-  사용 시점: (1) 인프라 변경 계획 수립, (2) 설계 의사결정 구조화, (3) 새 프로젝트 킥오프, (4) 대화 내용을 빠르게 스펙 정리,
+  인프라/DevOps Tech Spec 스킬. research:deep으로 자료를 모아 1차 계획을 쓰고, codex와 Claude 서브에이전트가 자료·계획을
+  교차 리뷰한 뒤, 고정 H2 포맷(Objective 콜아웃 + Background / Goals & KeyResult / 설계 및 계획 / 예상 질문 정리 / 마일스톤)으로
+  Tech Spec을 작성한다. 결과는 HTML Artifact와 콘솔로 출력하고(Notion에는 직접 쓰지 않는다, Notion 작성은 작업자가 한다), codex·Claude 리뷰 → 반영을 수렴할 때까지 반복한다.
+  사용자 결정이 필요한 항목은 `### 결정 필요` 표로 모으고 HTML 상단에 강조한다.
+  사용 시점: (1) 인프라 변경 계획 수립, (2) 설계 의사결정 구조화, (3) 새 프로젝트 킥오프, (4) 대화 내용을 스펙으로 정리,
   (5) notion:add-engineering-note가 grill-me 인터뷰 뒤 호출(eng-note 모드).
-  트리거 키워드: "tech spec", "기술 스펙", "스펙 문서", "tech-spec 작성", "/tasks:tech-spec".
+  트리거 키워드: "tech spec", "테크 스펙", "기술 스펙", "스펙 문서", "tech-spec 작성", "/tasks:tech-spec".
 allowed-tools:
-  - Bash(python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:tech-spec/scripts/spec_tool.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:tech-spec/scripts/codex_review.py *)
+  - Bash(python3 /Users/changhwan/.claude/skills/tasks:tech-spec/scripts/codex_research.py *)
+  - Bash(cp *)
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read-page *)
-  - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py update-why *)
   - Skill
+  - Agent
+  - Artifact
+  - Read
   - Write
   - Edit
-  - Agent
 ---
 
 # tasks:tech-spec: Tech Spec 스킬
 
-Tech Spec을 만들고, 확정한 내용을 Notion Engineering DB 업무 노트에 저장한다. Quick mode(즉시)와
-Standard mode(대화형) 두 가지 모드를 지원한다.
-
-**저장 위치**: Notion 업무 노트. 템플릿 구조·sections 키·저장 명령의 단일 출처는
-`notion:add-engineering-note` SKILL.md의 "템플릿 구조와 sections 키"와 Step 3~5다.
-Obsidian(`03. Resources/tech-specs/`) 저장은 2026-09-27에 제거했다. 기존 Obsidian 스펙을 다루는
-`tasks:tech-spec-ops`와 `tech-spec.py`는 과거 문서용으로만 남아 있다.
-
----
-
-## Step 0: 호출 경로와 연결 Task 확인
-
-### eng-note 모드 (notion:add-engineering-note에서 호출)
-
-args에 eng-note 모드, 연결할 Task page_id, grill-me 인터뷰 결과가 들어온다.
-
-- grill-me에서 확정된 결정·Before/After·Goals는 **다시 묻지 않고** Phase 1~3 초안에 바로 반영한다.
-  남은 Gap만 해당 Phase에서 다룬다.
-- 기본은 Standard mode다. 사용자가 인터뷰 생략을 명시해 넘어온 경우만 Quick mode로 진행한다.
-- 저장은 "공통: 저장 워크플로우"를 따른다.
-
-### 직접 호출 (/tasks:tech-spec)
-
-- 연결할 Task를 확인한다: "이 스펙을 연결할 Task가 있나요?" 대화에 Task 링크나 page_id가 있으면 묻지 않는다.
-- 연결할 Task가 없는데 실제 업무라면 `tasks:capture`로 먼저 Task를 만든다(제목은 스펙 제목과 같게).
-- 작업 워크플로우는 **grill-me로 작업 파악 → tech-spec으로 작성 → 업무 노트 반영**이다. 직접 호출이어도 이 순서를 지킨다.
-  이 세션에서 grill-me 인터뷰가 아직 없었다면 Task 확인 직후 `grill-me`를 Skill 도구로 호출한다(args: eng-note 모드,
-  Task page_id, `notion-task.py read-page`로 읽은 Task 본문 요약). 인터뷰 결과를 받아 아래 eng-note 모드와 같이 진행한다.
-- 이미 grill-me 인터뷰를 마친 세션이면 다시 인터뷰하지 않는다. 사용자가 "인터뷰 생략"을 명시한 경우만 건너뛰고 Quick mode로 간다.
-
----
-
-## 모드 분기
-
-| 조건 | 모드 |
-|------|------|
-| "빠르게 스펙 정리", "스펙으로 정리해줘" | **Quick mode** |
-| `/tasks:tech-spec` 또는 기본 | **Standard mode** |
-
----
-
-## Quick Mode: 즉시 생성
-
-Phase 1-3 대화 없이 **현재 대화 맥락을 분석하여 한 번에 모든 섹션을 채운다**.
-
-### Step 1: 대화 맥락 분석 + 유형 판단
-
-대화에서 다음을 파악한다:
-- 작업 주제와 동기
-- **운영 변경**(ConfigMap 변경, 스케일링, 마이그레이션 등)인지 **인프라 설계**(새 클러스터, VPC, 신규 서비스 등)인지
-- **스펙 유형 판단**: 어떤 Machine-Readable 스펙이 변경되는가?
-  - 운영 변경(ops-change)이면 스펙 아티팩트 섹션 생략
-  - 인프라 설계면 스펙 아티팩트 테이블 필수 작성
-- 핵심 의사결정과 대안
-- 실행 계획과 영향 범위
-
-**파악한 내용으로 바로 Step 2로 가지 않는다.** "공통: 문제 검증 게이트"(G1~G4)를 먼저 통과시킨다.
-Quick mode는 사용자 확인 단계가 없어 잘못된 문제 정의가 그대로 저장되므로, 이 게이트가 유일한 가드다.
-
-### Step 2: 제목 결정
-
-- **제목**: 작업을 간결하게 설명, 단어 구분은 공백으로. 연결된 Task가 있으면 Task 제목과 개념적으로 대응되게 짓는다.
-
-### Step 3: 템플릿 채우기
-
-아래 템플릿 구조에 맞춰 모든 섹션을 한 번에 작성:
-- **운영 변경**: `## 설계` 섹션 생략 가능. `## 실행 계획`과 `## 임팩트 측정`에 집중.
-- **인프라 설계**: `## 설계` 섹션 상세 작성. 다이어그램, 리소스 스펙, 제약조건 포함.
-- **변경 사항 Diff**: `### 변경 사항 (Diff)` 섹션에 변경 대상별 As-Is → To-Be를 테이블 또는 diff 블록으로 작성.
-
-**목표 섹션 작성 시, 경량 Goal Challenge**:
-
-대화형 질문 없이 진행하되, `## 현재 상태와 목표` 섹션의 Non-Goals 또는 성공 기준 작성 시 아래를 자동으로 반영한다:
-
-- 대화 맥락에서 ROI가 불명확하면 → 성공 기준에 "왜 이 수치인가?" 근거 한 줄 추가
-- **방향 분류**: [team-work-directions.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/team-work-directions.md)의 6개 방향 중 주로 기여하는 방향을 성공 기준 옆에 괄호로 표기 (예: "latency -30% (방향 3 예방)"). 다른 팀 차단·발생 중 위험이면 "(즉시)"를 붙이고, 어느 방향에도 속하지 않으면 생략한다.
-- 비가역적 변경(삭제, 마이그레이션)이 포함되면 → Non-Goals에 롤백 시나리오 명시
-- 네트워크/비용 영향이 감지되면 → Diff 테이블에 해당 항목 행 추가
-- Quick mode 완료 후 출력 하단에 제안이 있으면 `> 💡 참고:` 블록으로 1-2개 병기
-
-### Step 4: 저장 전 자동 검증 (경고만, 차단 안 함)
-
-아래 검증 항목을 체크하되, **실패해도 저장을 진행**한다. 경고만 사용자에게 알린다.
-
-### Step 4-R: Tech Spec 리뷰 Agent 실행
-
-자동 검증 직후, 저장 전에 리뷰 Agent(F)를 실행한다. 아래 "공통: Tech Spec 리뷰" 섹션 참조.
-
-### Step 5: 저장 워크플로우 실행
-
-아래 "저장 워크플로우" 섹션과 동일. content.json → 스크립트 실행 → 결과 출력.
-
----
-
-## Standard Mode: Phase 1-3 (대화형)
-
-Claude와 함께 문제를 분석 → 목표 설정 → 계획 설계하여 구조화된 Tech Spec 문서를 만든다.
-
-### Phase 1: 문제 분석 ("왜 해야 하는가?")
-
-대화 맥락이 충분하면 바로 분석 결과를 제시. 부족하면 질문으로 파악한다.
-
-**파악할 것:**
-- 어떤 문제를 해결해야 하는가?
-- 문제 발생 배경과 근본 원인. 측정으로 확정한 원인만 사실로 쓴다. 원인이 미확인이면 원인 가설 단계를 거친다
-  (`~/.claude/docs/hypothesis-first.md`): 후보 둘 이상 + 그 외, 후보별로 보여야 할 것, 후보를 가르는 변별 증거, 측정 결과
-- 현재 영향 (장애 건수, 복구 시간, 변경 실패율, 비용)
-- 왜 지금 해야 하는가? (긴급도, 의존성)
-
-**"대화 맥락이 충분하면 바로 제시"는 충분성(정보의 양)만 보는 조건이다.** 타당성(그게 증상인지
-메커니즘인지)은 "공통: 문제 검증 게이트"(G1~G4)로 별도 확인한 뒤 산출물을 제시한다.
-
-**현재 상태 조사: 필요한 Agent만 선택적으로 실행**
-
-대화 맥락에서 `{sphere}`, `{circle}`, `{env}`를 추출한다. 불명확하면 "unknown"으로 대체한다.
-아래 판단 기준에 따라 필요한 Agent만 선택하여 실행한다. 선택된 것이 여러 개면 **동시에** spawn한다.
-
-| Agent | 실행 조건 |
-|-------|----------|
-| **A: 클러스터 현재 상태** | sphere/circle이 특정되고, 현재 Pod/Deployment 상태를 모를 때 |
-| **B: 메트릭 현황** | 에러율, 응답시간, 리소스 사용량, 비용 관련 수치가 필요할 때 |
-| **C: 코드베이스 탐색** | 현재 values.yaml, chart 버전, 설정값을 확인해야 할 때 |
-
-실행 방법: 해당 agent 파일을 Read한 뒤 placeholder를 대화 맥락으로 치환하여 실행한다.
-- A: `/Users/changhwan/.claude/skills/tasks:tech-spec/agents/agent-cluster-status.md`
-- B: `/Users/changhwan/.claude/skills/tasks:tech-spec/agents/agent-metrics-check.md`
-- C: `/Users/changhwan/.claude/skills/tasks:tech-spec/agents/agent-codebase-explore.md`
-
-**생략 가능한 경우**: 대화 맥락에 이미 **조회로 확보된** 수치/상태 정보가 있거나, 순수 개념/설계 논의(새 아키텍처 구상, 기술 리서치)일 때는 Agent 전체 생략. **단, 그 수치가 이번 세션에서 Claude 자신이 쓴 요약 문장이면 생략 근거가 되지 않는다** (자기 인용은 측정이 아니다). 또한 Agent A/B/C는 알럿이 지목한 sphere/circle로 조사 범위를 좁히므로, 같은 메커니즘이 **다른 네임스페이스에 만든 여파**는 별도로 조회한다 (게이트 G2).
-
-**산출물**: `## 왜 이걸 해야 하는가?` 섹션 초안을 사용자에게 제시.
-사용자 확인("좋아", "진행해") → Phase 2로.
-
-### Phase 2: 목표 설정 ("어디까지 할 것인가?")
-
-오버엔지니어링 방지. `안정성 > 비용 > 가용성 수준` 기준으로 범위를 정리한다.
-**줄이는 대상은 가용성 수준**(9의 개수, 이중화 범위, replica 수)이지 안정성(가드레일, 복구성,
-correctness 가드)이 아니다. 안정성은 목적이고 가용성 수준은 비용에 맞춰 조절하는 변수다.
-
-**할 것:**
-- 목표를 명확한 문장으로 정의
-- Before(현재) → After(목표) 구체화
-- **Non-Goals**: 하면 좋지만 이번에는 안 하는 것을 명시 (스코프 통제)
-- **성공 기준**: 완료 후 "작업 결과"에서 검증할 측정 가능한 수치 (예: latency -30%, 비용 $X 절감). `## 임팩트 측정 > 검증 기준`과 같은 지표를 쓴다
-- **변경 사항 Diff**: Before → After 변화를 대상별로 테이블 정리. 코드/설정 수준 변경이 있으면 diff 블록 추가.
-
----
-
-#### Goal Challenge: 엔지니어링 인사이트 (목표 확정 전 필수)
-
-목표 초안을 작성한 직후, 확정 전에 아래 5가지 관점 중 **해당하는 것만 선택적으로** 제시한다. 모든 관점을 다 물어보지 않는다. Phase 1 맥락을 기반으로 판단한다.
-
-| 관점 | 언제 제시 | 제안/질문 방향 |
-|------|-----------|--------------|
-| **스코프 적정성** | 범위가 크거나 여러 컴포넌트에 걸칠 때 | "한 번에 끝내기 어려운 크기인가? 먼저 완료 가능한 단위로 쪼갤 수 있는가?" |
-| **ROI 검증** | 동기가 불명확하거나 "하면 좋을 것 같아서" 성격일 때 | "안 하면 실제로 어떤 문제가 생기는가? 투입 비용 대비 기대 효과가 충분한가?" → [team-work-directions.md](~/workspace/riiid/kubernetes/devops-wiki/01-decisions/team-work-directions.md)의 6개 방향 중 어디에 기여하는지 적는다 |
-| **숨은 의존성** | 네트워크/비용/다른 팀 영향이 예상될 때 | "이 변경이 의도치 않게 영향을 미치는 컴포넌트(Cross-zone 트래픽, NAT GW, 다른 팀 서비스)는 없는가?" |
-| **더 단순한 대안** | 복잡한 설계나 신규 도입이 포함될 때 | "같은 목표를 더 적은 변경으로 달성할 방법은 없는가? 기존 레거시를 활용할 수 있는가?" |
-| **되돌리기 비용** | 비가역적 변경(삭제, 마이그레이션, 외부 의존)이 포함될 때 | "실패 시 롤백이 쉬운가? 되돌리기 어려운 결정이 이번 범위에 포함되어 있는가?" |
-
-**출력 형식 예시**:
-
 ```
-💡 Goal Challenge: 목표를 확정하기 전에 몇 가지 체크해볼게요.
-
-**[ROI 검증]** 현재 문제가 실제로 얼마나 자주 발생하나요?
-장애 빈도나 비용 수치로 표현할 수 있다면 성공 기준이 훨씬 명확해집니다.
-→ 방향: 3 예방
-
-**[숨은 의존성]** 이 변경이 Cross-zone 트래픽이나 NAT GW 비용에 영향을 줄 수 있습니다.
-해당 비용 항목을 Non-Goals로 명시하거나, 영향도를 Diff에 포함하는 것을 권장합니다.
-
-위 내용을 반영해서 목표를 수정하시겠어요, 아니면 현재 초안으로 확정할까요?
+Step 0 범위·실행 폴더 → Step 1 자료 수집(research:deep ∥ codex 독립 수집 → 상호 검토·보완, + 사내 조사) → 1차 계획
+→ Step 2 codex·Claude 자료/계획 리뷰 → 계획 보강
+→ Step 3 Tech Spec 작성(고정 H2) → Step 4 HTML + 콘솔 출력
+→ Step 5 codex·Claude 스펙 리뷰 → Step 6 판정·반영 후 Step 4로(수렴할 때까지) → Step 7 마무리
 ```
 
-사용자가 응답/수정 완료 → 목표 확정 → Phase 3으로 진행.
+`S=/Users/changhwan/.claude/skills/tasks:tech-spec/scripts/spec_tool.py`
+`C=/Users/changhwan/.claude/skills/tasks:tech-spec/scripts/codex_review.py`
+`SK=/Users/changhwan/.claude/skills/tasks:tech-spec`
 
 ---
 
-**산출물**: `## 현재 상태와 목표` 섹션 초안 (변경 사항 Diff, Non-Goals, 성공 기준 포함) → Goal Challenge 통과 후 사용자 확인 → Phase 3.
+## 핵심 원칙
 
-### Phase 3: 계획 설계 ("어떻게 할 것인가?")
-
-Phase 1-2 결과를 바탕으로 설계를 협업 방식으로 구체화한다. 3단계로 진행.
-
----
-
-#### Step 3-1: 설계 브리핑 (Claude → 사용자)
-
-Phase 1-2 결과를 기반으로 아래 내용을 브리핑한다.
-필요한 경우 Agent를 선택적으로 spawn하여 재료를 보충한다.
-
-| Agent | 실행 조건 |
-|-------|----------|
-| **D: 설계 대안 조사** | 접근 방식이 아직 불분명하거나, 대안이 2개 이상 있어 비교가 필요할 때 |
-| **E: SOCRAAI 표준 검증** | 네트워크 구조 변경, 신규 AWS 서비스 도입, 멀티 환경 설정이 포함될 때 |
-
-실행 방법: 해당 agent 파일을 Read한 뒤 Phase 1-2 결과로 placeholder를 치환하여 실행한다.
-선택된 것이 여러 개면 **동시에** spawn한다.
-- D: `/Users/changhwan/.claude/skills/tasks:tech-spec/agents/agent-design-research.md`
-- E: `/Users/changhwan/.claude/skills/tasks:tech-spec/agents/agent-standard-validation.md`
-
-**생략 가능한 경우**: Phase 1-2 대화에서 접근 방식과 대안이 이미 합의되었거나, ops-change처럼 설계 선택지가 없을 때는 Agent 생략 후 직접 브리핑 작성.
-
-Agent 결과(또는 Phase 1-2 맥락)를 종합하여 아래 내용을 브리핑한다:
-
-- **기술 접근 방식**: 어떤 컴포넌트를 어떻게 변경할지 요약
-- **대안 후보 2-3개**: Agent D 결과 (각 대안의 트레이드오프 안정성 / 비용 / 운영 부담 기준)
-- **스펙 아티팩트 후보**: Agent D 결과 (변경될 파일 목록, Git 경로 포함)
-- **SOCRAAI 표준 검증 결과**: Agent E 결과 (4개 항목 ✅/⚠️/❌ 판정)
-
-브리핑 후 사용자에게 확인 요청: **"이 방향으로 진행할까요? 수정할 부분이 있으면 알려주세요."**
+- **포맷 정본은 `assets/spec-format.md`다.** H2 다섯 개(Background, Goals & KeyResult, 설계 및 계획, 예상 질문 정리, 마일스톤)와
+  Objective 콜아웃만 고정이고 H3 이하는 주제에 맞게 짓는다. `spec_tool.py lint`가 검사한다
+- **두 리뷰어는 서로 다른 눈이다.** codex는 공개 문서·사실 정확성(웹 검색 가능, read-only), Claude 서브에이전트는 사내 맥락·논리 연결·Day-2.
+  둘 다 블라인드로 부른다: 파일 경로만 주고 Claude의 결론·기대 판정을 주지 않는다
+- **리뷰 지적은 하나도 흘리지 않는다.** 모든 issue id를 `adjudication.md`에 `수용 / 기각 / 보류`로 판정한다. 기각은 근거(파일:줄, claim id, 측정)가
+  있을 때만 하고, 수렴을 위해 기각하지 않는다. 보류는 사용자 결정이 필요한 것이며 스펙에 `(미결정)`으로 드러낸다
+- **근거가 없는 사실은 쓰지 않는다.** 외부 사실은 research:deep에서 검증된 주장(SUPPORTED, 조건 반영한 PARTIAL)만, 사내 사실은 조회한
+  측정·파일만 근거로 쓴다. 원인을 측정하지 못했으면 `(원인 미확인)`
+- **산출물은 실행 폴더에 남긴다.** `~/.claude/tech-spec-runs/<날짜>-<slug>/`: `plan.md`, `context/`, `research/`(링크), `spec.md`,
+  `spec.html`, `history/spec-rN.md`, `reviews/*.json`, `adjudication.md`. 지우지 않는다(재검토·감사용)
+- 채팅 응답은 한국어 격식체, 문서 본문은 `~/.claude/docs/notion-writing-style.md`. em dash 금지
 
 ---
 
-#### Step 3-2: 핑퐁 설계 (사용자 ↔ Claude)
+## 모드
 
-사용자 피드백을 반영하여 설계를 구체화한다:
+| 조건 | 모드 | 차이 |
+|------|------|------|
+| `/tasks:tech-spec`, "테크 스펙 써줘" (기본) | **Standard** | Step 0~7 전부 |
+| "빠르게 스펙 정리", "대화 내용을 스펙으로" | **Quick** | Step 1의 research:deep과 Step 2를 건너뛰고 대화 맥락으로 plan.md를 쓴다. 스펙 리뷰 루프 최대 2라운드 |
+| notion:add-engineering-note에서 호출 | **eng-note** | grill-me 결과를 Step 1 입력으로 쓰고(다시 묻지 않음), Step 7에서 Notion 매핑을 호출한 스킬로 돌려준다 |
 
-- 사용자가 대안 선택, 범위 조정, 추가 요구사항 제시 가능
-- Claude는 피드백을 반영하여 설계를 업데이트하고 다시 요약 제시
-- 사용자가 "좋아", "확정", "진행해" 등으로 합의를 표시하면 Step 3-3으로 이동
-
----
-
-#### Step 3-3: 산출물 확정
-
-합의된 설계를 바탕으로 최종 섹션을 작성한다:
-
-- **스펙 아티팩트 식별** (Spec Driven)
-  - 이 작업의 "계약"이 될 Machine-Readable 스펙은 무엇인가?
-  - 스펙 유형 결정 (아래 스펙 유형 테이블 참조)
-  - `## 설계` 섹션 내에 `### 스펙 아티팩트` 테이블 작성 (Git 경로 포함)
-  - **운영 변경**: `ops-change` 유형 → 스펙 아티팩트 섹션 생략 가능
-
-**산출물**: `## 설계`, `## 왜 이 방법인가?`, `## 실행 계획`, `## 임팩트 측정` 섹션 → 저장 전 자동 검증으로 이동.
-
-**실행 계획 작성 원칙**:
-- **Phase 단위**: 독립적으로 완료 가능한 작업 묶음. 각 Phase는 명확한 산출물(artifact)을 가진다.
-  - Phase 간 순서는 의존성 기준으로 결정 (병렬 가능한 경우 같은 Phase에 묶기)
-- **Action item 단위**: 실행 가능한 **최소 단위**, PR 1개, 명령어 1회, 파일 1개 수정 수준.
-  - `- [ ] N. {동사 + 목적어}` 형식 (예: `- [ ] 2. values.yaml에 replica 설정 추가`)
-  - Phase 내 action item은 위에서 아래로 순차 진행 가능하도록 의존성 순서로 정렬
+Quick 모드도 lint, HTML + 콘솔 출력, codex·Claude 스펙 리뷰는 생략하지 않는다.
 
 ---
 
-## 공통: 문제 검증 게이트 (초안 작성 전 필수)
+## Step 0: 범위와 실행 폴더
 
-Quick Step 1과 Standard Phase 1이 모두 이 게이트를 통과한 뒤에 초안을 쓴다.
+1. 대화에서 주제, 대상(sphere/circle/env, 서비스 목록), 산출물 종류(설계만 / 구현 / 적용), 이미 확정된 결정을 뽑는다
+2. 범위가 모호해 **조사 방향이 갈리는 경우에만** AskUserQuestion으로 묻는다(예: "Python 백엔드 전체인가, socraai만인가"). 그 외에는 묻지 않는다
+3. 제목(H1)과 slug를 정한다. 연결된 Task가 있으면 Task 제목과 대응되게 짓는다
+4. 실행 폴더를 만든다
+   ```bash
+   python3 $S init <slug> --title "<제목>"            # 출력 경로가 {run_dir}
+   ```
+5. 채팅에 한 줄: 실행 폴더와 이제 자료 수집을 시작한다는 것
 
-두 경로 모두 "대화에서 무엇을 파악할지"는 정하지만 **"파악한 그것이 진짜 문제인지"는 검사하지
-않는다.** 맥락이 풍부하면 그대로 통과하므로, 정보가 많은데 전부 증상인 경우를 걸러내지 못한다.
-초안 작성 전에 아래를 확인하고, 걸리면 **사용자에게 묻기 전에 먼저 조회·측정으로 해소한다.**
+---
+
+## Step 1: 자료 수집과 1차 계획
+
+### 1-a. 사내 조사 (백그라운드, 먼저 띄운다)
+
+필요한 Agent만 골라 **한 메시지에서 동시에** `run_in_background=true`로 띄운다. 각 agent 파일을 Read해 placeholder를 치환한다.
+
+| Agent | 실행 조건 | 파일 |
+|-------|----------|------|
+| A: 클러스터 현재 상태 | sphere/circle이 특정되고 현재 Pod/Deployment 상태를 모를 때 | `$SK/agents/agent-cluster-status.md` |
+| B: 메트릭 현황 | 에러율, 지연, 리소스, 커넥션 수, 비용 수치가 필요할 때 | `$SK/agents/agent-metrics-check.md` |
+| C: 코드베이스 탐색 | values.yaml, 차트 버전, 앱 설정(드라이버·풀)을 확인해야 할 때 | `$SK/agents/agent-codebase-explore.md` |
+
+- 각 Agent 프롬프트 끝에 "결과를 `{run_dir}/context/<A|B|C>-<주제>.md`에 Write하고, 모든 사실에 조회 명령·쿼리·파일 경로를 붙여라"를 덧붙인다
+- kubernetes 레포에서 작업 중이면 `devops-wiki/INDEX.md`에서 관련 guardrail·issue 문서를 직접 찾아 읽고 요점을 `context/wiki.md`에 쓴다
+- 대화에 이미 조회로 확보한 수치가 있으면 그 Agent는 생략하고 `context/conversation.md`에 출처와 함께 옮긴다.
+  이번 세션에서 Claude가 쓴 요약 문장은 측정이 아니므로 생략 근거가 되지 않는다
+
+### 1-b. 외부 자료: research:deep
+
+`research:deep`을 Skill 도구로 호출한다(Standard 모드만). args에 원 질문을 넘긴다: 주제의 동작 원리, 버전별 기본값·한도, 장애 모드,
+운영 사례, 대안 비교처럼 **설계 결정을 가르는 질문**으로 쓴다. 예:
+
+```
+PgBouncer를 Kubernetes에서 Python(SQLAlchemy/psycopg) 백엔드와 Aurora PostgreSQL 사이에 둘 때:
+pool_mode별 트랜잭션·prepared statement 의미, HA 배치 패턴, 장애·failover 시 동작, RDS Proxy와의 비교, 운영 사례
+```
+
+- research:deep은 자기 절차(Claude Docs 보고서, codex 주장 검증)를 끝까지 진행한다. 끝나면 실행 폴더를 연결한다
+  ```bash
+  python3 $S link-research {run_dir} ~/.claude/research-runs/<날짜>-<slug>
+  ```
+- research:deep이 실패하거나 사용자가 생략을 원하면 `research` 스킬로 대신하고, 결과를 `context/research-lite.md`에 출처 URL과 함께 쓴다
+
+### 1-b'. codex 교차 리서치 (research:deep 안에서, Step 3 수집 브리핑과 Step 4 주장 원장 사이)
+
+Claude와 codex가 같은 서브질문을 각자 수집하고, 서로의 결과를 검토·보완한 뒤에 주장 원장을 만든다. research:deep을 진행하다
+Step 3(수집 브리핑)이 끝나면 Step 4로 가기 전에 아래를 한다. `R=<research_run>`, `X=$SK/scripts/codex_research.py`
+
+1. `$R/subquestions.md`를 쓴다: research:deep Step 0의 서브질문을 `## q1 <제목>` 헤더와 핵심 질문 불릿으로
+2. codex 독립 수집(빈 작업 폴더에서 실행해 Claude 자료를 보지 않는다). Claude 리서처와 **동시에** 띄워도 된다
+   ```bash
+   python3 $X collect $R --version-anchor "<버전 앵커>"     # Bash run_in_background=true, 서브질문별 병렬
+   ```
+3. 상호 검토를 **한 메시지에서 동시에** 띄운다
+   - codex가 Claude 수집을 검토: `python3 $X cross-review $R` (백그라운드) → `$R/codex/cross-review.json`(errors, gaps)
+   - Claude가 codex 수집을 검토·흡수: `$SK/agents/agent-codex-findings-review.md`를 Read해 `{research_run}` 치환 후
+     `Agent(subagent_type="general-purpose", model="sonnet", run_in_background=true)` → `notes/<qN>-codex.jsonl`, `codex/findings-review.md`
+4. 보완
+   - cross-review `gaps`: 해당 서브질문만 research:deep 리서처를 1회 더 띄운다(프롬프트에 gap 목록과 `where_to_look`을 넣는다)
+   - cross-review `errors`: research:deep `adjudication.md`에 `claim_id | codex 교차 검토 | 결론 | 근거`로 남기고, 맞는 지적이면 해당 주장을 Step 4에서 지운다
+5. 채팅에 한 줄: codex 수집 n건 중 흡수 a / 중복 d / 불일치 x, codex가 찾은 Claude 오류 e건·공백 g건과 처리 결과
+6. research:deep Step 4(ledger)로 돌아가 이후 절차를 진행한다. 이후 프로세스(주장 검증, 계획, 스펙)는 Claude가 주도한다
+   - 주장 검증 범위(아래 "codex 예산"): research:deep Step 5를 전체 원장에 돌리지 않는다. Step 6 초안과 plan.md를 먼저 쓰고,
+     그 둘이 인용한 claim id만 `codex_verify.py claims --only <ids> --effort medium`으로 검증한 뒤 초안을 확정한다
+
+codex 사용량과 한도 처리는 아래 "codex 예산"을 따른다.
+
+### 1-c. 문제 검증 게이트 (plan.md를 쓰기 전)
+
+사내 조사 Agent가 모두 끝난 뒤, 문제 정의를 아래로 검사한다. 걸리면 사용자에게 묻기 전에 조회·측정으로 먼저 해소한다.
+kubernetes 레포에서는 `devops-wiki/03-guardrails/rca-shared-criteria.md` §1이 정본이고 아래는 축약본이다.
 
 | # | 자문 | 걸리면 할 일 |
 |---|------|-------------|
-| G1 | 알럿·에러 로그·대시보드 이상에서 출발했는가? | 신호가 아니라 **신호를 만든 메커니즘**을 문제로 쓴다. 알럿은 진입점이지 문제의 경계가 아니다 |
-| G2 | 영향을 진단 도구의 단위(알럿 발화 횟수, 노드 수, 로그 라인 수)로 세지 않았는가? | **영향받는 대상**(파드, 요청, 배포, 사용자) 단위로 다시 센다 |
-| G3 | 근거가 이번 세션에서 내가 쓴 요약 문장인가, 조회 가능한 측정치인가? | 자기 인용이면 재측정한다 |
-| G4 | 근거의 표본이 n=1인가? | 일반화하지 않는다. 창을 7일 이상(30일 권장)으로 넓혀 다시 센다 |
+| G1 | 알럿·에러 로그·대시보드 이상에서 출발했는가? | 신호가 아니라 신호를 만든 메커니즘을 문제로 쓴다 |
+| G2 | 영향을 진단 도구 단위(알럿 횟수, 노드 수, 로그 라인)로 셌는가? | 영향받는 대상(요청, 파드, 서비스, 사용자) 단위로 다시 센다 |
+| G3 | 근거가 이번 세션의 내 요약 문장인가? | 재측정한다. "영향 없음" 같은 부정 결론은 그 0을 만든 쿼리를 다시 돌린다 |
+| G4 | 표본이 n=1인가? | 창을 7일 이상(30일 권장)으로 넓혀 다시 센다 |
 
-**G3은 부정 결론에 특히 강하게 적용한다.** "영향 없음", "문제 없음", "무해함"은
-*측정해서 0이었다*와 *찾아보지 않았다*가 겉으로 구분되지 않는다. 그 0을 만든 쿼리를 다시 실행한다.
+### 1-d. 1차 계획 작성
 
-**정본은 이 파일이 아니다.** kubernetes 레포에서 작업 중이면 이 절차의 단일 출처는
-`devops-wiki/03-guardrails/rca-shared-criteria.md` §1이다 (Procedure step 4 + 4-way verdict).
-위 G1~G4는 정본이 없는 프로젝트를 위한 이식 가능한 축약본이므로, 정본이 있으면 정본을 따른다.
-선행 RCA의 verdict가 `MISMEASURED`이면 `## 왜 이걸 해야 하는가?`는 알럿이 아니라
-**메커니즘이 만든 비용**을 문제로 쓴다.
+`{run_dir}/plan.md`를 Write한다. 스펙이 아니라 리뷰받을 계획 초안이다.
 
-### 게이트 결과 출력 형식 (통과·실패 모두)
+```markdown
+# 1차 계획: {제목}
 
-초안을 제시할 때 게이트 결과를 아래 형식으로 **항상** 정리해 붙인다. 통과한 항목도 "왜 통과인지"를 한 줄로 남겨,
-읽는 사람이 자문 목록을 몰라도 판정 근거를 따라갈 수 있게 한다. 자문 설명(G1~G4가 무엇을 묻는지)은 반복하지 않는다.
-
-```
-**문제 검증 게이트: {통과 N/4 | 걸림 M건}**
-| 항목 | 결과 | 근거 / 조치 |
-|------|------|-------------|
-| G1 알럿 출발 | 해당 없음 | {알럿이 아닌 출발점 한 줄} |
-| G2 영향 단위 | 통과 | {센 단위와 그것이 실제 영향 대상인 이유} |
-| G3 측정 근거 | 걸림 → 해소 | {자기 인용이던 근거와 다시 측정한 결과·조회 방법} |
-| G4 표본 | 걸림 → 미해소 | {표본 수와 미해소 이유, 초안에 (미확인) 표시한 위치} |
+## 문제와 근거          ← 번호 목록, 근거마다 context 파일·쿼리·claim id
+## 가설                 ← 무엇을 하면 → 어떤 동작 때문에 → 어떤 결과
+## 접근안 후보와 추천    ← 2~3개, 안정성·비용·운영 부담·되돌리기 비교, 추천과 이유
+## 미결정과 판단 기준
+## 검증 아이디어         ← Key Result 후보와 각각을 어떻게·언제 판정할지
+## 문제 검증 게이트      ← G1~G4 결과 표(통과 / 해당 없음 / 걸림 → 해소 / 걸림 → 미해소)
+## 자료 공백
 ```
 
-- 결과 값은 `통과` / `해당 없음` / `걸림 → 해소` / `걸림 → 미해소` 네 가지만 쓴다.
-- `걸림 → 미해소`가 있으면 초안의 해당 문장에 `(미확인)`을 붙였는지 확인한다.
+쓴 직후 버전을 남긴다: `python3 $S snapshot {run_dir} --plan --round 1` (→ `history/plan-v1.md`). plan.md를 고칠 때마다
+고치기 **전에** 다음 버전 번호로 다시 스냅샷한다. 덮어써서 이전 버전을 잃지 않는다(브리핑의 근거다).
+
+계획을 쓰며 아래를 자문하고 해당하면 계획에 반영한다: 한 번에 끝내기 어려운 크기인가(쪼갤 단위), 안 하면 실제로 어떤 손해인가(ROI),
+cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목표에 닿는 안, 되돌리기 어려운 결정.
 
 ---
 
-## 공통: 저장 전 자동 검증
+## Step 2: 자료·계획 교차 리뷰
 
-Phase 3 완료 또는 Quick mode Step 4에서 전체 Tech Spec을 보여주고 자동 검증:
-
-| 검증 항목 | 실패 시 |
-|-----------|---------|
-| 필수 H2 섹션 4개 존재 (왜 이걸 해야 하는가?, 현재 상태와 목표, 실행 계획, 임팩트 측정) | 누락 안내 |
-| 임팩트에 숫자 or Before/After 패턴 | 경고 |
-| 실행 계획에 롤백 언급 (인프라·설정 변경이 있는 스펙만. 문서·설계만인 스펙은 검사하지 않고 롤백 문장도 쓰지 않는다) | 경고 |
-| 스펙 아티팩트 참조 (spec_type ≠ ops-change) | 경고 |
-
-경고는 저장을 막지 않되, 사용자에게 알린다. 사용자가 "저장해" 하면 진행.
-
----
-
-## 공통: Tech Spec 리뷰 (저장 전)
-
-저장 전 자동 검증 통과 후, 저장 워크플로우 실행 전에 리뷰 Agent(F)를 실행한다.
-
-### 실행 방법
-
-`/Users/changhwan/.claude/skills/tasks:tech-spec/agents/agent-spec-review.md`를 Read한 뒤,
-아래 placeholder를 치환하여 Agent F를 실행한다:
-
-- `{tech_spec_content}` → 작성된 전체 Tech Spec 마크다운 본문 (H1 제목 포함)
-- `{spec_type}` → Phase 3 또는 Quick mode에서 판단한 스펙 유형 (예: `helm-chart`, `ops-change`)
-
-### 리뷰 결과 처리
-
-Agent F 결과를 사용자에게 제시한 후:
-
-1. **❌ (Issue) 항목이 있으면**: 해당 부분 수정을 권고한다. 사용자가 수정 의사를 밝히면 스펙을 함께 수정 후 다시 리뷰를 실행한다.
-2. **⚠️ (Concern) 항목만 있으면**: 수정 여부를 사용자에게 확인한다. "이대로 진행"도 허용.
-3. **사용자가 확정("저장해", "이대로 진행", "OK" 등)하면** → 저장 워크플로우로 이동한다.
+1. 두 리뷰어를 **한 메시지에서 동시에** 띄운다
+   ```bash
+   python3 $C plan {run_dir} --round 1                 # Bash run_in_background=true
+   ```
+   ```
+   Agent(subagent_type="general-purpose", run_in_background=true, description="Plan review r1",
+         prompt=<$SK/agents/agent-plan-review.md를 Read해 {run_dir}, {round}=1, {repo_path} 치환>)
+   ```
+   두 완료 알림을 기다린다. 폴링하지 않는다
+2. 집계하고 id를 부여한다
+   ```bash
+   python3 $S reviews {run_dir} --stage plan --round 1
+   ```
+3. 각 issue를 읽고 `adjudication.md`에 `issue_id | 수용 / 기각 / 보류 | 근거 또는 반영 위치`로 한 줄씩 쓴다. 다시 `reviews`를 돌려 `undecided_ids`가 비었는지 확인한다
+4. 수용한 지적을 `plan.md`에 반영한다
+   - "자료 공백" 지적: 사내 사실이면 해당 Agent를 1회 다시 띄우고, 외부 사실이면 research:deep 실행 폴더에서 `codex_verify.py claims --only`로
+     추가 주장을 검증하거나 `research` 스킬로 보충한다. 추가 수집은 1라운드까지만 한다
+   - `expected_questions`는 `plan.md` 끝에 모아 둔다(Step 3에서 예상 질문 정리로 옮긴다)
+5. 채팅에 한 줄: 리뷰어별 심각도 건수, 수용·기각·보류 수
 
 ---
 
-## 공통: 스펙 유형 (Spec Driven)
+## Step 3: Tech Spec 작성
+
+1. `$SK/assets/spec-format.md`를 Read한다(포맷 정본, 섹션별 작성 안내)
+2. `{run_dir}/spec.md`를 Write한다
+   - Background ← plan의 문제와 근거. Goals & KeyResult ← 가설과 검증 아이디어(Key Result 규칙은 `task:keyresult`)
+   - 설계 및 계획 ← `### Todo`, 주제별 설계 H3, 고려해야할 것 및 검증 목록(토글), 검증, 마이그레이션·롤아웃 계획
+   - 예상 질문 정리 ← plan의 expected_questions와 Step 2 리뷰 질문. 답이 없으면 `(미결정)`과 판단 기준
+   - 마일스톤 ← Todo를 관측 가능한 완료 기준으로 묶은 표
+   - 인프라·prod 변경이면 마이그레이션·롤아웃 H3에 Blast radius, 실패 시나리오, 롤백 방법과 걸리는 시간을 쓴다
+   - 다른 시스템과 상호작용이 있으면 다이어그램을 1개 이상 넣는다(시퀀스, 데이터 흐름, ERD 등). `archify`/`diagram-design`으로 흰 배경 PNG를 만들어
+     `![캡션](/절대경로.png)`로 넣고, `render`가 PNG를 HTML에 함께 싣는다. 로우 레벨 스펙이면 인터페이스 명세(응답 코드, 요청·응답 포맷, 에러 명세, 설정값)까지 쓴다
+3. 포맷을 검사한다. `ok: false`면 고치고 다시 돌린다. warnings는 판단해서 반영한다
+   ```bash
+   python3 $S lint {run_dir}
+   ```
+4. 이 첫 버전이 **초안**이다. 리뷰 전에 따로 남기고 따로 게시한다(최종본과 섞지 않는다)
+   ```bash
+   python3 $S snapshot {run_dir} --round 1                                   # history/spec-r1.md = 초안
+   python3 $S render {run_dir} --src history/spec-r1.md --out spec-draft.html --label 초안
+   ```
+
+---
+
+## Step 4: 출력 (HTML + 콘솔)
+
+**첫 출력은 초안이다.** Step 3-4의 `spec-draft.html`을 초안 전용 경로(`<scratchpad>/<slug>-tech-spec-draft.html`)로 따로 게시하고,
+콘솔에 초안 전문을 붙인다. 초안 Artifact는 이후 다시 게시하지 않는다(리뷰 전 상태를 보존). 아래는 리뷰 반영본(작업본)의 출력이다.
+
+1. 렌더한다. `--round`에는 마지막으로 반영한 스펙 리뷰 라운드를 넣는다(첫 출력은 0)
+   ```bash
+   python3 $S render {run_dir} --round <N>
+   ```
+2. HTML Artifact로 게시한다
+   - 세션에서 처음 게시하기 전에 `artifact-design` 스킬을 한 번 로드한다(Artifact 도구 계약). 템플릿 `assets/spec.html.tmpl`이 이미
+     사용자 전역 Artifact 규칙(흰 배경 단일 라이트 테마, 1px 테두리, `#f1f4f7` 구분)을 따르므로 디자인을 새로 하지 않는다
+   - 스크래치패드에 고정 이름으로 복사해 게시한다. 라운드마다 **같은 경로**로 다시 게시해야 같은 URL이 유지된다
+     ```bash
+     cp {run_dir}/spec.html <scratchpad>/<slug>-tech-spec.html
+     ```
+     첫 게시: `Artifact(file_path=<위 경로>, icon="document", description="<Objective 한 문장>")`. 이후: 같은 `file_path`, icon 생략
+   - 받은 URL을 `{run_dir}/run.json`의 `artifact_url`에 Edit로 기록한다
+3. 콘솔(채팅)에 출력한다
+   - 첫 출력과 최종 출력(Step 7): `spec.md` 전문을 그대로 붙이고 맨 위에 Artifact 링크 한 줄
+   - 중간 라운드: `python3 $S diff {run_dir} --round <N+1>`로 바뀐 섹션만 붙이고, 맨 위에 링크와 "라운드 N 반영: 수용 a / 기각 r / 보류 h" 한 줄
+
+---
+
+## Step 5: 스펙 리뷰 (라운드 N, 1부터)
+
+1. 리뷰할 버전을 고정한다
+   ```bash
+   python3 $S snapshot {run_dir} --round <N>
+   ```
+2. 두 리뷰어를 **한 메시지에서 동시에** 띄우고 완료 알림을 기다린다
+   ```bash
+   python3 $C spec {run_dir} --round <N>               # Bash run_in_background=true
+   ```
+   ```
+   Agent(subagent_type="general-purpose", run_in_background=true, description="Spec review r<N>",
+         prompt=<$SK/agents/agent-spec-review.md를 Read해 {run_dir}, {round}=N, {spec_type}, {repo_path} 치환>)
+   ```
+   `spec_type`은 아래 "스펙 유형" 표에서 고른다
+3. 집계한다
+   ```bash
+   python3 $S reviews {run_dir} --stage spec --round <N>
+   ```
+   한 리뷰어가 실패하면(codex usage limit, 타임아웃) 1회 재시도하고, 그래도 실패하면 남은 리뷰어 결과로 진행하되 Step 7 출력에 명시한다
+
+## Step 6: 판정·반영 루프
+
+1. 모든 issue id를 `adjudication.md`에 판정한다(핵심 원칙의 기준). `reviews`를 다시 돌려 `undecided_ids`가 빈 것을 확인한다
+2. **종료 판정** (`reviews` 출력 기준)
+   - `converged: true`(기각·보류를 뺀 blocker+major가 0)이면: 수용한 minor만 반영하고 Step 7로 간다
+   - N이 최대 라운드(Standard 3, Quick 2)면: 수용한 지적을 반영하고 Step 7로 간다. 남은 blocker·major를 Step 7에 명시한다
+   - 이번 라운드에 수용한 지적이 0건이면(같은 지적만 반복됨): Step 7로 간다
+   - 그 외: 계속
+3. 수용한 지적을 `spec.md`에 반영한다. 보류는 해당 위치에 `(미결정)`과 선택지·판단 기준으로 쓰고, `expected_questions`는 예상 질문 정리에 합친다(중복 제거)
+4. `lint` → `render --round <N>` → 같은 경로로 재게시 → 콘솔에 diff 출력(Step 4의 중간 라운드 형식)
+5. N+1로 Step 5를 다시 한다
+
+---
+
+## Step 7: 마무리 (보고는 세 부분으로 나눠 이 순서로)
+
+사용자 보고는 **① 초안 → ② 리뷰 흐름 브리핑 → ③ 최종 보고서**를 섞지 않고 따로 보인다. 각 부분은 HTML Artifact(별도 URL)와 콘솔 출력을 함께 갖는다.
+
+**① 초안**
+- 초안 Artifact 링크(Step 4에서 게시한 `*-tech-spec-draft.html`)와 `history/spec-r1.md` 전문
+- 1차 계획 v1(`history/plan-v1.md`)은 브리핑 흐름에서 링크한다
+
+**② 리뷰 흐름 브리핑**
+1. 표·변경 섹션 골격을 만든다
+   ```bash
+   python3 $S briefing {run_dir}
+   ```
+   흐름(자료 수집 → 계획 v1 → 계획 리뷰 → 계획 v2 → 초안 → 스펙 리뷰 r1 → ... → 최종), 라운드별 리뷰어 집계, 지적별 판정·반영 근거,
+   버전 간 바뀐 섹션(신설·수정·삭제, 줄 수)이 들어간다
+2. `briefing.md`의 `## 흐름` 앞에 `## 요약`을 Claude가 직접 쓴다. 바뀐 결정마다 한 불릿: **무엇이 어떻게 바뀌었나(전 → 후), 어느 리뷰의
+   어떤 지적 때문인가(issue id), 왜 수용했나(근거)**. 기각한 주요 지적과 그 이유, 사용자 결정으로 넘긴 보류 항목도 쓴다
+3. 골격을 다시 만들 때는 `--keep-narrative`로 요약을 보존한다. 렌더·게시:
+   ```bash
+   python3 $S render {run_dir} --src briefing.md --out briefing.html --label 브리핑
+   cp {run_dir}/briefing.html <scratchpad>/<slug>-review-briefing.html     # 별도 Artifact로 게시
+   ```
+4. 콘솔에는 `## 요약`과 라운드별 집계 표를 붙이고, 지적별 상세는 Artifact 링크로 안내한다
+
+**③ 최종 보고서**
+0. **Notion에는 쓰지 않는다.** PE Working Note DB(`[PE - Tech Spec Template]`)에 다시 적는 것은 작업자가 하는 일이다(규칙).
+   이 스킬은 Notion 페이지를 만들거나 고치지 않고, Notion MCP 쓰기 도구를 부르지 않는다. 스펙의 H2 구성은 그 템플릿과 같게 유지해 옮겨 적기 쉽게 한다
+1. 최종본 Artifact 링크(Step 4의 작업본 경로를 마지막으로 재게시한 것)와 `spec.md` 전문
+2. 사용자 결정이 필요한 항목: 스펙의 `### 결정 필요` 표(보류, 남은 blocker·major)를 콘솔에도 붙인다. HTML은 상단 배너와 본문의 `미결정` 표시로 강조된다. 없으면 생략
+3. 다음 행동 제안 최대 1줄
+
+**eng-note 모드의 매핑**: 이 스킬은 저장하지 않는다. `notion:add-engineering-note`가 호출했을 때만 아래 sections 키로 옮긴 결과를 돌려주고, 저장은 호출한 스킬이 한다.
+
+| Tech Spec | sections 키 |
+|-----------|-------------|
+| Background(문제) | `problem` |
+| Background의 원인·근거, `(원인 미확인)` 후보 | `root_cause` |
+| Key Result + 해결 가설 | `value` (`가설:` / `Key Result:` 라벨) |
+| Goal / Non-Goal | `goals` / `non_goals` |
+| 설계 및 계획의 주제별 H3, 고려해야할 것, 검증, 예상 질문 정리 | `design` (H3는 `###` 유지, 예상 질문은 `### 예상 질문`) |
+| Todo + 마일스톤 | `plan` |
+
+eng-note 모드에서는 이 매핑 결과를 호출한 스킬로 돌려주고, 호출한 스킬이 저장·출력한다(중복 출력 방지).
+
+---
+
+## 스펙 유형 (Claude 리뷰 강도 결정용)
 
 | spec_type | Spec Layer | 대표 경로 |
 |-----------|------------|----------|
@@ -362,120 +339,24 @@ Agent F 결과를 사용자에게 제시한 후:
 
 ---
 
-## 공통: 템플릿 구조
+## codex 예산
 
-```markdown
----
-## 왜 이걸 해야 하는가?           ← Phase 1 / Quick Step 3
+codex는 ChatGPT 플랜의 5시간 단위 한도와 주간 한도를 함께 쓴다(Codex, Work 등과 공유). 둘 다 남아야 호출된다.
 
-### 문제
-- (어떤 문제가 있는가)
+- 실측 기준(2026-11-23, ChatGPT Plus): 주장 15건 검증 1회(effort high, 웹 검색 약 7회)가 약 5만~11만 토큰, 평균 약 6만.
+  호출 12회(약 71만 토큰, 4개 병렬 약 5분)에 5시간 한도가 소진됐다
+- **codex 단계를 시작하기 전에** 예상 사용량을 채팅에 한 줄로 보인다: `codex 예정: <단계> <호출 수>회 × 약 6만 = 약 <N>만 토큰`.
+  이번 5시간 창 누적 예상이 약 60만을 넘으면 진행 전에 사용자에게 묻는다(사용량 화면: https://chatgpt.com/settings/usage)
+- 줄이는 순서: 주장 검증은 계획·스펙이 인용한 주장만, effort medium(인용 대조는 추론 부담이 작다) → codex 수집은 `--parallel 2`
+  → 리뷰(계획·스펙)는 effort high 유지(판단이 필요한 단계)
+- 한도에 걸리면(`codex_usage_limit (try again at HH:MM)`) 완료된 결과는 지우지 않고, 해제 시각을 알린 뒤 사용자가 고르게 한다:
+  해제 후 재개 / Claude 서브에이전트로 대체 / codex는 스펙 리뷰만
 
-### 배경
-- (왜 발생했는가, 히스토리. 측정으로 확정한 원인은 사실로, 미확인이면 `(원인 미확인)` + 원인 후보와 변별 증거)
+## 주의사항
 
-## 현재 상태와 목표                ← Phase 2 / Quick Step 3
-### Before (현재)
-### After (목표)
-### 변경 사항 (Diff)
-
-| 대상 | As-Is | To-Be |
-|------|-------|-------|
-| {파일/설정/리소스명} | {현재 값/상태} | {변경 후 값/상태} |
-
-> 코드/설정 수준의 구체적 변경이 있으면 diff 블록으로 추가:
-
-```diff
-- replicas: 2
-+ replicas: 4
-```
-
-### Non-Goals (이번에는 안 하는 것)
-### 성공 기준
-
-## 설계                           ← Phase 3 (인프라 설계만, 운영 변경은 생략 가능)
-
-### 스펙 아티팩트                  ← NEW (인프라 설계 시, ops-change는 생략)
-| 스펙 유형 | 경로 | 설명 |
-|-----------|------|------|
-| helm-chart | `kubernetes-charts/charts/xxx/` | 차트 변경 |
-| k8s-manifest | `kubernetes/src/infra/xxx/` | 매니페스트 추가 |
-
-## 왜 이 방법인가?                 ← Phase 3 / Quick Step 3
-
-### 선택 이유
-- (이 접근 방식을 선택한 핵심 근거)
-
-### 대안 및 트레이드오프
-- (대안 A: 장단점)
-- (대안 B: 장단점)
-
-## 실행 계획                       ← Phase 3 / Quick Step 3
-
-| Phase | 제목 | 산출물 |
-|-------|------|--------|
-| Phase 1 | {Phase 제목} | {예: 인프라 배포 완료} |
-| Phase 2 | {Phase 제목} | {예: 서비스 마이그레이션 완료} |
-| Phase 3 | {Phase 제목} | {예: 검증 및 완료} |
-
-### Phase 1. {Phase 제목}
-
-- [ ] 1. {구체적 액션}
-- [ ] 2. {구체적 액션}
-- [ ] 3. {구체적 액션}
-
-### Phase 2. {Phase 제목}
-
-- [ ] 1. {구체적 액션}
-- [ ] 2. {구체적 액션}
-
-### Phase 3. {Phase 제목}
-
-- [ ] 1. {구체적 액션}
-
-## 임팩트 측정                     ← Phase 3 / Quick Step 3
-
-### 해결 가설
-- (무엇을 적용하면 위 문제가 해결되는가, 한 문장. 개선 후 사람·팀이 얻는 것을 1~4 불릿으로 덧붙인다)
-
-### 검증 기준
-- (무엇이 어느 방향으로 얼마나 바뀌면 해결인가: 지표 현재값 → 목표값. 적용 직후와 결과로 나눌 수 있으면 나눈다)
-- (반증 조건: 이 관측이 나오면 가설이 틀린 것. 인프라·prod면 안 바뀔 것도 적는다)
-
-### 검증 설계
-- (필수) 무엇으로 재는가: 메트릭·쿼리·명령
-- (필수) 측정이 그 신호를 잡는가: 측정 간격 vs 이벤트 길이, 측정 범위(상태인가 실제 도착인가), 과거 구간 신호(백테스트), 기준선 측정 여부
-- (필수) 언제 판정하는가: 적용 직후 / 관찰 기간 뒤, 판정일. 판정 기회가 없을 수 있으면 대리 지표
-- (필요할 때) 어떻게 일으키는가: 백테스트, 합성 입력, dev 재현, 대조군, 제거 실험, prod 관찰
-- (필요할 때) 틀렸을 때 원인을 가를 값
-
-## 실행 기록                       ← 진행 중 notion-task.py append-content --section "실행 기록"
-> 실행 시작 후 기록
-
-## 실제 결과 (Outcome)             ← 완료 후 append-content --section "작업 결과"
-> 완료 후 작성
-```
-
----
-
-## 공통: 저장 워크플로우
-
-확정된 스펙을 Notion 업무 노트에 저장한다. 절차는 `notion:add-engineering-note` SKILL.md가 단일 출처다.
-
-1. **sections.json 작성**: 위 템플릿 구조의 각 섹션을 `notion:add-engineering-note`의 Step 3 매핑표로 sections 키에
-   옮긴다(문제·배경 → `problem`/`root_cause`, 해결 가설·검증 기준 → `value`의 `*가설:*`·`*검증 기준:*` 라벨, 검증 설계 → `goals` 첫머리 `*방법:*`, Before/After → `before`/`after`,
-   Diff → `changes`, 목표·성공 기준 → `goals`, Non-Goals → `non_goals`, 설계 + 왜 이 방법인가 → `design`,
-   실행 계획 → `plan`). 매핑표 아래의 Goals·실행 계획 작성 기준을 함께 적용한다.
-2. **노트 생성 + Task 동기화**: `notion:add-engineering-note`의 Step 4 명령을 실행한다(`notion-eng-note.py create --task`,
-   이어서 `notion-task.py update-why`).
-3. **결과 출력**: `notion:add-engineering-note`의 Step 5 형식을 따르고, 스펙 유형(`spec_type`)과 리뷰 Agent F 결과
-   요약(❌/⚠️ 건수)을 한 줄씩 덧붙인다.
-
-eng-note 모드에서 호출됐다면 이 단계의 결과를 호출한 스킬로 돌려주고, 호출한 스킬이 결과를 출력한다(중복 출력 방지).
-
----
-
-## 공통: 검증
-
-- 스크립트 응답의 `success` 필드 확인
-- `success: false`이면 에러 메시지를 사용자에게 전달
+- codex 모델은 모든 호출에서 `gpt-6.1-sol`, reasoning effort `high`가 기본값이다(`codex_review.py`, `codex_research.py`, research:deep `codex_verify.py`)
+- codex 호출은 Bash 포그라운드 한도(600초)를 넘기 쉬우므로 반드시 `run_in_background=true`로 실행한다. `codex` 셸 alias를 직접 쓰지 않는다(스크립트가 `-s read-only`로 실행)
+- 비용: Standard 1회에 research:deep(리서처 3~5개 + codex 검증), 사내 조사 Agent 0~3개, 리뷰 라운드마다 codex 1회 + Claude Agent 1개가 든다.
+  단순 운영 변경이면 Quick 모드를 권한다
+- 기존 Obsidian 스펙은 `tasks:tech-spec-ops`와 `scripts/tech-spec.py`가 다룬다(과거 문서용). 이 스킬은 Obsidian에 저장하지 않는다
+- 2026-11-23 개편 전 버전은 `~/.claude/skills-backup-tasks-tech-spec-20261123/`에 있다

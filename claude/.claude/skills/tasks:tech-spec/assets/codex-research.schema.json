@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "findings", "gaps"],
+  "properties": {
+    "summary": {"type": "string", "description": "서브질문에 대한 답 3~5문장"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "quote", "url", "source_title", "source_kind", "version_or_date"],
+        "properties": {
+          "claim": {"type": "string", "description": "한 가지 사실만 담은 주장(한국어). quote가 말하는 범위까지만"},
+          "quote": {"type": "string", "description": "원문에서 한 글자도 바꾸지 않고 복사한 문장(원문 언어 그대로)"},
+          "url": {"type": "string", "description": "quote가 있는 페이지의 정확한 URL. 코드는 raw.githubusercontent.com URL"},
+          "source_title": {"type": "string"},
+          "source_kind": {"type": "string", "enum": ["official", "code", "blog", "paper"]},
+          "version_or_date": {"type": "string", "description": "대상 버전 또는 게시일, 모르면 빈 문자열"}
+        }
+      }
+    },
+    "gaps": {"type": "array", "items": {"type": "string"}, "description": "찾지 못한 핵심 질문"}
+  }
+}
