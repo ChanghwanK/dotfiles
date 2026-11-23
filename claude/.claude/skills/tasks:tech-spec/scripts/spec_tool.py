@@ -137,6 +137,8 @@ def lint_text(text: str) -> dict:
         errors.append("Goals & KeyResult에 `**Goal**` 불릿이 없다")
     if "**Key Result**" not in gk:
         errors.append("Goals & KeyResult에 `**Key Result**` 불릿이 없다")
+    elif not re.search(r"^\s+- KR\d+\. ", gk, re.M):
+        warnings.append("Key Result가 `KRn. ...` 헤드라인 형식이 아니다(task:keyresult)")
     todo_key = next((k for k in sec if k.startswith("설계 및 계획 > ") and k.endswith("Todo")), None)
     if not todo_key:
         errors.append("설계 및 계획에 `### Todo`가 없다")
@@ -163,6 +165,14 @@ def lint_text(text: str) -> dict:
         dec_rows = max(0, len([l for l in sec[dec_key].splitlines() if l.startswith("|")]) - 2)
         if not dec_rows:
             errors.append("`### 결정 필요`에 표 행이 없다")
+        head = next((l for l in sec[dec_key].splitlines() if l.startswith("|")), "")
+        if [c.strip() for c in head.strip().strip("|").split("|")] != DECISION_COLS:
+            errors.append(f"`### 결정 필요` 표 머리글은 {DECISION_COLS}여야 한다")
+        for l in sec[dec_key].splitlines():
+            if re.match(r"^\|\s*\d+\s*\|", l):
+                c = [x.strip() for x in l.strip().strip("|").split("|")]
+                if len(c) > 2 and c[2] not in ("필수", "필수 아님"):
+                    errors.append(f"결정 {c[0]}번의 필수 칸은 `필수` 또는 `필수 아님`이어야 한다(현재 `{c[2]}`)")
         nums = {l.split("|")[1].strip() for l in sec[dec_key].splitlines() if re.match(r"^\|\s*\d+\s*\|", l)}
         explained = set(re.findall(r"<summary>\s*(\d+)\.", sec[dec_key]))
         if nums - explained:
@@ -250,6 +260,7 @@ def render_markdown(md_text: str) -> tuple[str, str]:
 
 
 DECISION_ID = "결정-필요"
+DECISION_COLS = ["#", "결정", "필수", "선택지", "추천", "판단 기준"]
 
 
 def mark_decisions(body: str) -> str:
@@ -398,9 +409,58 @@ def cmd_render(a) -> int:
             .replace("{{BODY}}", body).replace("{{FOOTER}}", footer))
     dest = run / (a.out or "spec.html")
     dest.write_text(page, encoding="utf-8")
+    is_spec = bool(objective)  # 브리핑처럼 Objective가 없는 문서는 스펙 전용 검사를 건너뛴다
+    structure = check_html_structure(page, text if is_spec else "", is_spec)
     out({"html": str(dest), "bytes": dest.stat().st_size, "title": title, "objective": bool(objective),
-         "images_embedded": embedded, "images_missing": missing})
-    return 0
+         "images_embedded": embedded, "images_missing": missing, "structure": structure})
+    return 0 if structure["ok"] else 1
+
+
+def check_html_structure(page: str, md_text: str, is_spec: bool) -> dict:
+    """HTML 정본 구조(spec-format.md "HTML 출력 구조")를 검사한다. 템플릿이나 렌더가 바뀌어 구조가 깨지면 잡는다."""
+    errors = []
+    if "{{" in page:
+        errors.append("치환되지 않은 템플릿 자리표시자가 남았다")
+    if "max-width: none" not in page:
+        errors.append("전체 폭 레이아웃(.page max-width: none)이 아니다")
+    order = ["<h1>", '<nav class="toc"', '<article class="doc">', "<footer>"]
+    if is_spec:
+        order.insert(1, '<div class="objective">')
+    pos = [page.find(t) for t in order]
+    if any(x < 0 for x in pos):
+        errors.append(f"필수 블록이 없다: {[t for t, x in zip(order, pos) if x < 0]}")
+    elif pos != sorted(pos):
+        errors.append("블록 순서가 H1 → Objective → 목차 → 본문 → footer가 아니다")
+    toc = re.search(r'<nav class="toc".*?</nav>', page, flags=re.S)
+    toc_links = len(re.findall(r"<a href=", toc.group(0))) if toc else 0
+    if toc_links < 3:
+        errors.append(f"목차 링크가 {toc_links}개뿐이다")
+    stats = {"toc_links": toc_links}
+    if is_spec:
+        missing_h2 = [h for h in H2_FIXED if f">{html.escape(h)}</a>" not in (toc.group(0) if toc else "")]
+        if missing_h2:
+            errors.append(f"목차에 고정 H2가 빠졌다: {missing_h2}")
+        sec = sections(md_text)
+        dec_key = next((k for k in sec if k.startswith("설계 및 계획 > ") and k.endswith("결정 필요")), None)
+        if dec_key:
+            rows = [l for l in sec[dec_key].splitlines() if re.match(r"^\|\s*\d+\s*\|", l)]
+            details = len(re.findall(r'<tr class="decide-detail"', page))
+            buttons = len(re.findall(r'class="detail-btn"', page))
+            stats.update({"decision_rows": len(rows), "detail_rows": details})
+            banner = page.find('<a class="decide-banner"')
+            if banner < 0:
+                errors.append("결정 필요 배너가 없다")
+            elif not (page.find('<nav class="toc"') < banner < page.find('<article class="doc">')):
+                errors.append("결정 필요 배너가 목차와 본문 사이에 있지 않다")
+            if "decide-table" not in page.split("</style>", 1)[-1]:
+                errors.append("결정 필요 표가 강조 표(decide-table)로 렌더되지 않았다")
+            if details != len(rows) or buttons != len(rows):
+                errors.append(f"결정 {len(rows)}건 중 상세 보기 행 {details}개, 버튼 {buttons}개다(항목마다 <details><summary>N. ...</summary> 필요)")
+            if details and "detail-btn" not in page.split("<script>", 1)[-1]:
+                errors.append("상세 보기 토글 스크립트가 없다")
+            if any("| 필수 |" in l for l in rows) and 'chip red">필수<' not in page:
+                errors.append("필수 칩이 렌더되지 않았다")
+    return {"ok": not errors, "errors": errors, "stats": stats}
 
 
 # ---------------------------------------------------------------- snapshot / diff
@@ -448,6 +508,24 @@ def adjudicated_ids(run: Path) -> dict[str, set[str]]:
     return res
 
 
+def duplicate_candidates(files: list[Path]) -> list[list[str]]:
+    """서로 다른 리뷰어가 같은 섹션에서 같은 원문·문제를 짚은 지적 쌍(판정을 한 번에 하기 위한 후보)."""
+    items = []
+    for f in files:
+        try:
+            for it in json.loads(f.read_text(encoding="utf-8")).get("issues", []):
+                words = set(re.findall(r"[\w가-힣]{2,}", f"{it.get('quote', '')} {it.get('problem', '')}"))
+                items.append((f.name.split("-", 1)[0], it.get("id", ""), it.get("section", "").split(" > ")[0], words))
+        except json.JSONDecodeError:
+            continue
+    pairs = []
+    for i, (r1, id1, s1, w1) in enumerate(items):
+        for r2, id2, s2, w2 in items[i + 1:]:
+            if r1 != r2 and s1 == s2 and w1 and w2 and len(w1 & w2) / min(len(w1), len(w2)) >= 0.35:
+                pairs.append([id1, id2])
+    return pairs
+
+
 def cmd_reviews(a) -> int:
     run = run_path(a.run_dir)
     files = sorted((run / "reviews").glob(f"*-{a.stage}-r{a.round}.json"))
@@ -485,6 +563,7 @@ def cmd_reviews(a) -> int:
     open_bm = sum(r.get("open_after_adjudication", {}).get("blocker", 0) + r.get("open_after_adjudication", {}).get("major", 0)
                   for r in table)
     out({"stage": a.stage, "round": a.round, "reviewers": table, "undecided_ids": undecided,
+         "likely_duplicates": duplicate_candidates(files),
          "expected_questions": questions, "open_blocker_major": open_bm,
          "converged": open_bm == 0 and not any("error" in r for r in table)})
     return 0

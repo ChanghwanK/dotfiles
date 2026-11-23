@@ -44,7 +44,10 @@ Step 0 범위·실행 폴더 → Step 1 자료 수집(research:deep ∥ codex �
 - **두 리뷰어는 서로 다른 눈이다.** codex는 공개 문서·사실 정확성(웹 검색 가능, read-only), Claude 서브에이전트는 사내 맥락·논리 연결·Day-2.
   둘 다 블라인드로 부른다: 파일 경로만 주고 Claude의 결론·기대 판정을 주지 않는다
 - **리뷰 지적은 하나도 흘리지 않는다.** 모든 issue id를 `adjudication.md`에 `수용 / 기각 / 보류`로 판정한다. 기각은 근거(파일:줄, claim id, 측정)가
-  있을 때만 하고, 수렴을 위해 기각하지 않는다. 보류는 사용자 결정이 필요한 것이며 스펙에 `(미결정)`으로 드러낸다
+  있을 때만 하고, 수렴을 위해 기각하지 않는다. 보류는 사용자 결정이 필요한 것이며 스펙에 `(미결정)`과 `### 결정 필요` 표 행으로 드러낸다
+- **수용도 검증한다.** 리뷰어의 `fix`는 제안이지 근거가 아니다. 사실·메커니즘을 바꾸는 blocker·major는 반영 전에 리서치 원문(`sources/*.txt`,
+  `claims.jsonl`)이나 공식 문서를 직접 대조하고, 판정 근거 칸에 대조한 출처를 쓴다. 대조할 수 없으면 수용하지 말고 보류한다
+  (2026-11-23 PgBouncer 실행: 73건 중 기각 0건이었고, r1에서 원문 대조 없이 수용한 SIGINT 종료 수정이 r2에서 틀린 것으로 드러났다)
 - **근거가 없는 사실은 쓰지 않는다.** 외부 사실은 research:deep에서 검증된 주장(SUPPORTED, 조건 반영한 PARTIAL)만, 사내 사실은 조회한
   측정·파일만 근거로 쓴다. 원인을 측정하지 못했으면 `(원인 미확인)`
 - **산출물은 실행 폴더에 남긴다.** `~/.claude/tech-spec-runs/<날짜>-<slug>/`: `plan.md`, `context/`, `research/`(링크), `spec.md`,
@@ -187,7 +190,7 @@ cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목�
    python3 $S reviews {run_dir} --stage plan --round 1
    ```
 3. 각 issue를 읽고 `adjudication.md`에 `issue_id | 수용 / 기각 / 보류 | 근거 또는 반영 위치`로 한 줄씩 쓴다. 다시 `reviews`를 돌려 `undecided_ids`가 비었는지 확인한다
-4. 수용한 지적을 `plan.md`에 반영한다
+4. 수용한 지적을 `plan.md`에 반영한다. `reviews` 출력의 `likely_duplicates` 쌍은 한 번에 판정한다(둘째 id 근거에 `중복: <첫 id>`)
    - "자료 공백" 지적: 사내 사실이면 해당 Agent를 1회 다시 띄우고, 외부 사실이면 research:deep 실행 폴더에서 `codex_verify.py claims --only`로
      추가 주장을 검증하거나 `research` 스킬로 보충한다. 추가 수집은 1라운드까지만 한다
    - `expected_questions`는 `plan.md` 끝에 모아 둔다(Step 3에서 예상 질문 정리로 옮긴다)
@@ -223,7 +226,8 @@ cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목�
 **첫 출력은 초안이다.** Step 3-4의 `spec-draft.html`을 초안 전용 경로(`<scratchpad>/<slug>-tech-spec-draft.html`)로 따로 게시하고,
 콘솔에 초안 전문을 붙인다. 초안 Artifact는 이후 다시 게시하지 않는다(리뷰 전 상태를 보존). 아래는 리뷰 반영본(작업본)의 출력이다.
 
-1. 렌더한다. `--round`에는 마지막으로 반영한 스펙 리뷰 라운드를 넣는다(첫 출력은 0)
+1. 렌더한다. `--round`에는 마지막으로 반영한 스펙 리뷰 라운드를 넣는다(첫 출력은 0). HTML은 이 명령만 만든다(손으로 쓰거나 고치지 않는다).
+   출력의 `structure.ok`가 false면 `structure.errors`대로 `spec.md`를 고쳐 다시 렌더한다. 구조 정본은 `assets/spec-format.md` "HTML 출력 구조"
    ```bash
    python3 $S render {run_dir} --round <N>
    ```
@@ -254,7 +258,7 @@ cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목�
    ```
    ```
    Agent(subagent_type="general-purpose", run_in_background=true, description="Spec review r<N>",
-         prompt=<$SK/agents/agent-spec-review.md를 Read해 {run_dir}, {round}=N, {spec_type}, {repo_path} 치환>)
+         prompt=<$SK/agents/agent-spec-review.md를 Read해 {run_dir}, {round}=N, {prev}=N-1, {spec_type}, {repo_path} 치환. N=1이면 1.5절을 지운다>)
    ```
    `spec_type`은 아래 "스펙 유형" 표에서 고른다
 3. 집계한다
@@ -271,8 +275,11 @@ cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목�
    - N이 최대 라운드(Standard 3, Quick 2)면: 수용한 지적을 반영하고 Step 7로 간다. 남은 blocker·major를 Step 7에 명시한다
    - 이번 라운드에 수용한 지적이 0건이면(같은 지적만 반복됨): Step 7로 간다
    - 그 외: 계속
-3. 수용한 지적을 `spec.md`에 반영한다. 보류는 해당 위치에 `(미결정)`과 선택지·판단 기준으로 쓰고, `expected_questions`는 예상 질문 정리에 합친다(중복 제거)
-4. `lint` → `render --round <N>` → 같은 경로로 재게시 → 콘솔에 diff 출력(Step 4의 중간 라운드 형식)
+3. 수용한 지적을 `spec.md`에 반영한다. `likely_duplicates` 쌍은 한 번에 판정한다. 보류는 해당 위치에 `(미결정)`과 선택지·판단 기준으로 쓰고,
+   `### 결정 필요` 표에 행(필수 / 필수 아님)과 상세 설명(`<details><summary>N. ...`)을 더한다. `expected_questions`는 예상 질문 정리에 합친다(중복 제거)
+4. `lint` → `render --round <N>`(`structure.ok` 확인) → 같은 경로로 재게시 → 콘솔에 diff 출력(Step 4의 중간 라운드 형식)
+   - 최대 라운드에서 끝나 마지막 수정이 다시 리뷰되지 않았으면, 마지막 라운드에서 수용한 blocker·major 수정만 Claude 서브에이전트(sonnet)로
+     "직전 수정 검증"(agent-spec-review.md 1.5)을 한 번 더 돌린다. codex는 부르지 않는다
 5. N+1로 Step 5를 다시 한다
 
 ---

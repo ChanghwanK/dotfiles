@@ -43,7 +43,9 @@ def main() -> int:
         return 1
     (run / "reviews").mkdir(exist_ok=True)
     prompt = (ASSETS / f"codex-{a.stage}-review-prompt.md").read_text(encoding="utf-8")
-    prompt = prompt.replace("{round}", str(a.round))
+    prompt = prompt.replace("{round}", str(a.round)).replace("{prev}", str(a.round - 1))
+    if a.round < 2:  # 첫 라운드에는 직전 수정 검증 문단을 뺀다
+        prompt = re.sub(r"\nRound 2 and later:.*?\n(?=\n)", "\n", prompt, flags=re.S)
     outp = run / "reviews" / f"codex-{a.stage}-r{a.round}.json"
     log = outp.with_suffix(".log")
 

@@ -7,6 +7,8 @@ Files in the working directory:
 - `research/` (may be absent): deep-research run on public sources (`final.md`, `claims.jsonl`, `verdicts/*.json`, `sources/*.txt`).
 - `adjudication.md`: earlier review issues and whether the author accepted or rejected them, with reasons. Do not re-raise a rejected issue unless you have new evidence; if you do, say what is new.
 
+Round 2 and later: `history/spec-r{prev}.md` is the version reviewed in the previous round and `adjudication.md` lists the issues the author accepted. Before anything else, compare it with `spec.md` and check every change made for an accepted issue: is the new statement correct against the research sources or official documentation, and did it break another section? A wrong fix to a mechanism a main decision rests on is a `blocker`. Put these findings first, with "직전 수정 검증" at the start of `problem`.
+
 Read the spec backwards and report a problem when a link breaks:
 - Todo and milestones: does each action follow from the design? Is each item small enough to execute (one PR, one command, one file)? Is the order consistent with dependencies?
 - Design: does it reach the Goals? For every decision, is there a hypothesis, evidence (claim id, measurement, path) and a rejected alternative? Is every undecided point marked `(미결정)` with the options and the criterion that will decide it, instead of being silently assumed?
@@ -20,6 +22,7 @@ Also report:
 - Over-engineering: a generic framework for one user, a new tool where the existing stack already does the job, scope beyond the stated Goals.
 - Questions the 예상 질문 정리 section should answer but does not.
 - Format breaks: H2 names or order differ from the fixed list, no Objective callout, no `### Todo` checkbox list. Report these as `major`.
+- An undecided point (`(미결정)`) that is missing from the `### 결정 필요` table, or a table row whose explanation (`<details><summary>N. ...`) does not tell a reader new to the topic what is being decided, what each option changes, and why the recommendation (or why there is none).
 
 Severity:
 - `blocker`: a factual error or broken mechanism a main decision rests on; a goal that does not close the problem; an irreversible production step without a rollback.
