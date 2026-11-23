@@ -354,14 +354,16 @@ codex는 ChatGPT 플랜의 5시간 단위 한도와 주간 한도를 함께 쓴�
   호출 12회(약 71만 토큰, 4개 병렬 약 5분)에 5시간 한도가 소진됐다
 - **codex 단계를 시작하기 전에** 예상 사용량을 채팅에 한 줄로 보인다: `codex 예정: <단계> <호출 수>회 × 약 6만 = 약 <N>만 토큰`.
   이번 5시간 창 누적 예상이 약 60만을 넘으면 진행 전에 사용자에게 묻는다(사용량 화면: https://chatgpt.com/settings/usage)
-- 줄이는 순서: 주장 검증은 계획·스펙이 인용한 주장만, effort medium(인용 대조는 추론 부담이 작다) → codex 수집은 `--parallel 2`
-  → 리뷰(계획·스펙)는 effort high 유지(판단이 필요한 단계)
+- 기본 effort: codex 독립 수집은 medium(검색·인용 수집 위주라 추론 부담이 작다. 2026-11-23 PgBouncer 실행에서 수집이 codex 사용량의 59%, 약 118만 토큰),
+  주장 검증은 계획·스펙이 인용한 주장만 medium, 수집 상호 검토와 리뷰(계획·스펙)는 high(판단이 필요한 단계)
+- 더 줄여야 하면: codex 수집 `--parallel 2` → 수집 대상 서브질문을 `--only`로 좁힌다
 - 한도에 걸리면(`codex_usage_limit (try again at HH:MM)`) 완료된 결과는 지우지 않고, 해제 시각을 알린 뒤 사용자가 고르게 한다:
   해제 후 재개 / Claude 서브에이전트로 대체 / codex는 스펙 리뷰만
 
 ## 주의사항
 
-- codex 모델은 모든 호출에서 `gpt-6.1-sol`, reasoning effort `high`가 기본값이다(`codex_review.py`, `codex_research.py`, research:deep `codex_verify.py`)
+- codex 모델은 모든 호출에서 `gpt-6.1-sol`이 기본값이다. reasoning effort 기본값은 리뷰(`codex_review.py`)와 수집 상호 검토(`codex_research.py cross-review`)가 `high`,
+  독립 수집(`codex_research.py collect`)이 `medium`이다. 주장 검증(research:deep `codex_verify.py`)은 위 절차대로 `--effort medium`을 넘긴다
 - codex 호출은 Bash 포그라운드 한도(600초)를 넘기 쉬우므로 반드시 `run_in_background=true`로 실행한다. `codex` 셸 alias를 직접 쓰지 않는다(스크립트가 `-s read-only`로 실행)
 - 비용: Standard 1회에 research:deep(리서처 3~5개 + codex 검증), 사내 조사 Agent 0~3개, 리뷰 라운드마다 codex 1회 + Claude Agent 1개가 든다.
   단순 운영 변경이면 Quick 모드를 권한다

@@ -9,7 +9,7 @@
   <research_run>/codex/collect-<qN>.json   findings(주장·원문 인용·URL), gaps
   <research_run>/codex/cross-review.json  Claude 자료의 오류·공백
 - collect는 <research_run>/codex/ws-<qN>/ 빈 작업 폴더에서 실행해 Claude 자료를 보지 않게 한다(독립 수집)
-- 항상 `-s read-only --ephemeral`, 셸 alias를 거치지 않는다. 기본 모델 gpt-6.1-sol, effort high
+- 항상 `-s read-only --ephemeral`, 셸 alias를 거치지 않는다. 기본 모델 gpt-6.1-sol, effort는 collect medium, cross-review high
 
 stdlib only.
 """
@@ -114,7 +114,7 @@ def cmd_cross_review(a) -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--model", default="gpt-6.1-sol")
-    p.add_argument("--effort", default="high")
+    p.add_argument("--effort", default="", help="기본: collect는 medium(검색·인용 위주), cross-review는 high(판단)")
     p.add_argument("--timeout", type=int, default=2400)
     sub = p.add_subparsers(dest="mode", required=True)
     s = sub.add_parser("collect")
@@ -127,6 +127,8 @@ def main() -> int:
     s.add_argument("research_run")
     s.set_defaults(func=cmd_cross_review)
     a = p.parse_args()
+    if not a.effort:
+        a.effort = "medium" if a.mode == "collect" else "high"
     return a.func(a)
 
 
