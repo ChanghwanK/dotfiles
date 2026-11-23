@@ -28,7 +28,7 @@ allowed-tools:
 Step 0 범위·실행 폴더 → Step 1 자료 수집(research:deep ∥ codex 독립 수집 → 상호 검토·보완, + 사내 조사) → 1차 계획
 → Step 2 codex·Claude 자료/계획 리뷰 → 계획 보강
 → Step 3 Tech Spec 작성(고정 H2) → Step 4 HTML + 콘솔 출력
-→ Step 5 codex·Claude 스펙 리뷰 → Step 6 판정·반영 후 Step 4로(수렴할 때까지) → Step 7 마무리
+→ Step 5 codex·Claude 스펙 리뷰 → 교차 검증(서로의 blocker·major 타당성) → Step 6 판정·반영 후 Step 4로(수렴할 때까지) → Step 7 마무리
 ```
 
 `S=/Users/changhwan/.claude/skills/tasks:tech-spec/scripts/spec_tool.py`
@@ -42,7 +42,10 @@ Step 0 범위·실행 폴더 → Step 1 자료 수집(research:deep ∥ codex �
 - **포맷 정본은 `assets/spec-format.md`다.** H2 다섯 개(Background, Goals & KeyResult, 설계 및 계획, 예상 질문 정리, 마일스톤)와
   Objective 콜아웃만 고정이고 H3 이하는 주제에 맞게 짓는다. `spec_tool.py lint`가 검사한다
 - **두 리뷰어는 서로 다른 눈이다.** codex는 공개 문서·사실 정확성(웹 검색 가능, read-only), Claude 서브에이전트는 사내 맥락·논리 연결·Day-2.
-  둘 다 블라인드로 부른다: 파일 경로만 주고 Claude의 결론·기대 판정을 주지 않는다
+  리뷰할 때는 메인 Claude의 결론(문서, `adjudication.md`의 판정과 근거)은 주고, 기대 판정이나 "이 부분은 괜찮다" 같은 자기 평가는 주지 않는다.
+  리뷰어끼리는 1차 리뷰에서 서로의 결과를 보지 않고(독립성), 교차 검증에서 서로의 blocker·major를 검토한다
+- **어느 쪽 지적도 그대로 받지 않는다.** 1차 리뷰 뒤 교차 검증에서 상대 리뷰어가 blocker·major마다 valid / partial / invalid를 근거와 함께 낸다.
+  메인 Claude는 그 결과와 원문 대조로 판정한다
 - **리뷰 지적은 하나도 흘리지 않는다.** 모든 issue id를 `adjudication.md`에 `수용 / 기각 / 보류`로 판정한다. 기각은 근거(파일:줄, claim id, 측정)가
   있을 때만 하고, 수렴을 위해 기각하지 않는다. 보류는 사용자 결정이 필요한 것이며 스펙에 `(미결정)`과 `### 결정 필요` 표 행으로 드러낸다
 - **수용도 검증한다.** 리뷰어의 `fix`는 제안이지 근거가 아니다. 사실·메커니즘을 바꾸는 blocker·major는 반영 전에 리서치 원문(`sources/*.txt`,
@@ -189,6 +192,7 @@ cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목�
    ```bash
    python3 $S reviews {run_dir} --stage plan --round 1
    ```
+   이어서 "교차 검증"(Step 5 아래)을 stage `plan`으로 한다
 3. 각 issue를 읽고 `adjudication.md`에 `issue_id | 수용 / 기각 / 보류 | 근거 또는 반영 위치`로 한 줄씩 쓴다. 다시 `reviews`를 돌려 `undecided_ids`가 비었는지 확인한다
 4. 수용한 지적을 `plan.md`에 반영한다. `reviews` 출력의 `likely_duplicates` 쌍은 한 번에 판정한다(둘째 id 근거에 `중복: <첫 id>`)
    - "자료 공백" 지적: 사내 사실이면 해당 Agent를 1회 다시 띄우고, 외부 사실이면 research:deep 실행 폴더에서 `codex_verify.py claims --only`로
@@ -266,10 +270,32 @@ cross-AZ·NAT·다른 팀 서비스 영향, 더 적은 변경으로 같은 목�
    python3 $S reviews {run_dir} --stage spec --round <N>
    ```
    한 리뷰어가 실패하면(codex usage limit, 타임아웃) 1회 재시도하고, 그래도 실패하면 남은 리뷰어 결과로 진행하되 Step 7 출력에 명시한다
+4. 아래 "교차 검증"을 한 뒤 Step 6으로 간다
+
+### 교차 검증 (계획·스펙 리뷰 공통, 1차 리뷰 집계 직후)
+
+서로의 blocker·major 지적이 타당한지 상대 리뷰어가 검토한다. 두 작업을 **한 메시지에서 동시에** 띄우고 완료 알림을 기다린다.
+```bash
+python3 $C <stage> {run_dir} --round <N> --xcheck      # codex가 Claude 지적을 검토, Bash run_in_background=true
+```
+```
+Agent(subagent_type="general-purpose", run_in_background=true, description="Cross-check r<N>",
+      prompt=<$SK/agents/agent-crosscheck.md를 Read해 {run_dir}, {stage}, {round}=N, {repo_path} 치환>)   # Claude가 codex 지적을 검토
+```
+- 결과: `reviews/xcheck/<검토자>-<stage>-rN.json`. 다시 `reviews`를 돌리면 `cross_check`에 판정별 건수, 이견(`disputed`), 빠진 검토(`not_assessed`)가 나온다
+- 판정 규칙
+  - `valid`: 원문 대조가 맞으면 수용
+  - `partial`: 지적은 수용하되 반영은 `corrected_fix`와 원래 수정안 중 원문이 지지하는 쪽으로 한다
+  - `invalid`: 그대로 수용하지 않는다. 원문을 직접 대조해 검토자가 맞으면 기각, 원 지적이 맞으면 판정 근거에 검토자가 틀린 이유를 쓰고 수용,
+    가를 수 없으면 보류(결정 필요 표로)
+  - 판정 근거 칸에 교차 검증 결과를 함께 쓴다(예: `수용 | xcheck partial, corrected_fix 채택, sources/s12.txt 대조`)
+- 생략: 한쪽 리뷰어가 실패했거나, 양쪽 모두 blocker·major가 0건이면 건너뛴다(`--xcheck`는 대상이 없으면 바로 끝난다).
+  `likely_duplicates`로 두 리뷰어가 같은 문제를 짚은 쌍은 서로 확인된 것으로 보고 검토 대상에서 뺄 수 있다
+- codex 예산: 교차 검증 1회는 리뷰 1회보다 작다(대상이 blocker·major뿐, 측정 전 추정 약 5만~10만 토큰). 시작 전 예상을 한 줄로 알린다
 
 ## Step 6: 판정·반영 루프
 
-1. 모든 issue id를 `adjudication.md`에 판정한다(핵심 원칙의 기준). `reviews`를 다시 돌려 `undecided_ids`가 빈 것을 확인한다
+1. 모든 issue id를 `adjudication.md`에 판정한다(핵심 원칙의 기준, 교차 검증의 판정 규칙). `reviews`를 다시 돌려 `undecided_ids`가 빈 것을 확인한다
 2. **종료 판정** (`reviews` 출력 기준)
    - `converged: true`(기각·보류를 뺀 blocker+major가 0)이면: 수용한 minor만 반영하고 Step 7로 간다
    - N이 최대 라운드(Standard 3, Quick 2)면: 수용한 지적을 반영하고 Step 7로 간다. 남은 blocker·major를 Step 7에 명시한다

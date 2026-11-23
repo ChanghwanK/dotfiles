@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "assessments"],
+  "properties": {
+    "summary": {"type": "string", "description": "검토한 건수와 타당하지 않다고 본 지적의 요지 1~3문장"},
+    "assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "verdict", "reason", "evidence", "corrected_fix"],
+        "properties": {
+          "id": {"type": "string", "description": "검토한 지적의 id 그대로"},
+          "verdict": {"type": "string", "enum": ["valid", "partial", "invalid"],
+                      "description": "valid: 문제가 실재하고 수정안도 맞다. partial: 문제는 실재하지만 수정안이 틀렸거나 모자라다. invalid: 문제가 실재하지 않거나 근거가 틀렸다"},
+          "reason": {"type": "string", "description": "판단 이유. 지적의 어느 주장이 맞고 틀린지"},
+          "evidence": {"type": "string", "description": "직접 연 근거: 파일 경로와 줄, URL, claim id와 원문 인용"},
+          "corrected_fix": {"type": "string", "description": "partial이면 고친 수정안, 그 외에는 빈 문자열"}
+        }
+      }
+    }
+  }
+}

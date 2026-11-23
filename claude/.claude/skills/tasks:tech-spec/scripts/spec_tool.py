@@ -508,6 +508,35 @@ def adjudicated_ids(run: Path) -> dict[str, set[str]]:
     return res
 
 
+def cross_check_summary(run: Path, files: list[Path], stage: str, rnd: int) -> dict:
+    """reviews/xcheck/<검토자>-<stage>-rN.json: 다른 리뷰어의 blocker·major 지적을 valid/partial/invalid로 본 결과."""
+    targets = {}
+    for f in files:
+        try:
+            for it in json.loads(f.read_text(encoding="utf-8")).get("issues", []):
+                if it.get("severity") in ("blocker", "major") and it.get("id"):
+                    targets[it["id"]] = f.name.split("-", 1)[0]
+        except json.JSONDecodeError:
+            continue
+    verdicts: dict[str, dict] = {}
+    for f in sorted((run / "reviews" / "xcheck").glob(f"*-{stage}-r{rnd}.json")):
+        checker = f.name.split("-", 1)[0]
+        try:
+            for it in json.loads(f.read_text(encoding="utf-8")).get("assessments", []):
+                verdicts[it.get("id", "")] = {"by": checker, "verdict": it.get("verdict"), "reason": it.get("reason", ""),
+                                              "corrected_fix": it.get("corrected_fix", "")}
+        except json.JSONDecodeError:
+            continue
+    if not verdicts:
+        return {"done": False, "targets": len(targets)}
+    count = {"valid": 0, "partial": 0, "invalid": 0}
+    for v in verdicts.values():
+        count[v["verdict"]] = count.get(v["verdict"], 0) + 1
+    return {"done": True, "targets": len(targets), "assessed": len(verdicts), "by_verdict": count,
+            "disputed": {k: v for k, v in verdicts.items() if v["verdict"] in ("partial", "invalid")},
+            "not_assessed": sorted(k for k in targets if k not in verdicts)}
+
+
 def duplicate_candidates(files: list[Path]) -> list[list[str]]:
     """서로 다른 리뷰어가 같은 섹션에서 같은 원문·문제를 짚은 지적 쌍(판정을 한 번에 하기 위한 후보)."""
     items = []
@@ -564,6 +593,7 @@ def cmd_reviews(a) -> int:
                   for r in table)
     out({"stage": a.stage, "round": a.round, "reviewers": table, "undecided_ids": undecided,
          "likely_duplicates": duplicate_candidates(files),
+         "cross_check": cross_check_summary(run, files, a.stage, a.round),
          "expected_questions": questions, "open_blocker_major": open_bm,
          "converged": open_bm == 0 and not any("error" in r for r in table)})
     return 0
