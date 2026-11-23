@@ -357,7 +357,7 @@ TODOS_PROP = "Todo's"
 JIRA_BROWSE = "https://riiid-pioneer.atlassian.net/browse/"
 
 
-def todo_block_rich(text, link=None, children=None):
+def todo_block_rich(text, link=None, children=None, checked=False):
     """to_do 블록. link(Jira 키)가 있으면 글 끝에 링크 텍스트로 붙이고, children은 하위 to_do로 넣는다."""
     rich = [{"type": "text", "text": {"content": text}}]
     if link:
@@ -365,7 +365,7 @@ def todo_block_rich(text, link=None, children=None):
         label = link.rsplit("/", 1)[-1]
         rich += [{"type": "text", "text": {"content": "  "}},
                  {"type": "text", "text": {"content": label, "link": {"url": url}}}]
-    block = {"object": "block", "type": "to_do", "to_do": {"rich_text": rich, "checked": False}}
+    block = {"object": "block", "type": "to_do", "to_do": {"rich_text": rich, "checked": bool(checked)}}
     if children:
         block["to_do"]["children"] = [todo_block_rich(c["text"]) for c in children if c.get("text", "").strip()]
     return block
@@ -407,7 +407,7 @@ def cmd_append_todos(args):
         (skipped if norm(e["text"]) in already_written else new_entries).append(e)
         already_written.add(norm(e["text"]))
 
-    blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children")) for e in new_entries]
+    blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked) for e in new_entries]
     if args.parent_block:
         top_ids = {n["id"].replace("-", "") for n in todos["nodes"] if n["type"] == "to_do"}
         if args.parent_block.replace("-", "") not in top_ids:
@@ -457,6 +457,59 @@ def cmd_list_todo_parents(args):
     print(json.dumps({"success": True, "parents": parents}, ensure_ascii=False, indent=2))
 
 
+def todo_nodes_with_ids(nodes, depth=0):
+    """Todos 칸의 to_do를 모든 깊이에서 (id, text, checked, depth)로 편다."""
+    out = []
+    for n in nodes:
+        if n["type"] == "to_do" and n["text"].strip():
+            out.append({"id": n["id"], "text": n["text"].strip(), "checked": bool(n["checked"]), "depth": depth})
+        out.extend(todo_nodes_with_ids(n.get("children", []), depth + 1))
+    return out
+
+
+def load_todos_section(token, page_id):
+    _, sections = parse_body(fetch_tree(token, page_id))
+    todos = sections.get("Todos")
+    if not todos:
+        print(json.dumps({"success": False, "error": "본문에 Todos 칸이 없습니다"}, ensure_ascii=False))
+        sys.exit(1)
+    return todos
+
+
+def cmd_list_todos(args):
+    """Todos 칸의 할 일을 모든 깊이에서 id와 함께 출력한다. 보드 완료 체크를 일지 할 일과 맞출 때 쓴다."""
+    token = get_token()
+    todos = load_todos_section(token, args.page_id)
+    print(json.dumps({"success": True, "todos": todo_nodes_with_ids(todos["nodes"])}, ensure_ascii=False, indent=2))
+
+
+def cmd_check_todos(args):
+    """Todos 칸의 to_do 블록 체크 상태를 바꾼다. 글은 건드리지 않고 checked만 PATCH한다.
+
+    - --block-ids: list-todos의 id 배열. Todos 칸 안의 to_do가 아니면 쓰지 않고 실패한다
+    - --uncheck: 체크를 해제한다 (보드에서 완료를 되돌렸을 때)
+    이미 원하는 상태인 블록은 건너뛰어 다시 실행해도 같은 결과다.
+    """
+    token = get_token()
+    want = not args.uncheck
+    ids = [str(x).replace("-", "") for x in json.loads(args.block_ids) if str(x).strip()]
+    by_id = {t["id"].replace("-", ""): t for t in todo_nodes_with_ids(load_todos_section(token, args.page_id)["nodes"])}
+    unknown = [i for i in ids if i not in by_id]
+    if unknown:
+        print(json.dumps({"success": False, "error": "Todos 칸의 할 일이 아닌 id가 있어 아무것도 쓰지 않았습니다",
+                          "unknown": unknown}, ensure_ascii=False))
+        sys.exit(1)
+    changed = [by_id[i] for i in ids if by_id[i]["checked"] != want]
+    unchanged = [by_id[i] for i in ids if by_id[i]["checked"] == want]
+    if not args.dry_run:
+        for t in changed:
+            notion_request(token, "PATCH", f"/blocks/{t['id']}", {"to_do": {"checked": want}})
+    print(json.dumps({"success": True, "dry_run": args.dry_run, "checked": want,
+                      "changed": [{"id": t["id"], "text": t["text"]} for t in changed],
+                      "unchanged": [{"id": t["id"], "text": t["text"]} for t in unchanged]},
+                     ensure_ascii=False, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Notion Daily Work Log CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -481,12 +534,25 @@ def main():
     todos_parser.add_argument("--tree", help='JSON 배열: [{"text": "...", "link": "PLE-123", "children": [{"text": "..."}]}]')
     todos_parser.add_argument("--parent-block", help="이 최상위 to_do의 하위 끝에 넣는다 (list-todo-parents의 id)")
     todos_parser.add_argument("--no-prop", action="store_true", help="Todo's property는 건드리지 않는다")
+    todos_parser.add_argument("--checked", action="store_true",
+                              help="체크된 상태로 넣는다 (보드에서 완료한 일이 일지에 없을 때)")
     todos_parser.add_argument("--dry-run", action="store_true",
                               help="Notion에 쓰지 않고 덧붙일 내용과 위치만 출력한다")
 
     parents_parser = subparsers.add_parser(
         "list-todo-parents", help="Todos 칸의 최상위 할 일 목록 (보드 반영 때 상위 항목 후보)")
     parents_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
+
+    list_parser = subparsers.add_parser(
+        "list-todos", help="Todos 칸의 할 일 전체(모든 깊이, id 포함). 보드 완료 체크와 맞출 때 쓴다")
+    list_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
+
+    check_parser = subparsers.add_parser(
+        "check-todos", help="Todos 칸 할 일의 체크 상태를 바꾼다 (보드 완료 체크 반영용)")
+    check_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
+    check_parser.add_argument("--block-ids", required=True, help='JSON 배열: list-todos의 id ["...", "..."]')
+    check_parser.add_argument("--uncheck", action="store_true", help="체크를 해제한다")
+    check_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 바뀔 항목만 출력한다")
 
     args = parser.parse_args()
 
@@ -500,6 +566,10 @@ def main():
         cmd_append_todos(args)
     elif args.command == "list-todo-parents":
         cmd_list_todo_parents(args)
+    elif args.command == "list-todos":
+        cmd_list_todos(args)
+    elif args.command == "check-todos":
+        cmd_check_todos(args)
 
 
 if __name__ == "__main__":

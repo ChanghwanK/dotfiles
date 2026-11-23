@@ -37,6 +37,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px soli
 .mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
 .lede { font-size: 16px; margin: 6px 0 0; max-width: 72ch; }
+.lede-list { font-size: 15px; margin: 8px 0 0; padding-left: 20px; max-width: 72ch; display: grid; gap: 2px; }
 .muted { color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 section { display: grid; gap: 12px; min-width: 0; border-top: 1px solid var(--line); padding-top: 20px; }
@@ -129,6 +130,17 @@ tr:last-child td { border-bottom: 0; }
 .err { color: var(--red); }
 .check { display: flex; gap: 6px; align-items: baseline; font-size: 13px; cursor: pointer; flex-wrap: wrap; }
 .chips a.chip { text-decoration: none; }
+/* 완료 체크: 페이지 DB(item_state)에 저장, 재게시·새로고침 후에도 유지 */
+.done-btn { display: inline-flex; align-items: center; gap: 4px; font: 500 11px/1 var(--font-body); border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 4px; padding: 3px 7px; cursor: pointer; white-space: nowrap; }
+.done-btn::before { content: ""; width: 9px; height: 9px; border: 1.5px solid currentColor; border-radius: 2px; }
+.done-btn:hover:not([disabled]) { border-color: var(--green); color: var(--green); }
+.done-btn[aria-pressed="true"] { color: var(--green); background: var(--green-bg); border-color: var(--green-bg); }
+.done-btn[aria-pressed="true"]::before { background: currentColor; }
+.done-btn[disabled] { cursor: not-allowed; opacity: .6; }
+.item.is-done { background: var(--soft); }
+.item.is-done .ttl { color: var(--muted); text-decoration: line-through; text-decoration-color: #9aa6b2; }
+.item.is-done .s { opacity: .7; }
+.done-count { font-family: var(--font-mono); font-size: 12px; color: var(--green); }
 .toolbar button { font: 12px var(--font-body); border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 4px; padding: 3px 10px; cursor: pointer; }
 
 @media (max-width: 820px) { .board { grid-template-columns: 1fr; } }
@@ -225,16 +237,24 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
     }).join("");
     return body ? '<dl class="dl">' + body + "</dl>" : "";
   }
+  // 완료 체크 키: 어제 스레드에서 온 항목은 스레드 id, 아니면 Top 3 순번. doc id로 쓰므로 영숫자와 하이픈만
+  var DONE_KEYS = {}; // key -> title (DB에 함께 저장해 Claude가 읽을 때 무엇인지 알 수 있게)
+  function doneKey(prefix, id) { return (prefix + "-" + String(id)).replace(/[^A-Za-z0-9-]/g, "-"); }
+  function doneBtn(key) {
+    return '<button type="button" class="done-btn" data-done="' + esc(key) + '" aria-pressed="false" disabled title="저장소에 연결하는 중">완료</button>';
+  }
   // 펼침 항목 하나
   function item(opts) {
     var details = opts.details || "";
+    if (opts.key) DONE_KEYS[opts.key] = opts.title;
     var head = '<span class="row"><span class="ttl">' + (details ? '<span class="caret" aria-hidden="true">&#9654;</span>' : "") +
       (opts.rank ? '<span class="rk">' + esc(opts.rank) + "</span>" : "") + esc(opts.title) + "</span>" +
-      '<span class="chips">' + (opts.chips || "") + "</span></span>" +
+      '<span class="chips">' + (opts.chips || "") + (opts.key ? doneBtn(opts.key) : "") + "</span></span>" +
       (opts.sub ? '<span class="s">' + esc(opts.sub) + "</span>" : "");
     var cls = "item" + (opts.first ? " first" : "");
-    if (!details) return '<div class="' + cls + '"><div class="summary-static" style="padding:10px 12px;display:grid;gap:4px">' + head + "</div></div>";
-    return '<details class="' + cls + '"' + (opts.open ? " open" : "") + "><summary>" + head + "</summary>" + details + "</details>";
+    var keyAttr = opts.key ? ' data-key="' + esc(opts.key) + '"' : "";
+    if (!details) return '<div class="' + cls + '"' + keyAttr + '><div class="summary-static" style="padding:10px 12px;display:grid;gap:4px">' + head + "</div></div>";
+    return '<details class="' + cls + '"' + keyAttr + (opts.open ? " open" : "") + "><summary>" + head + "</summary>" + details + "</details>";
   }
   // "11-24" 또는 "2026-11-24"를 기준일과의 일수 차이로
   function dayDiff(due) {
@@ -262,7 +282,9 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
     "<header>" +
       '<div class="eyebrow">DAILY START · ' + esc(D.date) + " (" + esc(D.weekday) + ") · 알럿 시간창 " + esc(D.window) + "</div>" +
       "<h1>" + esc(D.title || "하루 시작") + "</h1>" +
-      '<p class="lede">' + esc(D.headline) + "</p>" +
+      (Array.isArray(D.headline)
+        ? '<ul class="lede-list">' + D.headline.map(function (h) { return "<li>" + esc(h) + "</li>"; }).join("") + "</ul>"
+        : '<p class="lede">' + esc(D.headline) + "</p>") +
     "</header>"
   );
 
@@ -306,6 +328,7 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
     var chips = chip(t.tag, TAG_CHIP[t.tag]) + (t.added ? chip("Todos", "green") : "");
     return item({
       rank: (i + 1) + ".", title: t.title, chips: chips, sub: t.next_action, first: i === 0, open: i === 0,
+      key: t.thread_id ? doneKey("thread", t.thread_id) : doneKey("top", i + 1),
       details: dl([
         ["멈춘 곳", esc(t.stopped_at)],
         ["첫 행동", esc(t.next_action), true],
@@ -321,6 +344,7 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
     c1 += '<p class="sub">그 밖에 열린 스레드 ' + openThreads.length + "</p>" + openThreads.map(function (t) {
       return item({
         title: t.title, chips: chip(t.status, STATUS_CHIP[t.status]), sub: t.next_action || t.follow_up,
+        key: doneKey("thread", t.id),
         details: dl([
           ["프로젝트", esc(t.project)],
           ["멈춘 곳", esc(t.stopped_at)],
@@ -370,7 +394,7 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
         (Y.minor_sessions ? " · 짧은 질문 세션 " + esc(Y.minor_sessions) + "개 제외" : "") + "</span></h2>" +
       '<div class="toolbar"><button type="button" data-acc="open">모두 펼치기</button><button type="button" data-acc="close">모두 접기</button></div>' +
       '<div class="board">' +
-        '<div class="col"><div class="col-head"><h3>오늘 할 것</h3><span class="head-r">' + addBtn("today") + '<span class="mono">' + top.length + "</span></span></div>" + c1 + userSlot("today") + "</div>" +
+        '<div class="col"><div class="col-head"><h3>오늘 할 것</h3><span class="head-r">' + addBtn("today") + '<span class="done-count" id="done-count" hidden></span><span class="mono">' + top.length + "</span></span></div>" + c1 + userSlot("today") + "</div>" +
         '<div class="col wait"><div class="col-head"><h3>기한 있는 것 <span class="info" tabindex="0" role="img" aria-label="' + esc(WAIT_TIP) + '" data-tip="' + esc(WAIT_TIP) + '">!</span></h3><span class="head-r">' + addBtn("due") + '<span class="mono">' + waitCount + "</span></span></div>" + c2 + userSlot("due") + "</div>" +
         '<div class="col done"><div class="col-head"><h3>어제 끝낸 것</h3><span class="head-r">' + addBtn("done") + '<span class="mono">' + doneThreads.length + "</span></span></div>" + c3 + userSlot("done") + "</div>" +
       "</div>" +
@@ -536,19 +560,76 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
     store.collection(ITEMS).doc(del.getAttribute("data-del")).delete().catch(function () { del.disabled = false; del.textContent = "삭제 실패"; });
   });
 
+  // ---- 완료 체크 (db capability, collection "item_state", doc id = 항목 키) ----
+  // doc: {key, title, done, doneAt, date}. daily:retrospective와 다음 날 브리핑이 ArtifactData로 읽는다
+  var STATE = "item_state";
+  var doneState = {};
+  var stateLedger = {}; // key -> ledger (보드 반영이 일지에 체크했다는 기록)
+  function applyDone() {
+    var total = 0, done = 0;
+    app.querySelectorAll("[data-done]").forEach(function (b) {
+      var key = b.getAttribute("data-done");
+      var on = !!doneState[key];
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.textContent = on ? "완료됨" : "완료";
+      var it = b.closest(".item");
+      if (it) it.classList.toggle("is-done", on);
+      if (b.closest(".col") === app.querySelector(".board .col")) { total++; if (on) done++; }
+    });
+    var cnt = document.getElementById("done-count");
+    if (cnt) { cnt.hidden = !done; cnt.textContent = "완료 " + done + "/" + total; }
+  }
+  function toggleDone(btn) {
+    var key = btn.getAttribute("data-done");
+    var next = !doneState[key];
+    btn.disabled = true;
+    doneState[key] = next; applyDone(); // 낙관적 반영, 실패하면 되돌린다
+    // set은 문서를 통째로 바꾸므로, 보드 반영이 남긴 ledger를 그대로 실어 보낸다(지우면 체크 해제가 일지에 반영되지 않는다)
+    var rec = { key: key, title: DONE_KEYS[key] || "", done: next, doneAt: next ? Date.now() : null, date: D.date };
+    if (stateLedger[key]) rec.ledger = stateLedger[key];
+    store.collection(STATE).doc(key).set(rec)
+      .then(function () { btn.disabled = false; }, function () {
+        doneState[key] = !next; applyDone();
+        btn.disabled = false; btn.title = "저장하지 못했습니다. 편집 권한이 있는지 확인해 주세요";
+      });
+  }
+  app.addEventListener("click", function (ev) {
+    var btn = ev.target.closest && ev.target.closest("[data-done]");
+    if (!btn) return;
+    ev.preventDefault(); // summary 안 버튼이라 펼침 토글을 막는다
+    ev.stopPropagation();
+    if (!btn.disabled && store) toggleDone(btn);
+  });
+
   (function connect() {
     if (!window.claude || typeof window.claude.use !== "function") {
       app.querySelectorAll("[data-add]").forEach(function (b) { b.title = "claude.ai에서 열었을 때만 추가할 수 있습니다"; });
+      app.querySelectorAll("[data-done]").forEach(function (b) { b.title = "claude.ai에서 열었을 때만 체크할 수 있습니다"; });
       return;
     }
     window.claude.use("db").then(function (db) {
       var btns = app.querySelectorAll("[data-add]");
-      if (!db) { btns.forEach(function (b) { b.title = "이 보기에서는 저장할 수 없습니다(로그인 필요)"; }); return; }
+      var dbtns = app.querySelectorAll("[data-done]");
+      if (!db) {
+        btns.forEach(function (b) { b.title = "이 보기에서는 저장할 수 없습니다(로그인 필요)"; });
+        dbtns.forEach(function (b) { b.title = "이 보기에서는 저장할 수 없습니다(로그인 필요)"; });
+        return;
+      }
       store = db;
       btns.forEach(function (b) { b.disabled = false; b.title = "Markdown으로 항목 추가"; });
+      dbtns.forEach(function (b) { b.disabled = false; b.title = "완료로 표시하거나 해제합니다"; });
       db.collection(ITEMS).orderBy("createdAt", "asc").onSnapshot(function (snap) { renderUserItems(snap.docs); }, function () {
         app.querySelectorAll(".user-items").forEach(function (el) { el.setAttribute("data-err", "1"); });
       });
+      db.collection(STATE).onSnapshot(function (snap) {
+        doneState = {}; stateLedger = {};
+        snap.docs.forEach(function (d) {
+          var v = d.data() || {};
+          if (v.done) doneState[d.id] = true;
+          if (v.ledger) stateLedger[d.id] = v.ledger;
+        });
+        applyDone();
+      }, function () {});
     }, function () {});
   })();
 

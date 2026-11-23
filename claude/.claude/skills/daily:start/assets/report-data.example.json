@@ -3,7 +3,11 @@
   "weekday": "금",
   "title": "11월 20일 하루 시작",
   "window": "11-19 20:00 ~ 11-20 09:29",
-  "headline": "밤사이 #notification_infra 긴급 건은 없습니다. 오늘은 AWS 멀티 어카운트의 Airflow IAM 권한 건부터 이어 가시길 권합니다. 오늘 마감 Task 2건 중 XFF는 이어가기 2순위와 같고, k6 복제 슬롯 정리는 마감 섹션을 보십시오.",
+  "headline": [
+    "밤사이 #notification_infra 긴급 건 없음",
+    "오늘 첫 작업: AWS 멀티 어카운트 Airflow IAM 권한 건",
+    "오늘 마감 Task 2건: XFF는 이어가기 2순위와 같음, k6 복제 슬롯 정리는 마감 섹션 참고"
+  ],
   "stats": {
     "urgent": 1,
     "alerts_open": 0,
