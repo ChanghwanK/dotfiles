@@ -5,12 +5,12 @@
 #
 # Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title 업무 todo
+# @raycast.title notion:daily-todo
 # @raycast.mode silent
 #
 # Optional parameters:
 # @raycast.packageName Notion
-# @raycast.icon 📓
+# @raycast.icon images/notion.png
 # @raycast.description Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 연다
 
 set -uo pipefail
