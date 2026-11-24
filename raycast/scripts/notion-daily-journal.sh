@@ -10,7 +10,7 @@
 #
 # Optional parameters:
 # @raycast.packageName Notion
-# @raycast.icon images/notion.png
+# @raycast.icon /Users/changhwan/.dotfiles/raycast/scripts/images/notion.png
 # @raycast.description Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 연다
 
 set -uo pipefail
