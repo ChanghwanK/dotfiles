@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Raycast Script Command: Notion Daily Todo DB에서 날짜에 맞는 업무 일지 페이지를 바로 연다.
+# Raycast Script Command: Notion Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 바로 연다.
 # 페이지 ID는 날짜로 계산할 수 없어서(UUID에 무작위 부분이 있음) Due Date 필터로 조회한다.
 #
 # Required parameters:
@@ -11,8 +11,7 @@
 # Optional parameters:
 # @raycast.packageName Notion
 # @raycast.icon 📓
-# @raycast.argument1 { "type": "text", "placeholder": "날짜 (비우면 오늘, -1=어제, YYYY-MM-DD)", "optional": true }
-# @raycast.description Daily Todo DB에서 오늘(또는 지정 날짜) 업무 일지 페이지를 연다
+# @raycast.description Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 연다
 
 set -uo pipefail
 
@@ -23,14 +22,7 @@ if [[ -z "$NOTION_TOKEN" ]]; then
   exit 1
 fi
 
-arg="${1:-}"
-case "$arg" in
-  "")            target=$(date +%F) ;;
-  -[0-9]*)       target=$(date -v"${arg}"d +%F) ;;
-  +[0-9]*)       target=$(date -v"${arg}"d +%F) ;;
-  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) target="$arg" ;;
-  *) echo "날짜 형식 오류: $arg (예: -1, 2026-11-23)"; exit 1 ;;
-esac
+target=$(date +%F)
 
 page_id=$(NOTION_TOKEN="$NOTION_TOKEN" TARGET="$target" /usr/bin/python3 -I - <<'PY'
 import json, os, sys, urllib.request, urllib.error
@@ -74,5 +66,6 @@ if [[ -z "$page_id" ]]; then
   exit 1
 fi
 
-open "https://app.notion.com/p/$page_id"
+# notion:// scheme은 Notion 데스크톱 앱이 받는다(웹 브라우저를 거치지 않음).
+open "notion://www.notion.so/$page_id"
 echo "$target 업무 일지를 엽니다"
