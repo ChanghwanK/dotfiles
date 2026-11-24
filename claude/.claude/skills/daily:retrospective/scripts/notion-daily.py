@@ -638,6 +638,43 @@ def cmd_add_links(args):
     print(json.dumps({"success": True, "dry_run": args.dry_run, "results": results}, ensure_ascii=False, indent=2))
 
 
+def cmd_sync_prop(args):
+    """Todo's property를 본문 Todos 칸의 최상위 할 일 목록으로 다시 쓴다(본문을 직접 고쳐 둘이 어긋났을 때).
+
+    줄마다 "  • 할 일 글"이고, 본문 할 일에 걸린 링크는 그대로 옮긴다. 기존 property 값은 덮어쓴다.
+    --strike-done: 본문에서 체크된 할 일은 property 줄에 취소선을 긋는다(회고 때 끝낸 일 표시).
+    """
+    token = get_token()
+    todos = load_todos_section(token, args.page_id)
+    top = [n for n in todos["nodes"] if n["type"] == "to_do" and n["text"].strip()]
+    segs, struck = [], []
+    for i, n in enumerate(top):
+        rich = notion_request(token, "GET", f"/blocks/{n['id']}").get("to_do", {}).get("rich_text", [])
+        strike = bool(args.strike_done and n["checked"])
+        segs.append({"type": "text", "text": {"content": ("\n" if i else "") + "  • "}})
+        for r in rich:
+            w = writable_rich(r)
+            # 본문에 이미 그어 둔 취소선은 유지하고, 체크된 할 일이면 새로 긋는다
+            w["annotations"] = dict(w.get("annotations") or {}, strikethrough=strike or bool((w.get("annotations") or {}).get("strikethrough")))
+            segs.append(w)
+        if strike:
+            struck.append(n["text"].strip())
+    before_rich = notion_request(token, "GET", f"/pages/{args.page_id}").get("properties", {}).get(TODOS_PROP, {}).get("rich_text", [])
+    before = rich_text_to_plain(before_rich)
+    before_struck = "".join(r.get("plain_text", "") for r in before_rich if (r.get("annotations") or {}).get("strikethrough"))
+    after = "".join(("\n" if i else "") + "  • " + n["text"].strip() for i, n in enumerate(top))
+    after_struck = "".join(s["text"]["content"] for s in segs if s["type"] == "text" and s.get("annotations", {}).get("strikethrough"))
+    changed = after != before or after_struck != before_struck
+    if len(segs) > 100:
+        print(json.dumps({"success": False, "error": f"property rich_text 조각이 {len(segs)}개라 Notion 상한(100)을 넘습니다"},
+                         ensure_ascii=False))
+        sys.exit(1)
+    if not args.dry_run and changed:
+        notion_request(token, "PATCH", f"/pages/{args.page_id}", {"properties": {TODOS_PROP: {"rich_text": segs}}})
+    print(json.dumps({"success": True, "dry_run": args.dry_run, "changed": changed, "struck": struck,
+                      "prop_before": before, "prop_after": after}, ensure_ascii=False, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Notion Daily Work Log CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -689,6 +726,12 @@ def main():
                               help='JSON 배열: [{"block_id": "<list-todos id>", "links": ["PLE-6", "<URL>"]}]')
     links_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 붙일 링크만 출력한다")
 
+    sync_parser = subparsers.add_parser(
+        "sync-prop", help="Todo's property를 본문 Todos 칸의 최상위 할 일(링크 포함)로 다시 쓴다")
+    sync_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
+    sync_parser.add_argument("--strike-done", action="store_true", help="본문에서 체크된 할 일은 property 줄에 취소선을 긋는다")
+    sync_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 전후만 출력한다")
+
     args = parser.parse_args()
 
     if args.command == "read":
@@ -707,6 +750,8 @@ def main():
         cmd_check_todos(args)
     elif args.command == "add-links":
         cmd_add_links(args)
+    elif args.command == "sync-prop":
+        cmd_sync_prop(args)
 
 
 if __name__ == "__main__":

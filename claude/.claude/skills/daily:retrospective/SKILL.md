@@ -11,6 +11,7 @@ model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py read *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-coach-tomorrow *)
+  - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py sync-prop *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/extract-work.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/llm-wiki-append.py *)
   - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/obsidian-remind-append.py *)
@@ -33,7 +34,7 @@ allowed-tools:
 - **성장은 두 층으로 본다.** 매일은 성장 여부를 "어제의 나" 테스트의 증거 한 줄로 보고, 2~4주마다 성장 크기를 판정한다(아래 "판정일"). 판정 시점은 달력이 아니라 마지막 판정 후 경과일(`growth-log.py status`)로 정한다. 판정을 강제하지 않는다. 신호(회고의 한 줄 알림, 격주 금요일 캘린더 일정 "성장 판정 (2주)")를 주고 사용자가 정한다
 - **기본은 3분 회고다.** 질문을 한 메시지에 번호로 모아 한 번에 묻고, 답을 한 번 받고, 필요하면 한 번만 되묻고 정리본을 낸다. 사용자가 답하는 시간이 3분을 넘지 않게 한다. 사용자가 "깊게"라고 할 때만 칸별로 하나씩 묻는 깊은 회고로 바꾼다
 - **고민들과 Lesson Learn이 이 회고의 중심이다.** 질문은 이 두 칸에 쓴다. 두 칸은 이미 적혀 있어도 정리 대상이고, 정리본에는 정리된 전체를 쓴다
-- **Notion 쓰기는 하나뿐이다.** 내일 할 일을 Tomorrow 칸 아래 "회고 코치 추천" 섹션에 덧붙인다(`notion-daily.py append-coach-tomorrow`). 기존 블록은 고치거나 지우지 않는다. 그 밖의 회고 결과는 사용자가 붙여넣을 수 있는 정리본으로 출력한다
+- **Notion 쓰기는 두 가지뿐이다.** (1) 내일 할 일을 Tomorrow 칸 아래 "회고 코치 추천" 섹션에 덧붙인다(`notion-daily.py append-coach-tomorrow`). (2) `Todo's` property를 본문 Todos 칸의 최상위 할 일로 다시 쓰고 체크된 할 일에 취소선을 긋는다(`notion-daily.py sync-prop --strike-done`). 본문 블록은 고치거나 지우지 않는다. 그 밖의 회고 결과는 사용자가 붙여넣을 수 있는 정리본으로 출력한다
 - **로컬 쓰기는 Growth Log 하나다.** 성장 증거, 예측, 예측 채점, 판정, 판정 미룸을 `growth-log.py`로 Obsidian `03. Resources/Growth Log.md`에 덧붙인다. 사용자가 답한 내용만 쓰고, 따로 묻지 않는다
 - **사용자가 하지 않은 말은 정리본에 넣지 않는다.** 데이터는 질문의 근거로만 쓴다. 예외는 "회고 코치 추천"이다. 코치의 추천임이 제목으로 드러나는 곳에만 코치의 판단을 쓴다
 - 문장 스타일은 `~/.claude/docs/notion-writing-style.md`를 따른다 (짧고 단순하게). em dash와 이모지를 쓰지 않는다
@@ -207,7 +208,7 @@ Task로 옮길 만한 것 (Task DB에 없고 이틀 넘게 남은 일, 이월 �
 
 빈 칸은 생략한다. 3분 회고에서 묻지 않은 Keep, Problem, Try는 사용자가 보탠 것만 쓴다. 출력 뒤 "고칠 곳이 있으면 말씀해 주세요"로 한 번만 묻고, 고친 정리본을 다시 출력한다.
 
-### Step 5: 회고 코치 추천을 Notion에 덧붙이기
+### Step 5: 회고 코치 추천과 Todo's property를 Notion에 쓰기
 
 정리본을 낸 뒤 바로 실행한다. 따로 묻지 않는다(Step 2의 5번에서 이미 알렸다). 사용자가 5번에 "추가하지 마"라고 답했으면 건너뛴다.
 
@@ -222,6 +223,17 @@ python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily
 - 쓰는 곳은 회고한 날짜의 일지다. Tomorrow 칸의 사용자가 쓴 항목은 건드리지 않고, 그 아래 "회고 코치 추천" 제목과 체크박스를 덧붙인다. 같은 글은 다시 실행해도 중복되지 않는다
 - 실행 결과의 `appended` 개수를 한 줄로 알린다. 실패하면 오류를 그대로 알리고, 정리본의 "회고 코치 추천"을 직접 붙여넣게 한다
 - 쓰기 전에 확인하고 싶으면 `--dry-run`을 붙인다
+
+이어서 `Todo's` property를 본문에 맞춘다. 따로 묻지 않는다. 사용자가 낮에 본문만 고쳐 property와 어긋난 것을 회고 시점의 본문으로 맞추고, 끝낸 일을 property에서도 보이게 한다.
+
+```bash
+python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py sync-prop \
+  --page-id {Step 1 read 출력의 page_id} --strike-done
+```
+
+- property는 본문 Todos 칸의 최상위 할 일만 담는다(하위 할 일은 넣지 않는다). 본문 할 일의 링크는 그대로 옮기고, 체크된 할 일은 취소선을 긋는다
+- 본문에서 지운 할 일은 property에서도 빠진다. 같은 상태로 다시 실행하면 쓰지 않는다(`changed: false`)
+- 실행 결과의 `struck` 개수와 `changed`를 한 줄로 알린다. 실패하면 오류를 그대로 알린다. 확인하고 싶으면 `--dry-run`을 붙인다
 
 같은 단계에서 성장 기록을 덧붙인다. 따로 묻지 않는다. 사용자가 2번을 비웠으면 `--evidence`를 빼서 "없음"으로 남긴다. 같은 날 다시 실행하면 건너뛴다.
 
