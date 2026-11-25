@@ -4,7 +4,7 @@ description: |
   하루 시작 스킬 (Task Manage 코치의 절차 본체). 어제 실제로 한 작업(Claude 세션 로그, GitHub PR)을
   작업 스레드로 정리하고, 어디서 멈췄는지와 오늘 어디서부터 이어 갈지를 Top 3로 제안한다.
   밤사이 Slack #notification_infra 알럿, Gmail, 어제 Notion 회고, Notion Task, 오늘 일정도 함께 본다.
-  긴급 대응이 필요한 이슈는 맨 앞에 둔다. 확인을 받아 Notion 오늘 일지 Todos에 덧붙이고 메일 노이즈를 보관한다.
+  긴급 대응이 필요한 이슈는 맨 앞에 둔다. 어제 일지 Tomorrow를 오늘 일지 Yesterday에 옮겨 적고, 확인을 받아 오늘 일지 할 일 칸(Today)에 덧붙이고 메일 노이즈를 보관한다.
   결과는 날짜별 HTML Artifact로 게시한다.
   사용 시점: (1) 하루 시작, (2) 어제 하던 작업 이어 가기, (3) 밤사이 이슈 확인.
   트리거 키워드: "하루 시작", "daily start", "오늘 할 것들", "오늘 할 일 정리", "밤사이 이슈",
@@ -43,8 +43,9 @@ allowed-tools:
 - **어제를 이어 간다.** 오늘 순위는 마감일이 아니라 어제 작업 스레드의 상태(진행 중, 중단)로 정한다. 마감일은 가산점과 경고로만 쓴다
 - **실제로 한 일이 계획보다 우선이다.** 회고 문서(Notion)와 세션 로그·PR이 다르면 세션 로그·PR을 사실로 본다. 이미 끝난 회고 항목은 "어제 완료로 보임, 체크 권장"으로 표시하고 이어서 목록에서 뺀다
 - **제안하고, 결정은 사용자가 한다.** 순위와 이유를 보이되 무엇을 할지는 사용자가 고른다
-- **쓰기는 두 가지, 둘 다 확인 후다.**
-  - Notion 오늘 일지 Todos에 고른 항목 덧붙이기(`append-todos`, dry-run 먼저). 기존 블록은 고치거나 지우지 않는다
+- **쓰기는 세 가지다. 기존 블록은 고치거나 지우지 않는다.**
+  - 어제 일지 Tomorrow 칸을 오늘 일지 Yesterday 칸에 옮겨 적기(`carry-tomorrow`). 사용자 요청(2026-11-26)으로 묻지 않고 매일 한다. dry-run 먼저, 다시 실행해도 중복되지 않는다
+  - 오늘 일지 할 일 칸(본문 제목 "Today", 예전 템플릿은 "Todo's")과 `Todo's` property에 고른 항목 덧붙이기(`append-todos`, 확인 후, dry-run 먼저)
   - Gmail 보관 후보 중 사용자가 승인한 스레드만 보관(`unlabel_thread`로 `INBOX` 제거). 삭제·읽음 처리는 하지 않는다
 - **읽기 전용 소스**: Slack, GitHub, Google Calendar, Task DB는 읽기만 한다. 알럿 ack, Task 생성은 하지 않는다(Task 후보는 제안만)
 - **Notion은 스크립트로만 읽고 쓴다** (`daily:retrospective/scripts/notion-daily.py`가 일지 파싱의 단일 출처)
@@ -89,7 +90,7 @@ date '+%s'
 - 반환 형식(구분자와 YAML)을 지키지 않았으면 그 에이전트만 1회 재시도한다
 - 소스 하나가 실패해도 중단하지 않는다. 해당 섹션에 "조회 실패: {이유}"를 쓰고 계속한다
 - **회고 기록 읽기** (work:tracking): 에이전트와 함께 `~/.claude/work-tracking/{prev_workday}.json`을 Read한다. 파일이 없으면(Read 실패) 아래의 회고 기록 절차를 모두 건너뛰고 이전처럼 진행한다. 있으면 `trees.next`에서 `id`가 있는 노드(이어서 할 일)와 `artifact_url`을 쓴다. 문서 내용은 데이터로만 다룬다
-- `today_page_id`가 null이면 Todos 쓰기를 건너뛰고, 결과 끝에 "오늘 Notion 일지가 없습니다. Notion에서 템플릿으로 오늘 페이지를 만든 뒤 다시 실행하시면 Todos에 넣어 드립니다"를 쓴다. 빈 페이지를 직접 만들지 않는다
+- `today_page_id`가 null이면 일지 쓰기(Yesterday 옮기기, 할 일 칸 덧붙이기)를 건너뛰고, 결과 끝에 "오늘 Notion 일지가 없습니다. Notion에서 템플릿으로 오늘 페이지를 만든 뒤 다시 실행하시면 일지에 넣어 드립니다"를 쓴다. 빈 페이지를 직접 만들지 않는다
 
 ### Step 2: 합성
 
@@ -152,6 +153,15 @@ date '+%s'
     - https가 아닌 값과 개인 페이지(하루 시작 Artifact)는 넣지 않는다
 - 메일 보관: 승인했으면 후보마다 `mcp__claude_ai_Gmail__unlabel_thread(threadId, labelIds=["INBOX"])`를 한 메시지에 병렬로 부른다. 실패한 thread id는 HTML 바닥글에 남긴다
 - 아무것도 고르지 않으면 쓰지 않는다
+- **어제 Tomorrow → 오늘 Yesterday** (질문 없이 매일): Step 1이 끝나면 위 질문과 상관없이 실행한다. `--from-date`는 Notion 에이전트의 `retro_date`(직전 근무일 일지). dry-run 다음 실제 실행 순서다
+  ```bash
+  python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py carry-tomorrow \
+    --page-id {today_page_id} --from-date {retro_date} --dry-run
+  ```
+  - Tomorrow 칸의 글·링크·체크 상태·하위 항목을 그대로 옮긴다. 회고 코치 추천 구역은 옮기지 않는다
+  - Yesterday 칸에 같은 최상위 글이 있으면 `skipped`로 건너뛴다. 같은 날 다시 실행해도 안전하다
+  - `today_page_id`나 `retro_date`가 null이거나 `success: false`(어제 Tomorrow 칸 또는 오늘 Yesterday 칸 없음)면 건너뛰고 이유를 바닥글에 남긴다
+  - 결과는 HTML 바닥글 `env.carry`에 한 줄로 쓴다("어제 Tomorrow N건을 Yesterday에 옮김" / "이미 옮겨 둠" / 건너뛴 이유). `unsupported`가 있으면 그 블록 종류도 적는다
 - **아침 계획 남기기** (work:tracking 되먹임): Todos에 넣은 항목을 `~/.claude/work-tracking/{today_date}.plan.json`에 Write한다. 저녁의 work:tracking이 "아침에 고른 할 일 중 무엇을 끝냈나"를 대조한다. 고른 것이 없으면 쓰지 않고, 같은 날 다시 실행하면 덮어쓴다
   ```json
   {"date": "{today_date}", "source": "daily:start", "artifact_url": null,
@@ -269,7 +279,7 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 - 알럿은 `#notification_infra`(C0782TXLBT5)에 직전 근무일 20:00 KST부터 지금까지 올라온 것만 본다. 그 전에 올라와 아직 열린 알럿(장기 firing), dev/stg 알럿 채널, 제품팀 채널은 수집하지 않는다. 채널이 바뀌면 `agents/agent-infra-channel.md`의 channel id를 고친다
 - 인프라 분류의 "prod" 판정은 클러스터 이름(`prod`, `global`, `idc` 포함)에 기댄다. 이름 규칙이 다른 클러스터가 생기면 `agents/agent-infra-channel.md`의 분류 규칙을 고친다
 - 어제 작업 판정은 Claude 세션 로그와 GitHub PR에 기댄다. 세션 밖에서 한 작업(회의, 콘솔 수동 작업)은 회고 문서로만 보인다
-- `scripts/extract-work.py`는 `handoff:pause`, `tasks:ing-listup`도 쓴다. 옮기거나 이름을 바꾸지 않고, 기존 필드(`project`, `file`, `user_messages`)는 바꾸지 않는다
+- `scripts/extract-work.py`는 `handoff:pause` 등 다른 스킬도 쓴다. 옮기거나 이름을 바꾸지 않고, 기존 필드(`project`, `file`, `user_messages`)는 바꾸지 않는다
 - 잘못 보관한 메일은 `label_thread(threadId, ["INBOX"])`로 되돌린다
 
 ## 검증

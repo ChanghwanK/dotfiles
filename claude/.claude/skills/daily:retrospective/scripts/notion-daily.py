@@ -7,10 +7,12 @@ Usage:
   python3 notion-daily.py append-todos --page-id ID --items '["...", "..."]' [--dry-run]
   python3 notion-daily.py append-todos --page-id ID --tree '[{"text": "...", "link": "PLE-1", "children": [{"text": "..."}]}]' [--parent-block ID] [--no-prop] [--dry-run]
   python3 notion-daily.py list-todo-parents --page-id ID
+  python3 notion-daily.py carry-tomorrow --page-id ID --from-date YYYY-MM-DD [--dry-run]
 
-쓰기는 두 명령뿐이고, 둘 다 덧붙이기만 한다. 기존 블록은 고치거나 지우지 않는다.
+덧붙이는 쓰기 명령은 기존 블록을 고치거나 지우지 않는다.
 - append-coach-tomorrow (daily:retrospective): Tomorrow 칸 아래 "회고 코치 추천" 구역에 할 일을 덧붙인다
-- append-todos (daily:start): 아침 코치가 제안하고 사용자가 고른 할 일을 Todos 칸 끝에 덧붙인다
+- append-todos (daily:start): 아침 코치가 제안하고 사용자가 고른 할 일을 할 일 칸(제목 Today 또는 Todo's) 끝에 덧붙인다
+- carry-tomorrow (daily:start): 전날 일지 Tomorrow 칸을 오늘 일지 Yesterday 칸 끝에 그대로 옮겨 적는다
 그 밖의 회고 내용은 daily:retrospective가 정리본으로 출력한다.
 """
 
@@ -135,10 +137,10 @@ def parse_page_properties(page):
 # 일지 템플릿의 본문 구역은 제목 블록 글자로 찾는다. 아이콘·공백이 붙어 있어
 # (예: "☑️ Todo’s") 글자와 숫자만 남겨 비교한다.
 RETRO_SECTIONS = ["Keep", "Problem", "Try", "Lesson Learn"]
-# 일지마다 제목 표기가 다르다("Lesson Learn", "Lesson Learned"). 어느 쪽이든 같은 칸으로
-# 읽고, 출력 키는 RETRO_SECTIONS의 이름 하나로 유지해 스킬 쪽 참조가 갈리지 않게 한다.
-SECTION_HEADING_ALIASES = {"Lesson Learned": "Lesson Learn"}
-COLUMN_SECTIONS = {"todos": "Todos", "tomorrow": "Tomorrow",
+# 일지마다 제목 표기가 다르다("Lesson Learn", "Lesson Learned", 할 일 칸 "Todo's"/"Today").
+# 어느 쪽이든 같은 칸으로 읽고, 출력 키는 하나로 유지해 스킬 쪽 참조가 갈리지 않게 한다.
+SECTION_HEADING_ALIASES = {"Lesson Learned": "Lesson Learn", "Today": "Todos"}
+COLUMN_SECTIONS = {"todos": "Todos", "tomorrow": "Tomorrow", "yesterday": "Yesterday",
                    **{re.sub(r"\W", "", k).lower(): k for k in RETRO_SECTIONS},
                    **{re.sub(r"\W", "", alias).lower(): section
                       for alias, section in SECTION_HEADING_ALIASES.items()}}
@@ -257,6 +259,9 @@ def parse_body(tree):
         # tomorrow·coach_tomorrow는 제목만 담는 기존 필드라 하위 항목(체크박스, 메모)이 사라진다.
         # 하위 항목으로 완료 판정이 갈리므로 detail을 함께 담은 필드를 덧붙인다. 기존 필드는 유지한다
         "tomorrow_items": items_of("Tomorrow", mark_checked=True),
+        # Yesterday 칸: 전날 Tomorrow를 옮겨 적은 기록(carry-tomorrow가 쓴다). 예전 일지엔 없을 수 있어
+        # missing_sections 검사 대상이 아니다
+        "yesterday_items": items_of("Yesterday", mark_checked=True),
         "coach_tomorrow_items": items_of(COACH_TOMORROW_SECTION, mark_checked=True),
         "notes": [{"title": t["text"].strip(), "text": "\n".join(flatten_text(t["children"]))}
                   for t in notes if not t["text"].strip().startswith(WORRY_TOGGLE_PREFIX)],
@@ -266,25 +271,23 @@ def parse_body(tree):
     }, sections
 
 
+DAILY_DB_ID = "2bf64745-3170-8016-b20a-ff022dea06cb"
+
+
+def find_page(token, target_date):
+    """Due Date가 target_date(YYYY-MM-DD)인 일지 페이지를 돌려준다. 없으면 None."""
+    body = {"filter": {"property": "Due Date", "date": {"equals": target_date}}}
+    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, DAILY_DB_ID)}/query", body)
+    results = resp.get("results", [])
+    return results[0] if results else None
+
+
 def cmd_read(args):
     token = get_token()
     target_date = resolve_date(args.date)
+    page = find_page(token, target_date)
 
-    DB_ID = "2bf64745-3170-8016-b20a-ff022dea06cb"
-
-    # Query DB for the page with matching Due Date
-    body = {
-        "filter": {
-            "property": "Due Date",
-            "date": {
-                "equals": target_date
-            }
-        }
-    }
-    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, DB_ID)}/query", body)
-    results = resp.get("results", [])
-
-    if not results:
+    if not page:
         print(json.dumps({
             "page_id": None,
             "date": target_date,
@@ -295,7 +298,6 @@ def cmd_read(args):
         }, ensure_ascii=False, indent=2))
         return
 
-    page = results[0]
     page_id = page["id"]
     parsed = parse_page_properties(page)
 
@@ -358,6 +360,117 @@ def cmd_append_coach_tomorrow(args):
                       "section_created": coach is None and bool(new_items),
                       "insert_after_block": insert_after,
                       "appended": new_items, "skipped": skipped}, ensure_ascii=False, indent=2))
+
+
+# carry-tomorrow가 옮기는 블록 종류. 글(rich_text)을 가진 블록만 그대로 다시 만들 수 있다
+CARRY_TYPES = {"to_do", "bulleted_list_item", "numbered_list_item", "paragraph", "quote", "toggle", "callout"}
+
+
+def copy_block(raw):
+    """GET으로 읽은 블록을 children 없이 다시 만들 수 있는 모양으로(글·링크·체크·색 유지)."""
+    t = raw["type"]
+    src = raw.get(t, {})
+    data = {"rich_text": [writable_rich(r) for r in src.get("rich_text", [])]}
+    for key in ("checked", "color", "icon"):
+        if key in src:
+            data[key] = src[key]
+    return {"object": "block", "type": t, t: data}
+
+
+def read_children_raw(token, block_id):
+    """block_id의 자식 블록 원본(JSON)을 페이지네이션까지 읽는다."""
+    out, cursor = [], None
+    while True:
+        qs = "?page_size=100" + (f"&start_cursor={cursor}" if cursor else "")
+        resp = notion_request(token, "GET", f"/blocks/{block_id}/children{qs}")
+        out.extend(resp.get("results", []))
+        if not resp.get("has_more"):
+            return out
+        cursor = resp.get("next_cursor")
+
+
+def carry_tree(token, raws, parent_id, after, dry_run, unsupported):
+    """raws를 parent_id 아래(after 뒤)에 한 단계씩 만든다. Notion은 한 요청에 중첩 2단계까지만 받아서
+    상위를 먼저 만들고 응답의 새 id 밑에 자식을 붙인다. 만든 블록 수를 돌려준다."""
+    blocks, kept = [], []
+    for raw in raws:
+        if raw["type"] in CARRY_TYPES:
+            blocks.append(copy_block(raw))
+            kept.append(raw)
+        else:
+            unsupported.append(raw["type"])
+    if not blocks:
+        return 0
+    count = len(blocks)
+    if dry_run:
+        new_ids = [None] * len(blocks)
+    else:
+        body = {"children": blocks}
+        if after:
+            body["after"] = after
+        resp = notion_request(token, "PATCH", f"/blocks/{parent_id}/children", body)
+        new_ids = [r["id"] for r in resp.get("results", [])][-len(blocks):]
+    for raw, new_id in zip(kept, new_ids):
+        if raw.get("has_children"):
+            count += carry_tree(token, read_children_raw(token, raw["id"]), new_id, None, dry_run, unsupported)
+    return count
+
+
+def cmd_carry_tomorrow(args):
+    """전날 일지의 Tomorrow 칸을 오늘 일지의 Yesterday 칸 끝에 그대로 옮겨 적는다(글·링크·체크·하위 항목 유지).
+
+    Yesterday 칸에 같은 최상위 글이 이미 있으면 건너뛰어 다시 실행해도 중복되지 않는다.
+    회고 코치 추천 구역은 Tomorrow와 제목이 달라 옮기지 않는다. 기존 블록은 고치거나 지우지 않는다.
+    """
+    token = get_token()
+    src_page = find_page(token, resolve_date(args.from_date))
+    if not src_page:
+        print(json.dumps({"success": False, "error": f"{args.from_date} 일지 페이지가 없습니다"}, ensure_ascii=False))
+        sys.exit(1)
+    _, src_sections = parse_body(fetch_tree(token, src_page["id"]))
+    tomorrow = src_sections.get("Tomorrow")
+    if not tomorrow:
+        print(json.dumps({"success": False, "error": f"{args.from_date} 일지 본문에 Tomorrow 칸이 없습니다"},
+                         ensure_ascii=False))
+        sys.exit(1)
+    _, sections = parse_body(fetch_tree(token, args.page_id))
+    yesterday = sections.get("Yesterday")
+    if not yesterday:
+        print(json.dumps({"success": False, "error": "오늘 일지 본문에 Yesterday 칸이 없습니다"}, ensure_ascii=False))
+        sys.exit(1)
+
+    already = {norm(n["text"]) for n in yesterday["nodes"] if n["text"].strip()}
+    items = [n for n in tomorrow["nodes"] if n["text"].strip()]
+    new_items = [n for n in items if norm(n["text"]) not in already]
+    skipped = [n["text"].strip() for n in items if norm(n["text"]) in already]
+
+    unsupported, after, created = [], yesterday["last_block_id"], 0
+    for n in new_items:  # 상위 항목마다 따로 붙여 순서를 지킨다(after는 직전에 만든 블록)
+        raw = notion_request(token, "GET", f"/blocks/{n['id']}")
+        if raw["type"] not in CARRY_TYPES:
+            unsupported.append(raw["type"])
+            continue
+        if args.dry_run:
+            created += carry_tree(token, [raw], yesterday["parent_id"], after, True, unsupported)
+            continue
+        resp = notion_request(token, "PATCH", f"/blocks/{yesterday['parent_id']}/children",
+                              {"children": [copy_block(raw)], "after": after})
+        # 응답이 새 블록만 줄 수도, 부모의 자식 전체를 줄 수도 있어 글로 새 블록을 찾는다
+        # (Yesterday 칸에 같은 글이 없다는 것은 위 중복 검사가 보장한다)
+        results = resp.get("results", [])
+        new_id = next((r["id"] for r in results
+                       if norm(rich_text_to_plain(r.get(r["type"], {}).get("rich_text", []))) == norm(n["text"])),
+                      results[0]["id"])
+        created += 1
+        if raw.get("has_children"):
+            created += carry_tree(token, read_children_raw(token, raw["id"]), new_id, None, False, unsupported)
+        after = new_id
+
+    print(json.dumps({"success": True, "dry_run": args.dry_run, "from_page_id": src_page["id"],
+                      "insert_after_block": yesterday["last_block_id"],
+                      "appended": [n["text"].strip() for n in new_items], "skipped": skipped,
+                      "blocks_created": created, "unsupported": sorted(set(unsupported))},
+                     ensure_ascii=False, indent=2))
 
 
 TODOS_PROP = "Todo's"
@@ -486,7 +599,7 @@ def cmd_append_todos(args):
     todos = sections.get("Todos")
     if not todos:
         print(json.dumps({"success": False,
-                          "error": "본문에 Todos 칸이 없어 덧붙일 위치를 찾지 못했습니다"},
+                          "error": "본문에 할 일 칸(제목 Today 또는 Todo's)이 없어 덧붙일 위치를 찾지 못했습니다"},
                          ensure_ascii=False))
         sys.exit(1)
 
@@ -562,7 +675,7 @@ def cmd_list_todo_parents(args):
     _, sections = parse_body(fetch_tree(token, args.page_id))
     todos = sections.get("Todos")
     if not todos:
-        print(json.dumps({"success": False, "error": "본문에 Todos 칸이 없습니다"}, ensure_ascii=False))
+        print(json.dumps({"success": False, "error": "본문에 할 일 칸(제목 Today 또는 Todo's)이 없습니다"}, ensure_ascii=False))
         sys.exit(1)
     parents = [{"id": n["id"], "text": n["text"].strip(), "checked": bool(n["checked"]),
                 "children": len(n["children"])}
@@ -584,7 +697,7 @@ def load_todos_section(token, page_id):
     _, sections = parse_body(fetch_tree(token, page_id))
     todos = sections.get("Todos")
     if not todos:
-        print(json.dumps({"success": False, "error": "본문에 Todos 칸이 없습니다"}, ensure_ascii=False))
+        print(json.dumps({"success": False, "error": "본문에 할 일 칸(제목 Today 또는 Todo's)이 없습니다"}, ensure_ascii=False))
         sys.exit(1)
     return todos
 
@@ -717,6 +830,12 @@ def main():
     coach_parser.add_argument("--dry-run", action="store_true",
                               help="Notion에 쓰지 않고 덧붙일 내용과 위치만 출력한다")
 
+    carry_parser = subparsers.add_parser(
+        "carry-tomorrow", help="전날 일지 Tomorrow 칸을 오늘 일지 Yesterday 칸에 옮겨 적는다")
+    carry_parser.add_argument("--page-id", required=True, help="오늘 일지 page_id (read 출력)")
+    carry_parser.add_argument("--from-date", required=True, help="Tomorrow를 가져올 일지 날짜 (YYYY-MM-DD 또는 yesterday)")
+    carry_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 옮길 항목만 출력한다")
+
     todos_parser = subparsers.add_parser(
         "append-todos", help="Todos 칸 끝에 할 일을 덧붙인다 (daily:start 아침 코치용)")
     todos_parser.add_argument("--page-id", required=True, help="read 출력의 page_id")
@@ -763,6 +882,8 @@ def main():
         cmd_read(args)
     elif args.command == "append-coach-tomorrow":
         cmd_append_coach_tomorrow(args)
+    elif args.command == "carry-tomorrow":
+        cmd_carry_tomorrow(args)
     elif args.command == "append-todos":
         if not args.items and not args.tree:
             parser.error("append-todos에는 --items 또는 --tree가 필요합니다")

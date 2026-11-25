@@ -560,6 +560,7 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
   var foot = [];
   if (arr(D.todos_added).length) foot.push("Notion Todos에 추가: " + D.todos_added.join(", "));
   if (D.env) foot.push("환경: brew " + (D.env.brew || "-") + " / gimme " + (D.env.gimme || "-"));
+  if (D.env && D.env.carry) foot.push("일지 Yesterday: " + D.env.carry);
   arr(D.errors).forEach(function (e) { foot.push("조회 한계: " + e); });
   foot.push("출처: Slack #notification_infra, Claude 세션 로그, GitHub, Gmail, Notion, Google Calendar");
   html.push("<footer>" + foot.map(function (f) { return "<div>" + esc(f) + "</div>"; }).join("") + "</footer>");
