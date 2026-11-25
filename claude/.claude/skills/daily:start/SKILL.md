@@ -48,7 +48,7 @@ allowed-tools:
   - Gmail 보관 후보 중 사용자가 승인한 스레드만 보관(`unlabel_thread`로 `INBOX` 제거). 삭제·읽음 처리는 하지 않는다
 - **읽기 전용 소스**: Slack, GitHub, Google Calendar, Task DB는 읽기만 한다. 알럿 ack, Task 생성은 하지 않는다(Task 후보는 제안만)
 - **Notion은 스크립트로만 읽고 쓴다** (`daily:retrospective/scripts/notion-daily.py`가 일지 파싱의 단일 출처)
-- 결과에 이모지와 em dash를 쓰지 않는다
+  - 예외 하나: 보드의 "상태 반영하기"는 Claude 데스크톱 앱에서 열렸을 때 `append-todos`가 돌려준 `block_id`의 to_do `checked`만 바꾼다(`host:notion-personal` MCP). 일지를 파싱하거나 글을 쓰지 않는다- 결과에 이모지와 em dash를 쓰지 않는다
 
 ## 워크플로우
 
@@ -140,6 +140,7 @@ date '+%s'
   ```
   - 항목마다 근거 링크를 `links`에 넣는다. 본문 할 일 끝과 `Todo's` property 줄 끝에 라벨 링크로 붙는다(Jira 키는 키, GitHub PR은 `#번호`, Gmail은 "메일"로 표시)
     - 메일 할 일: 그 메일의 `link`
+  - 실제 실행 출력의 `blocks[]`(`text`, `id`, `skipped`)에서 항목마다 `id`를 받아, 그 항목이 온 `top3[]`의 `block_id`에 저장한다(Step 5). 보드의 상태 반영 버튼이 이 id로 일지 할 일을 찾는다. 이미 있던 항목(`skipped: true`)도 기존 id가 나온다
     - Jira가 걸린 항목: 키(`PLE-6`처럼 키만 써도 된다). 메일 본문에서 나온 키면 메일 링크와 함께 넣는다
     - Top 3·스레드: `resume`이 https URL(PR)이면 그 URL, 스레드의 open PR URL
     - https가 아닌 값과 개인 페이지(하루 시작 Artifact)는 넣지 않는다
@@ -155,7 +156,7 @@ date '+%s'
    - `top3[].thread_id`: 이어가기 항목이 어제 스레드에서 왔으면 그 스레드 `id`. 보드의 "그 밖에 열린 스레드"에서 중복을 뺀다
    - `yesterday.threads[]`의 완료가 아닌 스레드에는 어제 작업 에이전트의 `stopped_at`, `next_action`, `resume`을 그대로 옮긴다(펼침 안에 보인다)
    - `yesterday.threads[]`에는 `cwd`와 `sessions[].session_id`를 그대로 옮긴다. `top3[]`에도 `cwd`를 둔다(스레드에서 왔으면 그 스레드의 cwd, 아니면 재개 세션의 cwd). `task:resume`이 이 값으로 지난 세션을 찾는다(아래 "이어가기 흐름"의 필드 약속)
-   - 보드 배치: 1열 오늘 할 것(Top 3, 1위만 펼침) + 그 밖에 열린 스레드, 2열 기한 있는 것(마감 Task + 기한 3일 이내·지난 메일 할 일), 3열 어제 끝낸 스레드
+   - 보드 배치: 상태 칸반(할 일 / 진행 중 / 완료). 템플릿이 카드마다 초기 상태를 정한다: Top 3(1위만 펼침)와 진행 중 스레드는 진행 중, 중단 스레드·마감 Task·기한 3일 이내·지난 메일 할 일은 할 일(마감은 카드 칩). 어제 끝낸 스레드는 완료 칸 아래 접힌 "어제" 묶음에 고정한다. 카드는 드래그나 카드의 상태 메뉴로 옮긴다
 2. 이어가기 실행 명령을 계산한 뒤 렌더링한다
    ```bash
    python3 /Users/changhwan/.claude/skills/daily:start/scripts/resolve-launch.py --data ~/.claude/tmp/daily-start/{today_date}.json
@@ -166,8 +167,10 @@ date '+%s'
    - 버튼이 복사한 명령은 `/task:resume <date> <id> <의도>`로 새 채팅을 시작한다. 그래서 브리핑 JSON(`~/.claude/tmp/daily-start/{today_date}.json`)은 지우지 않는다
 3. `artifact-design` 스킬을 Skill 도구로 불러 page contract를 확인한 뒤, 출력된 `path`를 Artifact로 게시한다. 날짜별 경로라 매일 새 URL이 된다
    - `icon: "calendar"`, `description`: "{today_date} 밤사이 알럿, 어제 작업 스레드, 오늘 이어 갈 작업 브리핑"
-   - `capabilities: {db: {}, user: {}}`를 함께 넘긴다. 보드 칸마다 있는 "+ 추가" 버튼이 Markdown 항목을 페이지 DB의 `board_items` 컬렉션(`col`: today | due | done, `text`, `createdAt`)에 저장하고 그 칸 맨 아래에 붙인다. 날짜별로 새 페이지라 전날 추가한 항목은 다음 날 페이지로 넘어가지 않는다(필요하면 `ArtifactData`로 전날 페이지의 `board_items`를 읽는다)
-   - Top 3와 그 밖에 열린 스레드의 "완료" 버튼은 같은 DB의 `item_state` 컬렉션에 쓴다. doc id는 `thread-<스레드 id>`(스레드에서 온 항목) 또는 `top-<순번>`, 필드는 `key`, `title`, `done`, `doneAt`, `date`. 다음 날 브리핑이나 daily:retrospective는 전날 `artifact_url`의 `item_state`를 읽어 실제로 끝낸 항목을 판정할 수 있다
+   - `pin: true`를 함께 넘긴다(사용자 요청, 2026-11-25). Claude 데스크톱 앱 사이드바에서 그날 페이지를 바로 열어 "상태 반영하기"의 즉시 반영을 쓰기 위해서다. 고정 실패는 게시를 실패시키지 않으니 결과에 실패가 나오면 콘솔 응답에 한 줄로 알린다
+   - 고정이 성공하면 전날 페이지 고정을 푼다(사용자 요청, 2026-11-25). `~/.claude/tmp/daily-start/`에서 오늘보다 앞선 날짜 중 가장 최근 `{date}.json`의 `artifact_url`을 읽어, 값이 있고 오늘 URL과 다르면 Artifact `action: "unpin"`을 부른다. 주말·휴가로 날짜가 비어도 가장 최근 것 하나만 푼다. 파일이나 값이 없거나 해제가 실패해도 브리핑은 계속하고, 실패만 콘솔에 한 줄로 알린다
+   - `capabilities: {db: {}, user: {}, mcp: {servers: [{server: "host:notion-personal", tools: ["API-update-a-block"]}]}}`를 함께 넘긴다. `mcp`는 "상태 반영하기"의 즉시 반영용이다. 전제: Claude 데스크톱 앱 설정 `~/Library/Application Support/Claude/claude_desktop_config.json`의 `mcpServers`에 `notion-personal`(command `~/.claude/scripts/mcp-notion-personal.sh`, `env.PATH`에 `/opt/homebrew/bin` 포함)이 있어야 한다. Claude Code 설정과 별개이고, 바꾼 뒤 앱을 재시작해야 읽힌다. 브라우저에서 열면 이 서버가 보이지 않아 반영 대기(pending) 방식으로 동작한다. 보드 칸마다 있는 "+ 추가" 버튼이 Markdown 항목을 페이지 DB의 `board_items` 컬렉션(`col`: todo | doing | done, `text`, `createdAt`)에 저장하고 그 칸 맨 아래에 붙인다. 옮기면 `col`만 바뀐다. 옛 값 `today`/`due`는 할 일로 읽는다. 날짜별로 새 페이지라 전날 추가한 항목은 다음 날 페이지로 넘어가지 않는다(필요하면 `ArtifactData`로 전날 페이지의 `board_items`를 읽는다)
+   - 카드의 칸반 상태는 같은 DB의 `item_state` 컬렉션에 쓴다. doc id는 `thread-<스레드 id>`(스레드에서 온 항목), `top-<순번>`, `task-<page_id 앞 8자>`, `mail-<순번>`이고, 필드는 `key`, `title`, `status`(todo | doing | done), `done`(status가 done이면 true), `doneAt`, `date`. `status`가 없는 이전 문서는 `done: true`면 완료로 읽는다. 상태 반영하기와 보드 반영 7번은 `done`을 보고, 대상은 일지와 연결되는 `thread-`/`top-` 키뿐이다(Task·메일 카드는 칸만 옮긴다). 보드 툴바의 "상태 반영하기"는 완료 체크와 `ledger.daily`가 다른 항목을 작업 카드(diff) 모달로 보이고 확정을 받는다. Claude 데스크톱 앱에서 열려 `notion-personal`이 보이면 `block_id`가 있는 항목은 확정 즉시 `checked`를 바꾸고 `ledger: {daily, block, at, via: "board"}`를 쓴다. 그 밖(브라우저, `block_id` 없는 항목)은 같은 문서에 `pending: {daily, block, at}`을 남기고, 사용자가 세션에 "반영해"라고 하면 보드 반영 7번이 pending 항목을 더 묻지 않고 일지에 체크한다. 다음 날 브리핑이나 daily:retrospective는 전날 `artifact_url`의 `item_state`를 읽어 실제로 끝낸 항목을 판정할 수 있다
    - 같은 날 다시 실행하면 같은 경로라 같은 URL이 갱신된다
    - 게시 결과의 URL을 브리핑 JSON의 `artifact_url`에 저장한다. "보드 반영"과 daily:retrospective가 이 값으로 `board_items`를 읽는다
 4. 콘솔 응답은 세 줄로 끝낸다: 결론 한 줄, Top 3 제목 한 줄, Artifact 링크
@@ -191,6 +194,8 @@ date '+%s'
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
 | `launch`, `launch_error` | resolve-launch | 템플릿 |
 
+| `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
+| `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
 ## 보드 반영 (서브 모드)
 
 "보드 반영해"처럼 하루 시작 보드에 직접 추가한 항목과 완료 체크를 원장에 기록하라는 요청이면 Step 0~5 대신 이 절만 실행한다. 원장은 Notion 오늘 일지(본문 Todo's 칸 + `Todo's` property)이고, 항목이 원하면 Jira PLE 티켓까지 만들어 링크한다. 일지 쓰기와 티켓 생성은 아래 승인을 거친다.
@@ -214,6 +219,11 @@ date '+%s'
    - 대상: `done: true`인데 `ledger.daily`가 없는 문서(체크 반영), `done: false`인데 `ledger.daily`가 true인 문서(체크 해제)
    - 일지 할 일과 맞추기: `notion-daily.py list-todos --page-id <page_id>`의 할 일(모든 깊이, id 포함)과 문서 `title`을 뜻으로 맞춘다. 글자가 달라도 같은 일이면 같은 항목이다(Top 3 제목과 Step 4에서 넣은 Todos 문구는 다르게 쓰인다)
    - 한 번의 AskUserQuestion으로 항목마다 고르게 한다(최대 4개씩). 옵션은 "맞춘 할 일 체크"(맞춘 할 일 글을 보인다), "일지에 체크된 할 일로 새로 추가", "반영하지 않음". 맞는 할 일이 없으면 첫 옵션을 뺀다
+   - **확정된 항목(`pending.daily == done`)은 묻지 않는다.** 보드의 "상태 반영하기" 모달에서 사용자가 diff를 보고 확정한 것이다
+     - `pending.block`이 있으면 그 id로 바로 `check-todos`(해제면 `--uncheck`)를 dry-run, 실제 실행 순으로 부른다
+     - `pending.block`이 없으면 아래처럼 뜻으로 맞춘다. 맞는 할 일이 하나뿐이면 묻지 않고 체크하고, 없거나 여럿이면 아래 AskUserQuestion으로 넘긴다
+     - 성공하면 `ledger: {daily: <done 값>, block, at, via: "page"}`를 쓰고 `pending`은 `{"__delete__": true}`로 지운다
+     - `pending.daily`가 지금 `done`과 다르면(확정 뒤 완료를 다시 바꿈) 확정이 없는 것으로 보고 아래 절차를 따른다
    - 실행은 dry-run 먼저, 이어서 실제 실행
      ```bash
      python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py check-todos --page-id <page_id> --block-ids '["<id>"]' [--uncheck] --dry-run

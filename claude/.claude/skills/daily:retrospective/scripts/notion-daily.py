@@ -486,10 +486,15 @@ def cmd_append_todos(args):
     already_written = {norm(t["text"]) for t in flatten_todos(todos["nodes"])}
     new_entries, skipped = [], []
     for e in entries:
-        (skipped if norm(e["text"]) in already_written else new_entries).append(e)
-        already_written.add(norm(e["text"]))
+        keys = written_keys(e)
+        (skipped if keys & already_written else new_entries).append(e)
+        already_written |= keys
 
     blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked, e.get("links"))
+    # 글 끝에 링크 라벨("  PLE-27 · #10315")이 붙어 저장되므로, 라벨을 붙인 글로도 비교한다(재실행 중복 방지)
+    def written_keys(e):
+        return {norm(e["text"]), norm(e["text"] + "".join(l["label"] for l in entry_links(e)))}
+
               for e in new_entries]
     if args.parent_block:
         top_ids = {n["id"].replace("-", "") for n in todos["nodes"] if n["type"] == "to_do"}
@@ -532,9 +537,22 @@ def cmd_append_todos(args):
 
 
 def cmd_list_todo_parents(args):
+    # 항목마다 블록 id를 돌려준다(하루 시작 보드의 상태 반영 버튼이 이 id의 checked만 바꾼다).
+    # 쓰기 뒤 Todos를 다시 읽어 글로 맞춘다. dry-run에서 새 항목은 아직 블록이 없어 id가 null이다
+    by_key = {}
+    for t in todo_nodes_with_ids(load_todos_section(token, args.page_id)["nodes"]):
+        by_key.setdefault(norm(t["text"]), t["id"])
+    skipped_ids = {id(e) for e in skipped}
+
+    def block_id_of(e):
+        return next((by_key[k] for k in written_keys(e) if k in by_key), None)
+
+    blocks = [{"text": e["text"], "id": block_id_of(e), "skipped": id(e) in skipped_ids} for e in entries]
+
     """Todos 칸의 최상위 to_do 목록(id, text, checked). 보드 반영 때 상위 항목 후보로 쓴다."""
     token = get_token()
     _, sections = parse_body(fetch_tree(token, args.page_id))
+                      "blocks": blocks,
     todos = sections.get("Todos")
     if not todos:
         print(json.dumps({"success": False, "error": "본문에 Todos 칸이 없습니다"}, ensure_ascii=False))

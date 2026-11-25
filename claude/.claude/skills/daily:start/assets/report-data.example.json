@@ -433,7 +433,8 @@
       "reason": "7점: 진행 중 스레드 + 어제 Tomorrow",
       "added": false,
       "thread_id": "t5",
-      "cwd": "/Users/changhwan/orca/workspaces/kubernetes/AWS-멀티어카운트-도입"
+      "cwd": "/Users/changhwan/orca/workspaces/kubernetes/AWS-멀티어카운트-도입",
+      "block_id": null
     },
     {
       "tag": "이어서",
