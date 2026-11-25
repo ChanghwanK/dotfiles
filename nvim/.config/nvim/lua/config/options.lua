@@ -7,9 +7,6 @@ vim.opt.timeoutlen = 300
 local theme = require("config.theme")
 vim.g.nvim_theme = theme
 
--- copy & past
-opt.clipboard:append("unnamedplus")
-
 -- tab/indent
 opt.tabstop = 2
 opt.shiftwidth = 2

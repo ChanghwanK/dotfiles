@@ -23,7 +23,7 @@ window-save-state = always
 font-family = MesloLGS NF
 # font-family = SF Mono
 font-family = Noto Sans CJK KR
-font-size = 13.5
+font-size = 12.5
 
 # Option key as Meta (left only — right Option still types special chars)
 macos-option-as-alt = left

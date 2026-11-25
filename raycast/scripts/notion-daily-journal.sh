@@ -2,6 +2,7 @@
 #
 # Raycast Script Command: Notion Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 바로 연다.
 # 페이지 ID는 날짜로 계산할 수 없어서(UUID에 무작위 부분이 있음) Due Date 필터로 조회한다.
+# 오늘 페이지가 없으면(주말 등) 기본 템플릿으로 만든 뒤 연다.
 #
 # Required parameters:
 # @raycast.schemaVersion 1
@@ -22,7 +23,8 @@ if [[ -z "$NOTION_TOKEN" ]]; then
   exit 1
 fi
 
-target=$(date +%F)
+# DAILY_TODO_DATE는 시험용이다(Raycast에서는 비어 있어 항상 오늘).
+target="${DAILY_TODO_DATE:-$(date +%F)}"
 
 page_id=$(NOTION_TOKEN="$NOTION_TOKEN" TARGET="$target" /usr/bin/python3 -I - <<'PY'
 import json, os, sys, urllib.request, urllib.error
@@ -40,32 +42,52 @@ def req(method, path, body=None):
     with urllib.request.urlopen(r, timeout=10) as resp:
         return json.loads(resp.read())
 
+target = os.environ["TARGET"]
 try:
     ds_id = req("GET", f"/databases/{DB_ID}")["data_sources"][0]["id"]
     res = req("POST", f"/data_sources/{ds_id}/query", {
-        "filter": {"property": "Due Date", "date": {"equals": os.environ["TARGET"]}},
+        "filter": {"property": "Due Date", "date": {"equals": target}},
         "page_size": 1,
     })["results"]
+    if res:
+        print(res[0]["id"].replace("-", ""))
+        sys.exit(0)
+    # 평일 일지는 Notion 반복 템플릿이 00:00에 만든다. 주말처럼 없는 날만 여기서 만든다.
+    # 제목·Due Date는 반복 템플릿이 만든 페이지와 같은 형식(날짜 mention + " 업무 일지")으로 채우고,
+    # 본문은 DB 기본 템플릿(@Today 업무 일지)을 적용한다.
+    page = req("POST", "/pages", {
+        "parent": {"type": "data_source_id", "data_source_id": ds_id},
+        "template": {"type": "default"},
+        "properties": {
+            "이름": {"title": [
+                {"type": "mention", "mention": {"type": "date", "date": {"start": target}}},
+                {"type": "text", "text": {"content": " 업무 일지"}},
+            ]},
+            "Due Date": {"date": {"start": target}},
+        },
+    })
+    print("NEW " + page["id"].replace("-", ""))
 except urllib.error.HTTPError as e:
     print(f"ERR HTTP {e.code}")
-    sys.exit(0)
 except Exception as e:
     print(f"ERR {type(e).__name__}")
-    sys.exit(0)
-
-print(res[0]["id"].replace("-", "") if res else "")
 PY
 )
 
 if [[ "$page_id" == ERR* ]]; then
-  echo "Notion 조회 실패: ${page_id#ERR }"
+  echo "Notion 요청 실패: ${page_id#ERR }"
   exit 1
 fi
 if [[ -z "$page_id" ]]; then
-  echo "$target 일지 페이지가 없습니다"
+  echo "Notion 응답이 비었습니다"
   exit 1
+fi
+msg="$target 업무 일지를 엽니다"
+if [[ "$page_id" == NEW* ]]; then
+  page_id="${page_id#NEW }"
+  msg="$target 업무 일지를 만들어 엽니다"
 fi
 
 # notion:// scheme은 Notion 데스크톱 앱이 받는다(웹 브라우저를 거치지 않음).
 open "notion://www.notion.so/$page_id"
-echo "$target 업무 일지를 엽니다"
+echo "$msg"
