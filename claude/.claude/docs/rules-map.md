@@ -6,9 +6,10 @@
 
 | 규칙 범주 | 정본 | 로딩 |
 |-----------|------|------|
-| 우선순위, 응답 기본값, 조건부 덧붙임, 작업 원칙, 하드 가드레일, 라우팅 표, 규칙 생애주기, Artifact·다이어그램 시각 규칙(기울임 금지 등) | `~/.claude/CLAUDE.md` | 상시 |
+| 우선순위, 응답 기본값, 조건부 덧붙임, 작업 원칙, 하드 가드레일, 라우팅 표, 규칙 생애주기 | `~/.claude/CLAUDE.md` | 상시 |
 | 문제와 가설, 원인 가설 단계, 근본 원인 사슬(5 Whys), 검증 목록(항목·칸·합의·날짜 자격), 판정과 갱신 | `docs/hypothesis-first.md` | Read (CLAUDE.md 라우팅 표) |
 | 검증 시나리오·테스트 케이스·DoD 판정 기준 문장 | `docs/verification-scenario.md` | Read |
+| 작업 계획·작업 결과 검토용 HTML 문서(형식 요구사항, 참고 금지 자료) | `docs/review-html.md` | Read (CLAUDE.md 라우팅 표) |
 | Task·업무 노트·Tech Spec의 Goals·Key Result·Todo 구분과 문체 | `skills/task:keyresult/SKILL.md` | Skill (capture·eng-note·tech-spec·grill-me가 포인터로 호출) |
 | 플랜 섹션 순서·이름, 플랜 TODO 운영(`plan-todo.py`) | `docs/plan-format.md` | 훅 (PostToolUse `EnterPlanMode`) |
 | 코드 작성·리팩터링·테스트 품질 | `docs/code-quality-convention.md` | Read |

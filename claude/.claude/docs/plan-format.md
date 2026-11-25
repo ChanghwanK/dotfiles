@@ -190,5 +190,5 @@ ExitPlanMode 훅(`notify-plan-done.sh`)이 `## Steps`에서 frontmatter TODO를 
 - 각 step을 마칠 때마다 `/plan:check <n>`을 부릅니다. 스킬 밖에서 스크립트를 직접 부를 때는 `python3 ~/.claude/scripts/plan-todo.py check <n> --plan-id <plan_id>`처럼 부릅니다(`--plan-id`는 전역 하드 가드레일). 모든 step이 끝나면 플랜이 `completed`로 바뀝니다
 - 남은 작업: `plan-todo.py todo --plan-id <plan_id>` / 본문: `/plan:show [name]` / 목록: `/plan:list`
 - 멈춘 플랜: `plan-todo.py stale [--days 14]`. 훅이 목록을 알려 주면 응답 끝에 한 줄로 전하고, 폐기(`plan-todo.py abandon --plan-id <id>`)는 사용자가 정합니다
-- 플랜은 `.md`로만 남깁니다. HTML로 렌더링하거나 브라우저로 열지 않습니다
+- 플랜은 `.md`가 정본입니다. 검토용 HTML을 요청받으면 `docs/review-html.md`를 따릅니다
 

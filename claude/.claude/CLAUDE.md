@@ -77,6 +77,7 @@
 | 플랜 모드에 들어갈 때 | `docs/plan-format.md` (훅이 주입) |
 | 플랜·PR·Task·RCA의 문제와 가설, 5whys·근본 원인을 쓸 때 | `docs/hypothesis-first.md` |
 | 검증 시나리오·테스트 케이스·DoD 기준을 쓸 때 | `docs/verification-scenario.md` |
+| 작업 계획·작업 결과(검증, 실제 작업)를 검토용 HTML로 만들어 달라고 요청받았을 때 | `docs/review-html.md` |
 | 코드를 작성·수정·리팩터링하거나 테스트를 쓸 때 | `docs/code-quality-convention.md` |
 | Notion 문서·Task, Claude Docs 문서를 쓸 때 | `docs/notion-writing-style.md` |
 | Jira 티켓을 만들거나 설명을 다시 쓸 때 | `docs/jira-ticket-template.md` |
@@ -85,16 +86,6 @@
 | 인프라 레포에서 작업할 때 | `docs/devops-work.md`, `docs/kubectl-contexts.md` (훅이 주입) |
 | 지침·docs·메모리를 고칠 때 | `docs/rules-map.md` |
 | 다이어그램(시퀀스·아키텍처·플로차트 등)을 요청받았거나 다이어그램이 설명의 중심일 때 | `diagram-design` 스킬. 인라인 위젯(visualize)은 요청 없이 이해를 돕는 보조 그림에만 쓴다 |
-
-## Artifact
-
-HTML 페이지(artifact-design 스킬)와 다이어그램(diagram-design 스킬)을 만들 때 스킬의 기본 지침보다 우선한다.
-- 기울임(italic) 글꼴을 쓰지 않는다. diagram-design의 italic 세리프 주석(callout)은 똑바른 sans로 쓴다
-
-HTML 페이지에만 적용한다.
-- `body` 배경은 `#ffffff`, 단일 라이트 테마다. 다크 테마 재정의 블록(`prefers-color-scheme: dark`, `[data-theme="dark"]`)을 넣지 않는다
-- 표·구역 구분은 배경색이 아니라 1px 테두리와 옅은 회색(`#f1f4f7` 수준)으로 한다
-- 정리형 페이지는 모든 섹션을 펼친 한 페이지에 카드 섹션 없이 표·시각자료(타임라인·막대·흐름도)·시맨틱 칩(빨강·노랑·초록)을 쓰고 장식은 절제한다
 
 ## 세션과 플랜
 
