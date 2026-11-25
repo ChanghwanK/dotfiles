@@ -171,6 +171,8 @@ def fetch_tree(token, block_id):
                 "id": b["id"],
                 "type": b["type"],
                 "text": block_text(b),
+                # 글에 걸린 링크(href). Tomorrow에 적은 PR·Jira를 어제 작업 수집이 조회할 때 쓴다
+                "links": [r["href"] for r in b.get(b["type"], {}).get("rich_text", []) if r.get("href")],
                 "checked": b.get("to_do", {}).get("checked") if b["type"] == "to_do" else None,
                 "children": fetch_tree(token, b["id"]) if b.get("has_children") else [],
             }
@@ -189,6 +191,15 @@ def flatten_text(nodes, depth=0, mark_checked=False):
             lines.append("  " * depth + prefix + n["text"].strip())
         lines.extend(flatten_text(n["children"], depth + 1, mark_checked))
     return lines
+
+
+def collect_links(node):
+    """항목과 하위 항목에 걸린 링크를 순서대로, 중복 없이 모은다."""
+    out = []
+    for url in node.get("links", []) + [u for c in node["children"] for u in collect_links(c)]:
+        if url not in out:
+            out.append(url)
+    return out
 
 
 def flatten_todos(nodes, depth=0):
@@ -240,7 +251,8 @@ def parse_body(tree):
         if not sec:
             return []
         return [{"text": x["text"].strip(),
-                 "detail": "\n".join(flatten_text(x["children"], mark_checked=mark_checked))}
+                 "detail": "\n".join(flatten_text(x["children"], mark_checked=mark_checked)),
+                 "links": collect_links(x)}
                 for x in sec["nodes"] if x["text"].strip()]
 
     worries = []

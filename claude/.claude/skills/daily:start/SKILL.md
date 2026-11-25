@@ -99,6 +99,7 @@ date '+%s'
 1. **긴급 대응**: 인프라 `urgent` 전부 + 메일 `urgent_hint: true`이면서 `action_required`인 것. 항목마다 "왜 긴급인가"(규칙 한 줄)와 링크
 2. **어제 한 일**: 어제 작업 `threads` 전부(상태, 한 일, PR 근거). 그 아래 "회고 문서와 대조"에 Notion `continue_items`를 스레드와 맞춰 본 결과를 쓴다
    - 스레드와 뜻이 같은 회고 항목: 스레드 상태가 완료면 "어제 완료로 보임, 체크 권장", 아니면 스레드에 합쳐 목록에서 뺀다
+   - 스레드에 `tomorrow_ref`가 있으면 그 Tomorrow 항목과 같은 일로 보고 합친다. `source: tomorrow_pr` 스레드는 어제 Tomorrow에 적힌 PR(머지 뒤 갱신이 없어 PR 조회에 안 걸리는 후속 작업)로 만든 것이라 세션이 없다. Top 3 점수는 스레드 상태 점수와 Tomorrow +3을 함께 받는다
    - 회고 항목에 `detail`(하위 항목)이 있으면 같은 일인지, 끝났는지를 제목이 아니라 하위 항목으로 판정한다. 스레드가 미체크 하위 항목을 모두 덮을 때만 "완료로 보임"을 붙인다. 일부만 덮으면 남은 하위 항목을 `note`에 적고 이어가기에 남긴다. 제목만 겹치고 하위 항목이 다른 일이면(예: "인증서 관리" 아래 "만료 처리 및 로테이션 어떻게?" vs 인증서 적용 확인 세션) 합치지 않는다
    - 회고 항목을 Top 3에 합칠 때는 미체크 하위 항목을 `next_action`이나 `done_when`에 반영한다
    - 스레드에 없는 회고 항목(Tomorrow, Try, 미체크): 그대로 남기고 `carry_days >= 2`면 "N일째"를 붙인다
@@ -220,6 +221,7 @@ date '+%s'
 |---|---|---|
 | `threads[].id`, `cwd`, `sessions[].session_id` | 어제 작업 에이전트 → Step 2 합성 | resolve-launch, task:resume |
 | `threads[].stopped_at`, `next_action`, `resume` | 어제 작업 에이전트 | 템플릿, task:resume |
+| `threads[].source`, `tomorrow_ref` | 어제 작업 에이전트(어제 일지 Tomorrow의 PR 링크, `notion-daily.py read`의 `tomorrow_items[].links`) | Step 2 합성 |
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
 | `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
 | `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
@@ -278,7 +280,7 @@ python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py --da
 - `NOTION_TOKEN`이 없으면 Notion 단계가 실패한다. `~/.secrets.zsh`의 `NOTION_TOKEN`을 확인하게 안내한다
 - 알럿은 `#notification_infra`(C0782TXLBT5)에 직전 근무일 20:00 KST부터 지금까지 올라온 것만 본다. 그 전에 올라와 아직 열린 알럿(장기 firing), dev/stg 알럿 채널, 제품팀 채널은 수집하지 않는다. 채널이 바뀌면 `agents/agent-infra-channel.md`의 channel id를 고친다
 - 인프라 분류의 "prod" 판정은 클러스터 이름(`prod`, `global`, `idc` 포함)에 기댄다. 이름 규칙이 다른 클러스터가 생기면 `agents/agent-infra-channel.md`의 분류 규칙을 고친다
-- 어제 작업 판정은 Claude 세션 로그와 GitHub PR에 기댄다. 세션 밖에서 한 작업(회의, 콘솔 수동 작업)은 회고 문서로만 보인다
+- 어제 작업 판정은 Claude 세션 로그와 GitHub PR(어제 갱신된 내 PR, 어제 일지 Tomorrow에 링크한 PR)에 기댄다. 세션 밖에서 한 작업(회의, 콘솔 수동 작업)은 회고 문서로만 보인다
 - `scripts/extract-work.py`는 `handoff:pause` 등 다른 스킬도 쓴다. 옮기거나 이름을 바꾸지 않고, 기존 필드(`project`, `file`, `user_messages`)는 바꾸지 않는다
 - 잘못 보관한 메일은 `label_thread(threadId, ["INBOX"])`로 되돌린다
 

@@ -4,6 +4,7 @@ allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/daily:start/scripts/extract-work.py *)
   - Bash(gh search prs *)
   - Bash(gh pr view *)
+  - Bash(python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py read *)
 ---
 
 # Agent: 어제 한 일과 재개 지점 정리
@@ -17,7 +18,7 @@ allowed-tools:
 
 ## 수집 절차
 
-아래 세 명령은 서로 독립이므로 한 메시지에서 병렬로 실행한다.
+아래 네 명령은 서로 독립이므로 한 메시지에서 병렬로 실행한다.
 
 1. **세션 로그**
    ```bash
@@ -33,6 +34,13 @@ allowed-tools:
    ```bash
    gh search prs --review-requested=@me --state=open --json repository,number,title,url,updatedAt --limit 20
    ```
+4. **어제 일지 Tomorrow에 적힌 PR** (머지 뒤 갱신이 없어 2번 조회에 걸리지 않는 후속 작업을 잡는다)
+   ```bash
+   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py read --date {prev_workday}
+   ```
+   - `body.tomorrow_items[]`마다 `links`에서 `https://github.com/<owner>/<repo>/pull/<n>` URL을 고른다. 링크 없이 글에만 있는 `#<n>`은 `https://github.com/riiid/kubernetes/pull/<n>`으로 본다
+   - 고른 PR(최대 8건)마다 `gh pr view <url> --json number,title,state,mergedAt,updatedAt,url`
+   - 일지가 없거나(`error`) Tomorrow가 비면 이 단계를 건너뛴다. 조회 실패는 `errors`에 남긴다
 - open PR이 있으면 `gh pr view <url> --json reviewDecision,statusCheckRollup,mergeable`로 막힌 곳(리뷰 대기, CI 실패, 충돌)을 확인한다. 최대 5건
 
 ## 스레드로 묶기
@@ -40,6 +48,12 @@ allowed-tools:
 - 같은 레포·같은 주제의 세션과 PR을 한 스레드로 묶는다. 판단 근거는 세션 `title`, `cwd`, PR 제목의 대상(circle, 컴포넌트)이다
 - 세션 하나에 주제가 둘이면 나눠도 된다. 메시지 2개 이하의 짧은 질문 세션(용어 확인, 명령 질문)은 스레드로 만들지 않고 `minor_sessions` 수로만 센다
 - 스레드 제목은 작업 대상과 목적이 보이게 쓴다 (예: "pgbouncer-lab: Aurora 앞 PgBouncer 검증")
+- 세션·PR로 만든 스레드는 `source: "session"`이다
+- **Tomorrow PR 묶기** (수집 4번 결과, 세션 스레드를 다 만든 뒤에 한다)
+  - 어떤 스레드의 `prs`에 같은 PR이 이미 있으면 새로 만들지 않고 그 스레드에 `tomorrow_ref`(Tomorrow 항목 글)만 붙인다
+  - 없으면 새 스레드를 만든다: `source: "tomorrow_pr"`, `tomorrow_ref`와 `title`은 Tomorrow 항목 글, `sessions: []`, `cwd: null`, `prs`에 조회한 PR(`at`은 머지 시각, 없으면 갱신 시각을 KST로. 어제 날짜가 아니면 `MM-DD HH:MM`), `resume`은 PR URL
+  - 같은 Tomorrow 항목에 PR이 여러 개면 한 스레드에 모은다
+  - 이 스레드는 어제 일한 기록이 아니라 어제 적어 둔 다음 단계다. `done`에는 "어제 세션 작업 없음, #<n>은 <MM-DD> 머지(또는 open)"처럼 PR 상태만 쓰고, `next_action`·`done_when`·`follow_up`은 Tomorrow 항목 글(남은 단계)에서 쓴다
 
 ## 상태 판정
 
@@ -59,7 +73,7 @@ allowed-tools:
 - `resume`: 재개 수단. 우선순위는 open PR URL > 세션 재개 명령 `cd {cwd} && claude --resume {session_id}` (가장 최근 세션)
 - `done_when`: 이 스레드를 오늘 끝냈다고 볼 관찰 가능한 상태 한 줄
 
-완료 스레드에도 `follow_up`이 있으면 쓴다 (예: dev merged → stg/prod 적용 남음). 후속이 있으면 상태를 진행 중으로 올린다.
+완료 스레드에도 `follow_up`이 있으면 쓴다 (예: dev merged → stg/prod 적용 남음). 후속이 있으면 상태를 진행 중으로 올린다. `tomorrow_pr` 스레드는 Tomorrow 항목이 남은 단계이므로 PR이 merged·closed여도 진행 중이다.
 
 ## 반환 형식
 
@@ -75,6 +89,7 @@ totals:
   minor_sessions: <스레드로 만들지 않은 짧은 세션 수>
   prs_merged: <어제 merged PR 수>
   prs_open: <열린 내 PR 수>
+  tomorrow_pr_threads: <Tomorrow PR로 새로 만든 스레드 수>
 threads:
   - id: "t1"
     project: "<레포 또는 프로젝트>"
@@ -90,6 +105,8 @@ threads:
     sessions: [{start: "HH:MM", end: "HH:MM", session_id: "<id>"}]
     prs: [{number: <n>, repo: "<owner/name>", title: "<제목>", state: "merged | open | closed", url: "<url>", at: "HH:MM"}]
     evidence: "<판정 근거 한 줄>"
+    source: "session | tomorrow_pr"
+    tomorrow_ref: "<이 스레드와 연결된 어제 Tomorrow 항목 글 | null>"
 review_requests:
   - title: "<PR 제목>"
     repo: "<owner/name>"
