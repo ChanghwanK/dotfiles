@@ -388,6 +388,20 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
   function userSlot(col) { return '<div class="user-items" data-col="' + col + '"></div>'; }
   var colCards = { todo: [], doing: [], done: [] };
 
+  // 어제 Tomorrow: Top 3에 합친 항목(merged_top)은 그 카드 안 체크리스트로, 나머지는 할 일 칸 카드로 그린다
+  var TMR = arr(D.tomorrow);
+  function subsHtml(subs) {
+    return arr(subs).map(function (s) {
+      return '<li class="' + (s.done ? "on" : "") + '" style="padding-left:' + ((s.depth || 0) * 14) + 'px">' + esc(s.text) + "</li>";
+    }).join("");
+  }
+  function tomorrowHtml(list) {
+    if (!list.length) return "";
+    return '<ul class="subs">' + list.map(function (x) {
+      return '<li class="tm-head">' + esc(x.text) + "</li>" + subsHtml(x.subs);
+    }).join("") + "</ul>";
+  }
+
   // Top 3: 오늘 집중할 일이라 진행 중에서 시작
   top.forEach(function (t, i) {
     var chips = chip(t.tag, TAG_CHIP[t.tag]) + (t.added ? chip("Todos", "green") : "");
@@ -400,9 +414,21 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
         ["멈춘 곳", esc(t.stopped_at)],
         ["첫 행동", esc(t.next_action), true],
         ["완료 조건", esc(t.done_when)],
+        ["어제 Tomorrow", tomorrowHtml(TMR.filter(function (x) { return x.merged_top === i + 1; }))],
         ["이유", esc(t.reason)],
         ["재개", resumeHtml(t.resume)]
       ]) + launchHtml(t)
+    }));
+  });
+  // Top 3에 합치지 않은 Tomorrow: 할 일 칸 카드
+  TMR.forEach(function (x, i) {
+    if (x.merged_top) return;
+    var key = doneKey("tomorrow", i + 1);
+    if (x.block_id) BLOCK_OF[key] = x.block_id;
+    colCards.todo.push(item({
+      title: x.text, chips: chip("Tomorrow") + (x.added ? chip("Todos", "green") : ""), sub: x.note,
+      key: key, init: "todo",
+      details: arr(x.subs).length ? dl([["하위 항목", '<ul class="subs">' + subsHtml(x.subs) + "</ul>"]]) : ""
     }));
   });
   // 그 밖에 열린 스레드: 진행 중이면 진행 중, 중단이면 할 일
@@ -474,12 +500,15 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
   );
 
   // 회고 대조
-  var retro = arr(D.retro_notes);
+  // tomorrow 필드가 있으면 Tomorrow 항목은 보드에 있으므로 여기서 뺀다. 출처 순서로 묶어 표로 보인다
+  var RETRO_ORDER = { "미체크": 0, "Try": 1, "코치": 2, "고민": 3, "Tomorrow": 4 };
+  var retro = arr(D.retro_notes).filter(function (r) { return !(TMR.length && r.source === "Tomorrow"); })
+    .sort(function (a, b) { return (RETRO_ORDER[a.source] == null ? 9 : RETRO_ORDER[a.source]) - (RETRO_ORDER[b.source] == null ? 9 : RETRO_ORDER[b.source]); });
   if (retro.length) {
-    html.push('<section><h2>회고 문서와 대조 <span class="n">' + retro.length + "건</span></h2><ul class=\"plain\">" + retro.map(function (r) {
-      return "<li>" + chip(r.source) + " " + esc(r.text) + (r.carry_days >= 2 ? " " + chip(r.carry_days + "일째", "amber") : "") +
-        (r.note ? ' <span class="note">' + esc(r.note) + "</span>" : "") + "</li>";
-    }).join("") + "</ul></section>");
+    html.push('<section><h2>회고 문서와 대조 <span class="n">' + retro.length + "건" + (TMR.length ? " · Tomorrow는 보드에 있음" : "") + "</span></h2>" +
+      '<div class="table-wrap"><table><thead><tr><th>출처</th><th>항목</th><th>판정</th></tr></thead><tbody>' + retro.map(function (r) {
+        return "<tr><td>" + chip(r.source) + (r.carry_days >= 2 ? chip(r.carry_days + "일째", "amber") : "") + "</td><td>" + esc(r.text) + '</td><td class="note">' + esc(r.note || "") + "</td></tr>";
+      }).join("") + "</tbody></table></div></section>");
   }
 
   // 알럿
@@ -822,7 +851,7 @@ footer { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line)
   }
   function candidates() {
     return Object.keys(DONE_KEYS).filter(function (k) {
-      if (!/^(thread|top)-/.test(k)) return false; // 마감 Task·메일 카드는 일지와 연결되지 않는다
+      if (!/^(thread|top|tomorrow)-/.test(k)) return false; // 마감 Task·메일 카드는 일지와 연결되지 않는다
       var done = !!doneState[k];
       var L = stateLedger[k] || {};
       if (L.skipped && done) return false; // "보드 반영해"에서 반영하지 않기로 한 상태 그대로

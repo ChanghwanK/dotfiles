@@ -155,6 +155,11 @@ date '+%s'
    - `title`: "{M}월 {D}일 하루 시작"
    - `headline`: 결론을 개조식 불릿 배열로 쓴다(문자열 배열, 3~5개, 각 항목은 명사형 종결). 순서는 밤사이 알럿, 긴급, 오늘 첫 작업, 참고 섹션(마감·메일·일정). 문자열 하나도 렌더되지만 새로 쓸 때는 배열로 쓴다
    - `top3[].added`: Step 4에서 Todos에 넣은 항목이면 true
+   - `tomorrow[]`: 어제 Tomorrow 항목을 칸반에 올린다. `continue_items` 중 `source: tomorrow`를 하나씩 `{text, subs: [{text, done, depth}], merged_top, note, added, block_id}`로 옮긴다
+     - `subs`: `detail`의 줄마다 하나. 앞 공백 2칸이 depth 1이고, `[x] `로 시작하면 `done: true`(접두어는 뺀다)
+     - `merged_top`: Top 3에 합쳤으면 그 순번(1~3). 그 카드 펼침의 "어제 Tomorrow" 줄에 체크리스트로 보인다. 합치지 않았으면 null이고, 할 일 칸에 별도 카드로 보인다
+     - `added`·`block_id`: Step 4에서 Todos에 넣었으면 true와 `append-todos`가 돌려준 블록 id
+     - `tomorrow[]`가 있으면 `retro_notes`에 Tomorrow 항목을 넣지 않는다(템플릿도 뺀다). `retro_notes`는 미체크·Try·코치·고민만 담고 표로 보인다
    - `top3[].thread_id`: 이어가기 항목이 어제 스레드에서 왔으면 그 스레드 `id`. 보드의 "그 밖에 열린 스레드"에서 중복을 뺀다
    - `yesterday.threads[]`의 완료가 아닌 스레드에는 어제 작업 에이전트의 `stopped_at`, `next_action`, `resume`을 그대로 옮긴다(펼침 안에 보인다)
    - `yesterday.threads[]`에는 `cwd`와 `sessions[].session_id`를 그대로 옮긴다. `top3[]`에도 `cwd`를 둔다(스레드에서 왔으면 그 스레드의 cwd, 아니면 재개 세션의 cwd). `task:resume`이 이 값으로 지난 세션을 찾는다(아래 "이어가기 흐름"의 필드 약속)
@@ -172,7 +177,7 @@ date '+%s'
    - `pin: true`를 함께 넘긴다(사용자 요청, 2026-11-25). Claude 데스크톱 앱 사이드바에서 그날 페이지를 바로 열어 "상태 반영하기"의 즉시 반영을 쓰기 위해서다. 고정 실패는 게시를 실패시키지 않으니 결과에 실패가 나오면 콘솔 응답에 한 줄로 알린다
    - 고정이 성공하면 전날 페이지 고정을 푼다(사용자 요청, 2026-11-25). `~/.claude/tmp/daily-start/`에서 오늘보다 앞선 날짜 중 가장 최근 `{date}.json`의 `artifact_url`을 읽어, 값이 있고 오늘 URL과 다르면 Artifact `action: "unpin"`을 부른다. 주말·휴가로 날짜가 비어도 가장 최근 것 하나만 푼다. 파일이나 값이 없거나 해제가 실패해도 브리핑은 계속하고, 실패만 콘솔에 한 줄로 알린다
    - `capabilities: {db: {}, user: {}, mcp: {servers: [{server: "host:notion-personal", tools: ["API-update-a-block"]}]}}`를 함께 넘긴다. `mcp`는 "상태 반영하기"의 즉시 반영용이다. 전제: Claude 데스크톱 앱 설정 `~/Library/Application Support/Claude/claude_desktop_config.json`의 `mcpServers`에 `notion-personal`(command `~/.claude/scripts/mcp-notion-personal.sh`, `env.PATH`에 `/opt/homebrew/bin` 포함)이 있어야 한다. Claude Code 설정과 별개이고, 바꾼 뒤 앱을 재시작해야 읽힌다. 브라우저에서 열면 이 서버가 보이지 않아 반영 대기(pending) 방식으로 동작한다. 보드 칸마다 있는 "+ 추가" 버튼이 Markdown 항목을 페이지 DB의 `board_items` 컬렉션(`col`: todo | doing | done, `text`, `createdAt`)에 저장하고 그 칸 맨 아래에 붙인다. 옮기면 `col`만 바뀐다. 옛 값 `today`/`due`는 할 일로 읽는다. 날짜별로 새 페이지라 전날 추가한 항목은 다음 날 페이지로 넘어가지 않는다(필요하면 `ArtifactData`로 전날 페이지의 `board_items`를 읽는다)
-   - 카드의 칸반 상태는 같은 DB의 `item_state` 컬렉션에 쓴다. doc id는 `thread-<스레드 id>`(스레드에서 온 항목), `top-<순번>`, `task-<page_id 앞 8자>`, `mail-<순번>`이고, 필드는 `key`, `title`, `status`(todo | doing | done), `done`(status가 done이면 true), `doneAt`, `date`. `status`가 없는 이전 문서는 `done: true`면 완료로 읽는다. 상태 반영하기와 보드 반영 7번은 `done`을 보고, 대상은 일지와 연결되는 `thread-`/`top-` 키뿐이다(Task·메일 카드는 칸만 옮긴다). 보드 툴바의 "상태 반영하기"는 완료 체크와 `ledger.daily`가 다른 항목을 작업 카드(diff) 모달로 보이고 확정을 받는다. Claude 데스크톱 앱에서 열려 `notion-personal`이 보이면 `block_id`가 있는 항목은 확정 즉시 `checked`를 바꾸고 `ledger: {daily, block, at, via: "board"}`를 쓴다. 그 밖(브라우저, `block_id` 없는 항목)은 같은 문서에 `pending: {daily, block, at}`을 남기고, 사용자가 세션에 "반영해"라고 하면 보드 반영 7번이 pending 항목을 더 묻지 않고 일지에 체크한다. 다음 날 브리핑이나 daily:retrospective는 전날 `artifact_url`의 `item_state`를 읽어 실제로 끝낸 항목을 판정할 수 있다
+   - 카드의 칸반 상태는 같은 DB의 `item_state` 컬렉션에 쓴다. doc id는 `thread-<스레드 id>`(스레드에서 온 항목), `top-<순번>`, `tomorrow-<tomorrow[] 순번>`, `task-<page_id 앞 8자>`, `mail-<순번>`이고, 필드는 `key`, `title`, `status`(todo | doing | done), `done`(status가 done이면 true), `doneAt`, `date`. `status`가 없는 이전 문서는 `done: true`면 완료로 읽는다. 상태 반영하기와 보드 반영 7번은 `done`을 보고, 대상은 일지와 연결되는 `thread-`/`top-`/`tomorrow-` 키뿐이다(Task·메일 카드는 칸만 옮긴다). 보드 툴바의 "상태 반영하기"는 완료 체크와 `ledger.daily`가 다른 항목을 작업 카드(diff) 모달로 보이고 확정을 받는다. Claude 데스크톱 앱에서 열려 `notion-personal`이 보이면 `block_id`가 있는 항목은 확정 즉시 `checked`를 바꾸고 `ledger: {daily, block, at, via: "board"}`를 쓴다. 그 밖(브라우저, `block_id` 없는 항목)은 같은 문서에 `pending: {daily, block, at}`을 남기고, 사용자가 세션에 "반영해"라고 하면 보드 반영 7번이 pending 항목을 더 묻지 않고 일지에 체크한다. 다음 날 브리핑이나 daily:retrospective는 전날 `artifact_url`의 `item_state`를 읽어 실제로 끝낸 항목을 판정할 수 있다
    - 같은 날 다시 실행하면 같은 경로라 같은 URL이 갱신된다
    - 게시 결과의 URL을 브리핑 JSON의 `artifact_url`에 저장한다. "보드 반영"과 daily:retrospective가 이 값으로 `board_items`를 읽는다
 4. 콘솔 응답은 세 줄로 끝낸다: 결론 한 줄, Top 3 제목 한 줄, Artifact 링크
@@ -196,6 +201,7 @@ date '+%s'
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
 | `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
 | `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
+| `tomorrow[]` (`subs`, `merged_top`, `block_id`) | Step 5 합성 (Notion 컨텍스트 에이전트의 `continue_items.detail`) | 템플릿 |
 | `launch`, `launch_error` | resolve-launch | 템플릿 |
 
 ## 보드 반영 (서브 모드)
