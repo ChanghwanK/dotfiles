@@ -9,6 +9,10 @@ const NOTION_TEXT = '  • victoriametrics 메모리 개선\n      ◦ go gc 적
 
 // previousText 가 있으면 "오늘보다 앞선 일지" 조회(Due Date before)에 그 본문의 다른 행으로 답한다.
 const PREVIOUS_PAGE_ID = 'page-0'
+// Notion 은 속성 ID 를 URL 인코딩된 채로 준다(`A^DY` → `A%5EDY`). 한 번 더 인코딩한 경로로
+// 읽으면 실제 Notion 처럼 오류 없이 엉뚱한 값을 돌려줘, 이중 인코딩을 테스트가 잡게 한다.
+const TODO_PROPERTY_ID = 'A%5EDY'
+const WRONG_PROPERTY_TEXT = '  • 1'
 
 function fakeNotion(on: Parameters<TestBody>[1], initial: string, previousText?: string) {
   const notion = { text: initial, writes: 0 }
@@ -36,7 +40,7 @@ function fakeNotion(on: Parameters<TestBody>[1], initial: string, previousText?:
             {
               id: PREVIOUS_PAGE_ID,
               url: 'https://notion.so/page-0',
-              properties: { 이름: { type: 'title', title: [{ plain_text: '어제 업무 일지' }] }, "Todo's": { id: 'todo' } },
+              properties: { 이름: { type: 'title', title: [{ plain_text: '어제 업무 일지' }] }, "Todo's": { id: TODO_PROPERTY_ID } },
             },
           ],
         })
@@ -46,12 +50,13 @@ function fakeNotion(on: Parameters<TestBody>[1], initial: string, previousText?:
           {
             id: PAGE_ID,
             url: 'https://notion.so/page-1',
-            properties: { 이름: { type: 'title', title: [{ plain_text: '오늘 업무 일지' }] }, "Todo's": { id: 'todo' } },
+            properties: { 이름: { type: 'title', title: [{ plain_text: '오늘 업무 일지' }] }, "Todo's": { id: TODO_PROPERTY_ID } },
           },
         ],
       })
     }
     if (method === 'GET') {
+      if (!e.url.includes(`/properties/${TODO_PROPERTY_ID}`)) return reply({ results: [{ rich_text: { plain_text: WRONG_PROPERTY_TEXT } }], has_more: false })
       const text = e.url.includes(`/pages/${PREVIOUS_PAGE_ID}/`) ? (previousText ?? '') : notion.text
       return reply({ results: [{ rich_text: { plain_text: text } }], has_more: false })
     }
@@ -81,6 +86,18 @@ async function settle(ui: any) {
   for (let i = 0; i < 20; i++) await ui.find({ key: 'refresh' })
 }
 
+test('Notion 이 인코딩해 준 속성 ID 를 그대로 써서 오늘 본문을 읽고, ↻ 를 눌러도 목록이 남는다', async ($, on) => {
+  fakeNotion(on, NOTION_TEXT)
+  const ui = await mountPane($)
+  expect(await ui.find({ key: 'toggle:open:ssh key 정리' })).toBeDefined()
+
+  await ui.press({ key: 'refresh' })
+  await settle(ui)
+
+  expect(await ui.find({ key: 'toggle:open:ssh key 정리' })).toBeDefined()
+  expect(await ui.find({ key: 'toggle:open:1' })).toBeUndefined()
+})
+
 test('새 할 일 입력 박스가 해야 할 일 목록보다 위에 따로 그려진다', async ($, on) => {
   fakeNotion(on, NOTION_TEXT)
   const ui = await mountPane($)
@@ -104,6 +121,21 @@ test('해야 할 일 행을 누르면 하위 항목과 함께 완료 섹션으�
     '  • ssh key 정리\n완료\n  • victoriametrics 메모리 개선\n      ◦ go gc 적용 후 사용량 추이 파악',
   )
   expect(await ui.find({ key: 'toggle:done:victoriametrics 메모리 개선' })).toBeDefined()
+})
+
+test('↓ 를 누르면 하위 항목과 함께 한 칸 내려 Notion 에 쓰고, 맨 위에는 ↑, 맨 아래에는 ↓ 가 없다', async ($, on) => {
+  const notion = fakeNotion(on, NOTION_TEXT)
+  const ui = await mountPane($)
+  expect(await ui.find({ key: 'up:open:victoriametrics 메모리 개선' })).toBeUndefined()
+  expect(await ui.find({ key: 'down:open:ssh key 정리' })).toBeUndefined()
+
+  await ui.press({ key: 'down:open:victoriametrics 메모리 개선' })
+  await settle(ui)
+
+  expect(notion.writes).toBe(1)
+  expect(notion.text).toBe('  • ssh key 정리\n  • victoriametrics 메모리 개선\n      ◦ go gc 적용 후 사용량 추이 파악')
+  expect(await ui.find({ key: 'up:open:victoriametrics 메모리 개선' })).toBeDefined()
+  expect(await ui.find({ key: 'up:open:ssh key 정리' })).toBeUndefined()
 })
 
 test('새 할 일 박스에 적고 Enter 를 누르면 해야 할 일 끝에 붙는다', async ($, on) => {
@@ -131,6 +163,43 @@ test("여러 줄로 적은 '-' 줄은 같은 입력의 상위 항목 아래 하�
   expect(await ui.find({ key: 'toggle:open:- 테스트1' })).toBeUndefined()
 })
 
+
+test('입력란 폭을 넘는 글은 아래 미리보기로 전체를 보여 주고, 짧은 글은 미리보기를 그리지 않는다', async ($, on) => {
+  const notion = fakeNotion(on, NOTION_TEXT)
+  const ui = await mountPane($)
+
+  await ui.input({ key: 'quick-input', text: 'PR 리뷰', kind: 'change' })
+  expect(await ui.find({ key: 'draft-preview' })).toBeUndefined()
+
+  const long = 'vestway-celery 새벽 OOM 원인 확인하고 AMQP 재연결 누수 재현 조건 정리'
+  await ui.input({ key: 'quick-input', text: long, kind: 'change' })
+  expect(await ui.find({ key: 'draft-preview' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /AMQP 재연결 누수 재현 조건 정리/ })).toBeDefined()
+  // 미리보기는 보여 주기만 하고 Notion 에 쓰지 않는다
+  expect(notion.writes).toBe(0)
+})
+
+test("붙여넣은 여러 줄은 '-' 줄을 하위(◦)로 표시해 추가될 모양을 미리 보여 준다", async ($, on) => {
+  fakeNotion(on, NOTION_TEXT)
+  const ui = await mountPane($)
+
+  await ui.input({ key: 'quick-input', text: 'Redis 개선\n- 테스트1', kind: 'change' })
+
+  expect(await ui.find({ key: 'draft-preview' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /☐ Redis 개선/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /◦ 테스트1/ })).toBeDefined()
+})
+
+test("/todo add 를 여러 줄로 적으면 입력란과 같이 '-' 줄은 하위 항목으로 들어간다", async ($, on) => {
+  const notion = fakeNotion(on, NOTION_TEXT)
+  const ui = await mountPane($)
+
+  await $.command.run({ command: 'todo', args: 'add Redis 개선\n- 테스트1' })
+  await settle(ui)
+
+  expect(notion.writes).toBe(1)
+  expect(notion.text).toBe(`${NOTION_TEXT}\n  • Redis 개선\n      ◦ 테스트1`)
+})
 
 const PREVIOUS_TEXT = '  • yoyo 개발\n      ◦ 디자인 QA\n완료\n  • ssh key 정리'
 

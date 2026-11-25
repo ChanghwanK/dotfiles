@@ -97,6 +97,8 @@ date '+%s'
 1. **긴급 대응**: 인프라 `urgent` 전부 + 메일 `urgent_hint: true`이면서 `action_required`인 것. 항목마다 "왜 긴급인가"(규칙 한 줄)와 링크
 2. **어제 한 일**: 어제 작업 `threads` 전부(상태, 한 일, PR 근거). 그 아래 "회고 문서와 대조"에 Notion `continue_items`를 스레드와 맞춰 본 결과를 쓴다
    - 스레드와 뜻이 같은 회고 항목: 스레드 상태가 완료면 "어제 완료로 보임, 체크 권장", 아니면 스레드에 합쳐 목록에서 뺀다
+   - 회고 항목에 `detail`(하위 항목)이 있으면 같은 일인지, 끝났는지를 제목이 아니라 하위 항목으로 판정한다. 스레드가 미체크 하위 항목을 모두 덮을 때만 "완료로 보임"을 붙인다. 일부만 덮으면 남은 하위 항목을 `note`에 적고 이어가기에 남긴다. 제목만 겹치고 하위 항목이 다른 일이면(예: "인증서 관리" 아래 "만료 처리 및 로테이션 어떻게?" vs 인증서 적용 확인 세션) 합치지 않는다
+   - 회고 항목을 Top 3에 합칠 때는 미체크 하위 항목을 `next_action`이나 `done_when`에 반영한다
    - 스레드에 없는 회고 항목(Tomorrow, Try, 미체크): 그대로 남기고 `carry_days >= 2`면 "N일째"를 붙인다
 3. **오늘 이어가기 Top 3**: Step 3 규칙
 4. **밤사이 알럿**: 인프라 `hourly`(시간축 막대) + `check`(burst를 위에)
@@ -138,9 +140,9 @@ date '+%s'
   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos \
     --page-id {today_page_id} --items '[{"text": "항목1", "links": ["PLE-6", "<메일 link>"]}, "링크 없는 항목"]' --dry-run
   ```
+  - 실제 실행 출력의 `blocks[]`(`text`, `id`, `skipped`)에서 항목마다 `id`를 받아, 그 항목이 온 `top3[]`의 `block_id`에 저장한다(Step 5). 보드의 상태 반영 버튼이 이 id로 일지 할 일을 찾는다. 이미 있던 항목(`skipped: true`)도 기존 id가 나온다
   - 항목마다 근거 링크를 `links`에 넣는다. 본문 할 일 끝과 `Todo's` property 줄 끝에 라벨 링크로 붙는다(Jira 키는 키, GitHub PR은 `#번호`, Gmail은 "메일"로 표시)
     - 메일 할 일: 그 메일의 `link`
-  - 실제 실행 출력의 `blocks[]`(`text`, `id`, `skipped`)에서 항목마다 `id`를 받아, 그 항목이 온 `top3[]`의 `block_id`에 저장한다(Step 5). 보드의 상태 반영 버튼이 이 id로 일지 할 일을 찾는다. 이미 있던 항목(`skipped: true`)도 기존 id가 나온다
     - Jira가 걸린 항목: 키(`PLE-6`처럼 키만 써도 된다). 메일 본문에서 나온 키면 메일 링크와 함께 넣는다
     - Top 3·스레드: `resume`이 https URL(PR)이면 그 URL, 스레드의 open PR URL
     - https가 아닌 값과 개인 페이지(하루 시작 Artifact)는 넣지 않는다
@@ -192,10 +194,10 @@ date '+%s'
 | `threads[].id`, `cwd`, `sessions[].session_id` | 어제 작업 에이전트 → Step 2 합성 | resolve-launch, task:resume |
 | `threads[].stopped_at`, `next_action`, `resume` | 어제 작업 에이전트 | 템플릿, task:resume |
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
-| `launch`, `launch_error` | resolve-launch | 템플릿 |
-
 | `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
 | `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
+| `launch`, `launch_error` | resolve-launch | 템플릿 |
+
 ## 보드 반영 (서브 모드)
 
 "보드 반영해"처럼 하루 시작 보드에 직접 추가한 항목과 완료 체크를 원장에 기록하라는 요청이면 Step 0~5 대신 이 절만 실행한다. 원장은 Notion 오늘 일지(본문 Todo's 칸 + `Todo's` property)이고, 항목이 원하면 Jira PLE 티켓까지 만들어 링크한다. 일지 쓰기와 티켓 생성은 아래 승인을 거친다.
@@ -217,13 +219,13 @@ date '+%s'
 6. **반영 상태 되돌려 적기**: 성공한 항목마다 `ArtifactData` `update`(`collection: board_items`, list에서 본 `version`을 `if_version`으로)로 `ledger: {daily: true, jira: <키 | null>, at: <ISO 시각>}`을 쓴다. 보드 카드 칩이 "원장 대기"에서 "원장 반영"으로 바로 바뀐다(재게시 불필요)
 7. **완료 체크 반영**: 같은 `artifact_url`의 `item_state`를 `ArtifactData` `list`로 읽어 반영할 것을 고른다. `board_items`가 0건이어도 이 단계는 한다
    - 대상: `done: true`인데 `ledger.daily`가 없는 문서(체크 반영), `done: false`인데 `ledger.daily`가 true인 문서(체크 해제)
-   - 일지 할 일과 맞추기: `notion-daily.py list-todos --page-id <page_id>`의 할 일(모든 깊이, id 포함)과 문서 `title`을 뜻으로 맞춘다. 글자가 달라도 같은 일이면 같은 항목이다(Top 3 제목과 Step 4에서 넣은 Todos 문구는 다르게 쓰인다)
-   - 한 번의 AskUserQuestion으로 항목마다 고르게 한다(최대 4개씩). 옵션은 "맞춘 할 일 체크"(맞춘 할 일 글을 보인다), "일지에 체크된 할 일로 새로 추가", "반영하지 않음". 맞는 할 일이 없으면 첫 옵션을 뺀다
    - **확정된 항목(`pending.daily == done`)은 묻지 않는다.** 보드의 "상태 반영하기" 모달에서 사용자가 diff를 보고 확정한 것이다
      - `pending.block`이 있으면 그 id로 바로 `check-todos`(해제면 `--uncheck`)를 dry-run, 실제 실행 순으로 부른다
      - `pending.block`이 없으면 아래처럼 뜻으로 맞춘다. 맞는 할 일이 하나뿐이면 묻지 않고 체크하고, 없거나 여럿이면 아래 AskUserQuestion으로 넘긴다
      - 성공하면 `ledger: {daily: <done 값>, block, at, via: "page"}`를 쓰고 `pending`은 `{"__delete__": true}`로 지운다
      - `pending.daily`가 지금 `done`과 다르면(확정 뒤 완료를 다시 바꿈) 확정이 없는 것으로 보고 아래 절차를 따른다
+   - 일지 할 일과 맞추기: `notion-daily.py list-todos --page-id <page_id>`의 할 일(모든 깊이, id 포함)과 문서 `title`을 뜻으로 맞춘다. 글자가 달라도 같은 일이면 같은 항목이다(Top 3 제목과 Step 4에서 넣은 Todos 문구는 다르게 쓰인다)
+   - 한 번의 AskUserQuestion으로 항목마다 고르게 한다(최대 4개씩). 옵션은 "맞춘 할 일 체크"(맞춘 할 일 글을 보인다), "일지에 체크된 할 일로 새로 추가", "반영하지 않음". 맞는 할 일이 없으면 첫 옵션을 뺀다
    - 실행은 dry-run 먼저, 이어서 실제 실행
      ```bash
      python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py check-todos --page-id <page_id> --block-ids '["<id>"]' [--uncheck] --dry-run

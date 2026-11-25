@@ -178,12 +178,14 @@ def fetch_tree(token, block_id):
         cursor = resp.get("next_cursor")
 
 
-def flatten_text(nodes, depth=0):
+def flatten_text(nodes, depth=0, mark_checked=False):
+    """mark_checked=True면 체크된 to_do 줄 앞에 "[x] "를 붙인다 (하위 항목 완료 판정용)."""
     lines = []
     for n in nodes:
         if n["text"].strip():
-            lines.append("  " * depth + n["text"].strip())
-        lines.extend(flatten_text(n["children"], depth + 1))
+            prefix = "[x] " if mark_checked and n.get("checked") else ""
+            lines.append("  " * depth + prefix + n["text"].strip())
+        lines.extend(flatten_text(n["children"], depth + 1, mark_checked))
     return lines
 
 
@@ -231,11 +233,12 @@ def parse_body(tree):
         if h2 == "notes" and n["type"] == "toggle":
             notes.append(n)
 
-    def items_of(name):
+    def items_of(name, mark_checked=False):
         sec = sections.get(name)
         if not sec:
             return []
-        return [{"text": x["text"].strip(), "detail": "\n".join(flatten_text(x["children"]))}
+        return [{"text": x["text"].strip(),
+                 "detail": "\n".join(flatten_text(x["children"], mark_checked=mark_checked))}
                 for x in sec["nodes"] if x["text"].strip()]
 
     worries = []
@@ -251,6 +254,10 @@ def parse_body(tree):
         "todos": flatten_todos(todo_sec["nodes"]) if todo_sec else [],
         "tomorrow": [i["text"] for i in items_of("Tomorrow")],
         "coach_tomorrow": [i["text"] for i in items_of(COACH_TOMORROW_SECTION)],
+        # tomorrow·coach_tomorrow는 제목만 담는 기존 필드라 하위 항목(체크박스, 메모)이 사라진다.
+        # 하위 항목으로 완료 판정이 갈리므로 detail을 함께 담은 필드를 덧붙인다. 기존 필드는 유지한다
+        "tomorrow_items": items_of("Tomorrow", mark_checked=True),
+        "coach_tomorrow_items": items_of(COACH_TOMORROW_SECTION, mark_checked=True),
         "notes": [{"title": t["text"].strip(), "text": "\n".join(flatten_text(t["children"]))}
                   for t in notes if not t["text"].strip().startswith(WORRY_TOGGLE_PREFIX)],
         "worries": worries,
@@ -483,6 +490,10 @@ def cmd_append_todos(args):
                          ensure_ascii=False))
         sys.exit(1)
 
+    # 글 끝에 링크 라벨("  PLE-27 · #10315")이 붙어 저장되므로, 라벨을 붙인 글로도 비교한다(재실행 중복 방지)
+    def written_keys(e):
+        return {norm(e["text"]), norm(e["text"] + "".join(l["label"] for l in entry_links(e)))}
+
     already_written = {norm(t["text"]) for t in flatten_todos(todos["nodes"])}
     new_entries, skipped = [], []
     for e in entries:
@@ -491,10 +502,6 @@ def cmd_append_todos(args):
         already_written |= keys
 
     blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked, e.get("links"))
-    # 글 끝에 링크 라벨("  PLE-27 · #10315")이 붙어 저장되므로, 라벨을 붙인 글로도 비교한다(재실행 중복 방지)
-    def written_keys(e):
-        return {norm(e["text"]), norm(e["text"] + "".join(l["label"] for l in entry_links(e)))}
-
               for e in new_entries]
     if args.parent_block:
         top_ids = {n["id"].replace("-", "") for n in todos["nodes"] if n["type"] == "to_do"}
@@ -530,13 +537,6 @@ def cmd_append_todos(args):
             notion_request(token, "PATCH", f"/pages/{args.page_id}", {"properties": {
                 TODOS_PROP: {"rich_text": prop_segs[:100]}}})
 
-    print(json.dumps({"success": True, "dry_run": args.dry_run,
-                      "insert_after_block": insert_after, "parent_block": args.parent_block,
-                      "appended": [e["text"] for e in new_entries], "skipped": [e["text"] for e in skipped],
-                      "prop_before": prop_before, "prop_after": prop_after}, ensure_ascii=False, indent=2))
-
-
-def cmd_list_todo_parents(args):
     # 항목마다 블록 id를 돌려준다(하루 시작 보드의 상태 반영 버튼이 이 id의 checked만 바꾼다).
     # 쓰기 뒤 Todos를 다시 읽어 글로 맞춘다. dry-run에서 새 항목은 아직 블록이 없어 id가 null이다
     by_key = {}
@@ -549,10 +549,17 @@ def cmd_list_todo_parents(args):
 
     blocks = [{"text": e["text"], "id": block_id_of(e), "skipped": id(e) in skipped_ids} for e in entries]
 
+    print(json.dumps({"success": True, "dry_run": args.dry_run,
+                      "insert_after_block": insert_after, "parent_block": args.parent_block,
+                      "appended": [e["text"] for e in new_entries], "skipped": [e["text"] for e in skipped],
+                      "blocks": blocks,
+                      "prop_before": prop_before, "prop_after": prop_after}, ensure_ascii=False, indent=2))
+
+
+def cmd_list_todo_parents(args):
     """Todos 칸의 최상위 to_do 목록(id, text, checked). 보드 반영 때 상위 항목 후보로 쓴다."""
     token = get_token()
     _, sections = parse_body(fetch_tree(token, args.page_id))
-                      "blocks": blocks,
     todos = sections.get("Todos")
     if not todos:
         print(json.dumps({"success": False, "error": "본문에 Todos 칸이 없습니다"}, ensure_ascii=False))

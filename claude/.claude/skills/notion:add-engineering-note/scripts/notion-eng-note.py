@@ -188,6 +188,11 @@ def resolve_ds_id(db_id):
     return _DS_CACHE[db_id]
 
 
+# 업무 노트의 인라인 코드는 글자색을 빨강으로 쓴다 (사용자 지정 2026-10-14).
+# 펜스 코드 블록은 Notion이 문법 하이라이트로 렌더링해 글자색을 지정할 수 없으므로 대상이 아니다.
+INLINE_CODE_COLOR = "red"
+
+
 def md_to_rich_text(text):
     """인라인 마크다운(**bold**, *italic*, `code`)을 Notion rich_text 세그먼트 리스트로 변환."""
     text = sanitize_body(text)  # 하드룰 backstop: fenced 코드블록은 별도 빌더라 제외됨
@@ -208,7 +213,8 @@ def md_to_rich_text(text):
         else:
             segments.append({"type": "text", "text": {"content": m.group(3)},
                              "annotations": {"bold": False, "italic": False, "code": True,
-                                             "strikethrough": False, "underline": False, "color": "default"}})
+                                             "strikethrough": False, "underline": False,
+                                             "color": INLINE_CODE_COLOR}})
         last_end = m.end()
     if last_end < len(text):
         segments.append({"type": "text", "text": {"content": text[last_end:]}})

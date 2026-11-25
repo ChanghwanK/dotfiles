@@ -3,7 +3,7 @@
 Notion Task CLI (Write + Query)
 
 공유 라이브러리 스크립트: alfred, tasks:capture, tasks:tech-spec,
-daily:start, daily:review 스킬에서 참조한다.
+daily:start, daily:retrospective 스킬에서 참조한다.
 
 Usage:
   # 조회
@@ -13,6 +13,7 @@ Usage:
 
   # 생성
   python3 notion-task.py create-task --name "이름" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--description "설명"] [--sections-file PATH | --simple]
+      # 제목에는 Type별 접두어("#Task - " / "#Project - ")가 자동으로 붙는다. --name에는 접두어 없이 넘긴다.
   python3 notion-task.py update-why --page-id <id> --sections-file PATH   # 노트 최종본으로 문제/근본 원인/기대 가치 교체
   python3 notion-task.py read-page --page-id <id>                         # 본문 Markdown 조회
   python3 notion-task.py append-content --page-id <id> --content "..." [--section "실행 기록"]
@@ -34,6 +35,8 @@ import json
 import urllib.request
 import urllib.error
 import argparse
+import re
+import time
 from datetime import date, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../_lib"))
@@ -66,6 +69,8 @@ TASK_DB_ID = "2da64745-3170-8072-80bd-fb05cf592929"
 # 템플릿을 적용한 뒤 heading 아래를 채운다(_lib/notion_template_fill.py).
 TASK_TEMPLATE_ID = "2da64745-3170-80f2-8c83-dcaa96fd53c6"
 TEMPLATE_APPLY_TIMEOUT_SEC = 30
+# 템플릿 본문이 들어온 뒤 heading이 다 보이기를 기다리는 시간. 넘기면 템플릿 본문이 우리 구조와 다르다고 본다.
+TEMPLATE_SETTLE_SEC = 5
 # sections 파일 키 → 템플릿 heading (템플릿 배치 순서). heading 이름을 바꾸면 여기도 바꾼다.
 TASK_WHY_HEADING = "왜 이걸 해야하는가?"
 TASK_SECTION_HEADINGS = [
@@ -80,6 +85,11 @@ WHY_SECTION_KEYS = ("problem", "root_cause", "value")
 VALID_STATUSES = {"해야할 것", "진행 중", "완료", "대기"}
 CATEGORY_OPTIONS = {"WORK", "MY"}
 TYPE_OPTIONS = {"Task", "Project"}
+# DB 목록에서 제목만 보고 Task와 Project를 구분하는 팀 표기. 생성 경로(capture, alfred)가 모두 이
+# 스크립트를 거치므로 여기서 한 번만 붙인다.
+TITLE_PREFIX_BY_TYPE = {"Task": "#Task - ", "Project": "#Project - "}
+# 호출자가 직접 붙였거나 표기가 흔들린 기존 접두어("#Task -  ", "[#Task]")를 떼고 다시 붙여 중복을 막는다.
+_EXISTING_TITLE_PREFIX = re.compile(r"^(?:#(?:Task|Project)\s*-\s*|\[#(?:Task|Project)\]\s*)", re.IGNORECASE)
 # 목록 정렬의 1차 축. 지금 손대고 있는 일이 먼저 보이고, 막혀 있는(대기) 일은 뒤로 간다.
 # Notion API의 status 정렬은 DB 옵션 정의 순서에 의존하므로 이 규칙은 코드에서 적용한다.
 STATUS_RANK = {"진행 중": 0, "해야할 것": 1, "대기": 2, "완료": 3}
@@ -448,13 +458,13 @@ def native_toc_callout():
     }
 
 
-def _fallback_task_blocks(section_blocks):
-    """템플릿 적용이 실패했을 때 템플릿과 같은 heading 구조를 직접 조립한다(버튼만 빠진다)."""
+def _fallback_task_blocks(section_blocks, include_toc=True):
+    """템플릿과 같은 heading 구조를 직접 조립한다. 템플릿이 적용되지 않았거나 템플릿 본문에 heading이 없을 때 쓴다."""
     def empty_bullet():
         return {"object": "block", "type": "bulleted_list_item",
                 "bulleted_list_item": {"rich_text": []}}
 
-    blocks = [native_toc_callout(), _heading_block(2, TASK_WHY_HEADING)]
+    blocks = ([native_toc_callout()] if include_toc else []) + [_heading_block(2, TASK_WHY_HEADING)]
     for key, heading in TASK_SECTION_HEADINGS:
         if key == "context":
             blocks.append({"object": "block", "type": "divider", "divider": {}})
@@ -468,34 +478,66 @@ def _fallback_task_blocks(section_blocks):
 def _create_task_from_template(request, parent, properties, section_blocks, template_id):
     """템플릿으로 Task를 만들고 섹션을 채운다.
 
-    반환: (생성 응답, None) 또는 실패 시 (None, 사유). 실패하면 만든 페이지를 휴지통으로 보내므로
-    호출자는 대체 구조로 다시 만들면 된다(캡처가 유실되지 않게 하기 위함).
+    전체 너비와 버튼은 템플릿에서만 이어받을 수 있으므로, 템플릿이 적용된 페이지는 가능한 한 버리지 않는다.
+    - 템플릿 본문에 섹션 heading이 모두 있으면 heading 아래를 채운다(body_source="template").
+    - 템플릿은 적용됐는데 heading이 없으면(템플릿 본문을 누가 고친 경우) 템플릿 본문은 그대로 두고, 같은 구조를
+      그 아래에 덧붙인다(body_source="script"). 노트와 달리 본문을 비우지 않는 이유는 버튼을 지키기 위해서다.
+    - 템플릿 자체가 적용되지 않으면 페이지를 휴지통으로 보내고 (None, 사유, None)을 반환해 호출자가 템플릿 없이
+      다시 만들게 한다(캡처가 유실되지 않게 하기 위함).
+    반환: (생성 응답, 오류 사유 또는 None, body_source)
     """
     if tfill is None:
-        return None, "notion_template_fill 헬퍼를 불러오지 못함"
+        return None, "notion_template_fill 헬퍼를 불러오지 못함", None
     resp = request("POST", "/pages", {
         "parent": parent,
         "properties": properties,
         "template": {"type": "template_id", "template_id": template_id},
     })
     if resp.get("object") == "error":
-        return None, f"템플릿 생성 실패: {resp.get('message', '')}"
+        return None, f"템플릿 생성 실패: {resp.get('message', '')}", None
     page_id = resp["id"]
 
     def discard(reason):
         request("PATCH", f"/pages/{page_id}", {"in_trash": True})
-        return None, reason
+        return None, reason, None
 
     headings = [heading for _, heading in TASK_SECTION_HEADINGS]
-    groups = tfill.wait_for_headings(request, page_id, headings, TEMPLATE_APPLY_TIMEOUT_SEC)
-    if groups is None:
-        return discard(f"템플릿 heading {headings}이 {TEMPLATE_APPLY_TIMEOUT_SEC}초 안에 나타나지 않음")
+    deadline = time.monotonic() + TEMPLATE_APPLY_TIMEOUT_SEC
+    body_seen_at = None
+    while True:
+        groups = tfill.load_tree(request, page_id)
+        top_level = groups[0]["blocks"] if groups else []
+        if top_level:
+            if not tfill.find_missing(groups, headings):
+                break
+            body_seen_at = body_seen_at or time.monotonic()
+            if time.monotonic() - body_seen_at > TEMPLATE_SETTLE_SEC:
+                print("WARN: 템플릿 본문에 Task 섹션 heading이 없어 구조를 템플릿 본문 아래에 덧붙입니다. "
+                      "템플릿 본문이 바뀌었는지 확인하세요.", file=sys.stderr)
+                has_toc = any(b.get("type") == "callout" for b in top_level)
+                blocks = _fallback_task_blocks(section_blocks, include_toc=not has_toc)
+                appended = request("PATCH", f"/blocks/{page_id}/children", {"children": blocks})
+                if appended.get("object") == "error":
+                    return discard(f"구조 추가 실패: {appended.get('message', '')}")
+                return resp, None, "script"
+        elif time.monotonic() > deadline:
+            return discard(f"템플릿 본문이 {TEMPLATE_APPLY_TIMEOUT_SEC}초 안에 적용되지 않음")
+        time.sleep(1)
+
     for key, heading in TASK_SECTION_HEADINGS:
         result = tfill.fill_section(request, groups, heading, section_blocks.get(key) or [])
         if result is not None:
             reason = result.get("message", "") if isinstance(result, dict) else result
             return discard(f"'{heading}' 섹션 채우기 실패: {reason}")
-    return resp, None
+    return resp, None, "template"
+
+
+def apply_title_prefix(name, task_type):
+    """Type에 맞는 제목 접두어를 붙인다. 이미 붙어 있는 접두어는 정규화해 한 번만 남긴다."""
+    bare = _EXISTING_TITLE_PREFIX.sub("", name, count=1).strip()
+    if not bare:
+        return ""
+    return TITLE_PREFIX_BY_TYPE[task_type] + bare
 
 
 def cmd_create_task(args):
@@ -517,6 +559,9 @@ def cmd_create_task(args):
     task_type = getattr(args, "task_type", None) or "Task"
     if task_type not in TYPE_OPTIONS:
         _exit_error(f"Invalid type '{task_type}'. Valid: {sorted(TYPE_OPTIONS)}")
+    name = apply_title_prefix(name, task_type)
+    if not name:
+        _exit_error("--name에 접두어 외 제목이 없습니다")
 
     # 본문 입력은 페이지 POST 전에 모두 파싱해 fail-fast한다(본문 누락된 반쪽 Task 방지).
     section_blocks = {}
@@ -558,9 +603,10 @@ def cmd_create_task(args):
 
     template_applied = False
     template_error = None
+    body_source = None
     result = None
     if use_template:
-        result, template_error = _create_task_from_template(
+        result, template_error, body_source = _create_task_from_template(
             soft_requester(token), parent, properties, section_blocks, args.template_id)
         template_applied = result is not None
         if template_error:
@@ -600,6 +646,7 @@ def cmd_create_task(args):
         "category": category,
         "due_date": args.due or "",
         "template_applied": template_applied,
+        "body_source": body_source or ("script" if use_template else "none"),
     }
     if template_error:
         output["template_error"] = template_error
@@ -927,6 +974,11 @@ def _split_text_content(content):
             for i in range(0, len(content), _NOTION_TEXT_LIMIT)]
 
 
+# Task 본문과 업무 노트 덧붙이기(append-content)의 인라인 코드는 글자색을 빨강으로 쓴다
+# (사용자 지정 2026-10-14, notion-eng-note.py와 같은 값). 펜스 코드 블록은 글자색 지정 대상이 아니다.
+INLINE_CODE_COLOR = "red"
+
+
 def parse_rich_text(text):
     """인라인 **bold** / *italic* / `code` 를 Notion rich_text 배열로 변환.
 
@@ -946,7 +998,7 @@ def parse_rich_text(text):
         elif len(tok) >= 2 and tok.startswith("*") and tok.endswith("*"):
             content, annotations = tok[1:-1], {"italic": True}
         elif len(tok) >= 2 and tok.startswith("`") and tok.endswith("`"):
-            content, annotations = tok[1:-1], {"code": True}
+            content, annotations = tok[1:-1], {"code": True, "color": INLINE_CODE_COLOR}
         for chunk in _split_text_content(content):
             item = {"type": "text", "text": {"content": chunk}}
             if annotations:
@@ -1218,7 +1270,7 @@ def main():
 
     # create-task
     ct = subparsers.add_parser("create-task", help="새 Task 생성")
-    ct.add_argument("--name", required=True, help="Task 이름")
+    ct.add_argument("--name", required=True, help="Task 이름 (Type별 접두어는 자동으로 붙으므로 빼고 넘긴다)")
     ct.add_argument("--category", required=True, choices=["WORK", "MY"], help="카테고리")
     ct.add_argument("--type", dest="task_type", default="Task", choices=sorted(TYPE_OPTIONS),
                     help="Task/Project 구분 (기본값 Task)")

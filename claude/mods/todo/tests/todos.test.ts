@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { addItem, appendBlock, appendLine, moveItem, parseTodos, removeItem, serializeTodos } from '../hooks/todos'
+import { addItem, appendBlock, appendLine, displayWidth, draftLines, moveItem, parseTodos, removeItem, serializeTodos, shiftItem } from '../hooks/todos'
 
 // 2026-10-13 업무 일지의 Todo's 원문 (Notion API plain_text 그대로).
 const NOTION_SAMPLE =
@@ -118,4 +118,40 @@ test("여러 줄 입력은 '-' 줄을 바로 위 상위 항목의 하위로 붙�
 test('여러 줄 입력 중 한 줄이라도 거절되면 아무것도 붙이지 않는다', async () => {
   expect(appendBlock(parseTodos(NOTION_SAMPLE), '새 할 일\nssh key 정리')).toBeNull()
   expect(appendBlock(parseTodos(NOTION_SAMPLE), '\n  \n')).toBeNull()
+})
+
+test('해야 할 일을 한 칸 위로 올리면 하위 항목이 함께 따라가고 다시 읽어도 같다', async () => {
+  const todos = parseTodos(NOTION_SAMPLE)
+  const shifted = shiftItem(todos, { text: 'node cpu spike 알럿 노이즈 줄이기', subs: [] }, 'up')
+
+  expect(shifted?.open.map(item => item.text)).toEqual(['node cpu spike 알럿 노이즈 줄이기', 'victoriametrics 메모리 개선', 'ssh key 정리'])
+  expect(shifted?.open[1]?.subs).toEqual(['go gc 적용 후 사용량 추이 파악', 'log 수집 활성화'])
+  expect(parseTodos(plain(serializeTodos(shifted!)))).toEqual(shifted)
+})
+
+test('해야 할 일을 한 칸 아래로 내린다', async () => {
+  const shifted = shiftItem(parseTodos(NOTION_SAMPLE), { text: 'victoriametrics 메모리 개선', subs: [] }, 'down')
+
+  expect(shifted?.open.map(item => item.text)).toEqual(['node cpu spike 알럿 노이즈 줄이기', 'victoriametrics 메모리 개선', 'ssh key 정리'])
+})
+
+test('맨 위를 올리거나 맨 아래를 내리거나 Notion에서 사라진 항목이면 순서를 바꾸지 않는다', async () => {
+  const todos = parseTodos(NOTION_SAMPLE)
+
+  expect(shiftItem(todos, { text: 'victoriametrics 메모리 개선', subs: [] }, 'up')).toBeNull()
+  expect(shiftItem(todos, { text: 'ssh key 정리', subs: [] }, 'down')).toBeNull()
+  expect(shiftItem(todos, { text: '없는 항목', subs: [] }, 'up')).toBeNull()
+})
+
+test("미리보기 줄은 appendBlock 과 같이 빈 줄을 버리고 '-' 줄을 하위로 표시한다", async () => {
+  expect(draftLines('Redis 개선\n\n- 테스트1\n  -  테스트2 \n-')).toEqual([
+    { text: 'Redis 개선', isSub: false },
+    { text: '테스트1', isSub: true },
+    { text: '테스트2', isSub: true },
+  ])
+})
+
+test('한글은 두 칸, 영문·숫자는 한 칸으로 센다', async () => {
+  expect(displayWidth('PR 리뷰')).toBe(7)
+  expect(displayWidth('abc')).toBe(3)
 })

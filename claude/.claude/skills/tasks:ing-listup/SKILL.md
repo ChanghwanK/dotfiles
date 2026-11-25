@@ -5,7 +5,7 @@ description: |
   전 세션 transcript + claude-mem timeline + 현재 세션 분석 + Obsidian Daily Note를
   결합하여 프로젝트별 작업 리포트를 출력한다.
   사용 시점: (1) 오늘 뭐 했는지 정리, (2) 세션 간 작업 요약, (3) 일일 작업 리포트 확인,
-  (4) handoff 전 작업 현황 파악, (5) daily:review 전 내용 수집.
+  (4) handoff 전 작업 현황 파악, (5) daily:retrospective 전 내용 수집.
   트리거 키워드: "오늘 뭐 했지", "작업 리포트", "ing listup", "오늘 작업 정리",
   "tasks:ing-listup", "지금까지 한 일", "오늘 한 일".
 model: sonnet
@@ -37,7 +37,7 @@ allowed-tools:
 |------|------|
 | `alfred` (briefing) | "뭘 해야 하는가" (계획) |
 | **`tasks:ing-listup`** | **"뭘 했는가" (실행)** |
-| `daily:review` | "어떻게 했는가" (KPT 회고) |
+| `daily:retrospective` | "어떻게 했는가" (KPT 회고) |
 | `handoff:pause` | "어디까지 했고 다음은" (저장) |
 
 ---

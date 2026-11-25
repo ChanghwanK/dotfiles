@@ -117,6 +117,23 @@ export function removeItem(todos: ParsedTodos, item: TodoItem, section: Section)
 }
 
 
+// 해야 할 일의 순서를 바꾼다: 우선순위를 손으로 정하는 용도라 이름순 같은 자동 정렬은 두지 않는다.
+// 하위 항목은 상위 항목에 붙어 함께 움직인다. 화면을 그린 뒤 Notion 에서 항목이 사라졌거나
+// 이미 맨 위·맨 아래라 옮길 자리가 없으면 null.
+export type Direction = 'up' | 'down'
+
+export function shiftItem(todos: ParsedTodos, item: TodoItem, direction: Direction): ParsedTodos | null {
+  const index = todos.open.findIndex(candidate => sameItem(candidate, item))
+  const target = direction === 'up' ? index - 1 : index + 1
+  if (index < 0 || target < 0 || target >= todos.open.length) return null
+
+  const open = [...todos.open]
+  const [moved] = open.splice(index, 1)
+  if (!moved) return null
+  open.splice(target, 0, moved)
+  return { ...todos, open }
+}
+
 // 빠른 입력 줄의 한 줄을 해야 할 일 끝에 붙인다. `-` 로 시작하면 마지막 상위 항목의
 // 하위 항목이 된다(Notion 에서 `-` 가 불릿을 만드는 것과 같은 손버릇). 상위 항목이
 // 없으면 그냥 상위 항목으로 붙인다. 빈 글이거나 같은 이름이 이미 있으면 null.
@@ -148,4 +165,28 @@ export function appendBlock(todos: ParsedTodos, block: string): ParsedTodos | nu
     next = appended
   }
   return next
+}
+
+// 입력 중인 글이 추가되면 어떤 모양이 될지. appendBlock 과 같은 규칙으로 줄을 나눠
+// `-` 줄을 하위로 표시한다: 한 줄 입력란에서 가려진 뒷부분과 줄 구조를 확인하는 데 쓴다.
+// 첫 줄이 `-` 면 실제로는 기존 마지막 항목의 하위가 되지만, 미리보기는 줄 모양만 보여 준다.
+export type DraftLine = { text: string; isSub: boolean }
+
+export function draftLines(block: string): DraftLine[] {
+  return block
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line !== '')
+    .map(line => (SUB_PREFIX.test(line) ? { text: line.replace(SUB_PREFIX, '').trim(), isSub: true } : { text: line, isSub: false }))
+    .filter(line => line.text !== '')
+}
+
+// 터미널 칸 수. 한글·한자·전각 문자와 이모지는 두 칸을 차지한다.
+// 입력란 폭과 비교해 글이 가려지는지 판단하는 용도라 근사치로 충분하다.
+const WIDE_CHAR = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦\u{1F300}-\u{1FAFF}]/u
+
+export function displayWidth(text: string): number {
+  let width = 0
+  for (const char of text) width += WIDE_CHAR.test(char) ? 2 : 1
+  return width
 }

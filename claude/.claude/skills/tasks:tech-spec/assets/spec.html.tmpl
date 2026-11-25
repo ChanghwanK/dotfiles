@@ -35,8 +35,13 @@ h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; text-wrap: balance; le
 .decide-banner:hover, .decide-banner:focus-visible { border-color: var(--yellow); outline: none; }
 .decide-banner .decide-count { font-size: 17px; font-weight: 700; color: var(--yellow); margin-right: 10px; }
 .decide-banner .decide-hint { font-size: 13px; color: var(--muted); margin-left: 8px; }
-.decide-banner li .chip { font-size: 11.5px; padding: 0 7px; margin-right: 4px; }
-.decide-banner ol { margin: 10px 0 0; padding-left: 1.4em; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 20px; font-size: 14px; }
+.decide-banner .decide-group { display: flex; align-items: baseline; gap: 12px; margin-top: 12px; }
+.decide-banner .decide-group > .chip { flex: none; display: inline-flex; justify-content: center; min-width: 5.2em; font-size: 11.5px; padding: 0 7px; }
+.decide-banner ul { list-style: none; margin: 0; padding: 0; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 24px; font-size: 14px; }
+.decide-banner li { display: flex; align-items: baseline; gap: 6px; line-height: 1.45; }
+.decide-banner .decide-num { flex: none; min-width: 1.8em; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.decide-banner .decide-name { min-width: 0; }
+@media (max-width: 640px) { .decide-banner .decide-group { flex-direction: column; gap: 6px; } }
 .doc h3.decide-h { padding: 6px 12px; border-left: 4px solid var(--yellow); background: var(--yellow-bg); border-radius: 4px; }
 .doc .decide-table table { border-left: 4px solid var(--yellow); }
 .doc .decide-table th { background: var(--yellow-bg); }

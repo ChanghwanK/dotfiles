@@ -22,7 +22,8 @@ allowed-tools:
    python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py read --date yesterday
    ```
    - 출력에 `error`가 있으면(주말·휴일) 하루씩 거슬러 `--date YYYY-MM-DD`로 최대 3번 더 읽는다. 찾은 날짜를 `retro_date`로 남긴다
-   - `body.retro.Try`, `body.tomorrow`, `body.coach_tomorrow`, `body.todos`(checked=false), `body.worries`를 쓴다
+   - `body.retro.Try`, `body.tomorrow_items`, `body.coach_tomorrow_items`, `body.todos`(checked=false), `body.worries`를 쓴다
+   - `body.retro.Try`, `body.tomorrow_items`, `body.coach_tomorrow_items`는 `{text, detail}` 목록이다. `detail`은 하위 항목(체크박스, 메모)을 들여쓰기로 이은 문자열이다. `tomorrow_items`·`coach_tomorrow_items`의 체크된 하위 항목은 줄 앞에 `[x] `가 붙는다(Try `detail`에는 붙지 않는다). `body.tomorrow`, `body.coach_tomorrow`(제목만 담은 문자열 목록)는 하위 항목이 없으므로 쓰지 않는다
    - 그 전날 일지도 한 번 읽어(`retro_date` 하루 전, 없으면 생략) 미체크 할 일이 이틀 연속인지 판정한다
 2. **오늘 일지**
    ```bash
@@ -47,6 +48,7 @@ allowed-tools:
   - `coach`: 어제 회고 코치 추천
   - `unchecked`: 어제 미체크 할 일 중 depth 0 항목 (하위 항목은 부모의 detail로)
   - `worry_next`: 고민 detail에 "다음", "다음 행동"이 적힌 것
+  - `try`·`tomorrow`·`coach` 항목의 `detail`에는 원본 `detail`을 줄여 옮긴다. 하위 항목이 있으면 그것이 그 항목의 실제 범위다(예: "인증서 관리" 아래 "만료 처리 및 로테이션 어떻게?"). 이미 체크된 하위 항목은 "(완료)"를 붙여 남긴다
   - 오늘 일지 Todos에 이미 있는 항목(뜻이 같으면)은 `already_in_today: true`로 표시한다
   - 이틀 연속 미체크면 `carry_days: 2` (그 이상 알 수 있으면 그 수)
 - **tasks_due**: 활성 Task 중 아래만 넣는다. 지난 일수를 `overdue_days`로

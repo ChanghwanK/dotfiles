@@ -330,21 +330,33 @@ def decision_banner(body: str) -> str:
     head = [re.sub(r"<[^>]+>", "", h).strip() for h in re.findall(r"<th[^>]*>(.*?)</th>", rows[0], flags=re.S)]
     ni = head.index("결정") if "결정" in head else 1
     ri = head.index("필수") if "필수" in head else None
+    hi = head.index("#") if "#" in head else None
     must, opt = [], []
     for r in rows[1:]:
-        cells = [re.sub(r"<[^>]+>", "", x).strip() for x in re.findall(r"<td[^>]*>(.*?)</td>", r, flags=re.S)]
+        # '상세 보기' 버튼 글자가 결정 이름에 붙지 않도록 버튼을 먼저 지운다
+        raw = [re.sub(r"<button.*?</button>", "", x, flags=re.S) for x in re.findall(r"<td[^>]*>(.*?)</td>", r, flags=re.S)]
+        cells = [re.sub(r"<[^>]+>", "", x).strip() for x in raw]
         if len(cells) <= ni:
             continue
         name = html.escape(html.unescape(cells[ni]))
-        (opt if ri is not None and len(cells) > ri and cells[ri] == "필수 아님" else must).append(name)
+        num = html.escape(cells[hi]) if hi is not None and len(cells) > hi else ""
+        (opt if ri is not None and len(cells) > ri and cells[ri] == "필수 아님" else must).append((num, name))
     if not must and not opt:
         return ""
     total = len(must) + len(opt)
     split = f'<span class="chip red">필수 {len(must)}</span> <span class="chip gray">필수 아님 {len(opt)}</span>' if ri is not None else ""
-    lis = "".join(f'<li><span class="chip red">필수</span> {n}</li>' for n in must) if ri is not None else "".join(f"<li>{n}</li>" for n in must)
-    lis += "".join(f'<li><span class="chip gray">필수 아님</span> {n}</li>' for n in opt)
+
+    def group(items: list, chip: str) -> str:
+        if not items:
+            return ""
+        lis = "".join((f'<li><span class="decide-num">{n}</span>' if n else "<li>") + f'<span class="decide-name">{x}</span></li>'
+                      for n, x in items)
+        return f'<div class="decide-group">{chip}<ul>{lis}</ul></div>'
+
+    groups = (group(must, '<span class="chip red">필수</span>' if ri is not None else "")
+              + group(opt, '<span class="chip gray">필수 아님</span>'))
     return (f'<a class="decide-banner" href="#{DECISION_ID}"><span class="decide-count">결정 필요 {total}건</span>{split}'
-            f'<span class="decide-hint">눌러서 표로 이동</span><ol>{lis}</ol></a>')
+            f'<span class="decide-hint">눌러서 표로 이동</span>{groups}</a>')
 
 
 def slug_ko(value: str, separator: str) -> str:

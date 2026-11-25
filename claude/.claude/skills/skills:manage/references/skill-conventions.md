@@ -30,7 +30,7 @@
 |------|------|------|
 | 플랫폼에 skill 1개 | flat | `commit`, `learn` |
 | 플랫폼에 skill 2개+ | `platform:action` | `notion:eng`, `git:commit` |
-| 워크플로우 단계 | `workflow:phase` | `daily:start`, `daily:review` |
+| 워크플로우 단계 | `workflow:phase` | `daily:start`, `daily:retrospective` |
 
 **네임스페이스 = 대상 플랫폼/도메인**:
 - `notion:`: Notion에 쓰는 모든 스킬
@@ -57,7 +57,7 @@
 | `obsidian` | Obsidian vault | `obsidian:note`, `obsidian:daily` |
 | `slack` | Slack 플랫폼 | `slack:send` |
 | `devops` | DevOps 운영 | `devops:alert-review`, `devops:terraform-request`, `devops:gpu-analysis` |
-| `daily` | 일과 워크플로우 | `daily:start`, `daily:review` |
+| `daily` | 일과 워크플로우 | `daily:start`, `daily:retrospective` |
 | `learn` | 학습/성장 | `learn:interview`, `learn:growth-maker` |
 | `skills` | 스킬 관리 | `skills:manage` |
 | `schedule` | 일정 조회 | `schedule:view` |

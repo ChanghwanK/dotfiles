@@ -74,7 +74,7 @@ For a **Notion Task**, read the page with `API-retrieve-page-markdown`. The Task
 |--------------|------------|
 | `문제` | 목적 axis |
 | `근본 원인` | evidence for every answer, 해결 방법 axis |
-| `기대 가치` (`*가설:*`, `*검증 기준:*`) | 목적 axis, completion criteria |
+| `기대 가치` (`가설:`, `Key Result:` 또는 구 라벨 `검증 기준:`) | 목적 axis, completion criteria |
 | `작업 Context` checkboxes | evidence; the `units` for phase/step granularity |
 
 The 방향성 axis has no dedicated section: use Non-Goals stated in `작업 Context`, else `GAP`.

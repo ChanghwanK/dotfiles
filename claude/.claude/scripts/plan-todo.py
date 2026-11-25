@@ -114,14 +114,22 @@ def days_since_updated(fm: dict) -> int | None:
 
 
 def count_followups(body: str) -> int:
-    """Count bullet items under `## 후속 판정` (waits that were kept out of Steps)."""
+    """Count waiting verifications kept out of Steps.
+
+    `## 검증 목록`: top-level items whose head carries a date.
+    `## 후속 판정` (legacy, before 2026-11-07): every top-level bullet.
+    """
     count = 0
-    in_section = False
+    section = None
     for line in body.splitlines():
         if line.startswith("## "):
-            in_section = line.strip().startswith("## 후속 판정")
+            title = line.strip()
+            section = ("list" if title.startswith("## 검증 목록")
+                       else "legacy" if title.startswith("## 후속 판정") else None)
             continue
-        if in_section and re.match(r"^-\s+\S", line):
+        if not re.match(r"^-\s+\S", line):
+            continue
+        if section == "legacy" or (section == "list" and re.search(r"20\d\d-\d\d-\d\d", line)):
             count += 1
     return count
 

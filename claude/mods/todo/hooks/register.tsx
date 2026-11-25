@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { PendingDelete, SyncStatus, Tab, TodoItem, TodoSnapshot } from '../types'
-import { addItem, appendBlock, moveItem, parseTodos, removeItem, serializeTodos } from './todos'
-import type { ParsedTodos, RichTextSegment, Section } from './todos'
+import { appendBlock, displayWidth, draftLines, moveItem, parseTodos, removeItem, serializeTodos, shiftItem } from './todos'
+import type { Direction, ParsedTodos, RichTextSegment, Section } from './todos'
 
 // ---- Notion API ----
 // Daily Todo DB (Personal HOME > Daily Todo DB) 의 data source.
@@ -83,12 +83,14 @@ async function findPage($: EngineInterface, fallbackTitle: string, filter: unkno
 }
 
 // 페이지 조회는 rich_text 를 25개 요소에서 자르므로, 속성 전용 엔드포인트로 끝까지 읽는다.
+// 속성 ID 는 Notion 이 이미 URL 인코딩해서 준다(`A%5EDY`). 다시 인코딩하면 Notion 이 오류 없이
+// 다른 값을 돌려줘 목록이 비어 보인다 (2026-10-14 실측).
 async function readTodoText($: EngineInterface, page: TodayPage): Promise<string> {
   let text = ''
   let cursor: string | undefined
   do {
     const query = cursor ? `?start_cursor=${encodeURIComponent(cursor)}` : ''
-    const result = await call($, 'GET', `/pages/${page.pageId}/properties/${encodeURIComponent(page.todoPropertyId)}${query}`)
+    const result = await call($, 'GET', `/pages/${page.pageId}/properties/${page.todoPropertyId}${query}`)
     for (const item of result.results ?? []) text += item.rich_text?.plain_text ?? ''
     cursor = result.has_more ? result.next_cursor : undefined
   } while (cursor)
@@ -114,6 +116,9 @@ const COLLAPSED_STORE_KEY = 'isCollapsed'
 // 포커스를 옮길 때 이름으로 찾는 요소들.
 const CONFIRM_DELETE_KEY = 'confirm-delete'
 const QUICK_INPUT_KEY = 'quick-input'
+// 입력란 테두리(2)·안쪽 여백(2)·`› `(2)·옆에 붙는 추가 버튼을 뺀 나머지가 글이 보이는 폭이다.
+// Input 은 한 줄 전용이라 이 폭을 넘는 글은 아래 미리보기로 전체를 보여 준다.
+const INPUT_CHROME_COLUMNS = 14
 
 const snapshot = atom({ plugin: 'todo', key: 'snapshot' } as const, null)
 const status = atom({ plugin: 'todo', key: 'status' } as const, { isBusy: false, error: null })
@@ -256,6 +261,11 @@ async function cancelDelete($: EngineInterface): Promise<void> {
   await update($, pendingDelete, () => null)
 }
 
+async function shift($: EngineInterface, item: TodoItem, direction: Direction): Promise<void> {
+  await update($, pendingDelete, () => null)
+  await mutate($, todos => shiftItem(todos, item, direction), `"${item.text}" 항목이 Notion에서 바뀌어 다시 불러왔습니다`)
+}
+
 async function remove($: EngineInterface, item: TodoItem, section: Section): Promise<void> {
   await update($, pendingDelete, () => null)
   await mutate($, todos => removeItem(todos, item, section), `"${item.text}" 항목이 Notion에서 바뀌어 다시 불러왔습니다`)
@@ -311,7 +321,7 @@ export const register: Register = on => {
     const addMatch = ADD_SUBCOMMAND.exec(e.args.trim())
     if (addMatch?.[1]) {
       const text = addMatch[1].trim()
-      const isAdded = await mutate($, todos => addItem(todos, text), `"${text}" 은(는) 이미 목록에 있습니다`)
+      const isAdded = await mutate($, todos => appendBlock(todos, text), '비었거나 이미 목록에 있는 항목이 있어 추가하지 않았습니다')
       const sync = (await read($, status)) as SyncStatus
       return { text: isAdded ? `할 일을 추가했습니다: ${text}` : `추가하지 못했습니다: ${sync.error ?? '알 수 없는 오류'}` }
     }
@@ -358,9 +368,25 @@ export const register: Register = on => {
         </Box>
       ))
 
-    // 행 = [체크 토글(행 대부분)] [✕]. 해야 할 일과 완료가 같은 모양을 쓰고 체크 방향만 다르다.
+    // 정렬 버튼. 옮길 자리가 없는 쪽(맨 위의 ↑, 맨 아래의 ↓)은 같은 폭의 빈칸으로 둬 열을 맞춘다.
+    const shiftButton = (id: string, item: TodoItem, direction: Direction, isMovable: boolean) =>
+      isMovable ? (
+        <Button
+          key={`${direction}:${id}`}
+          label={direction === 'up' ? '↑' : '↓'}
+          plain
+          dimColor
+          hover={{ color: 'suggestion', dimColor: false }}
+          onPress={() => void shift($, item, direction)}
+        />
+      ) : (
+        <Text> </Text>
+      )
+
+    // 행 = [체크 토글(행 대부분)] [↑ ↓] [✕]. 해야 할 일과 완료가 같은 모양을 쓰고 체크 방향만 다르다.
+    // 정렬은 해야 할 일에만 둔다: 완료 섹션은 끝낸 순서 그대로가 기록이다.
     // 행 Box 에 key 를 줘 마우스를 올리면 ✕ 가 빨갛게 켜진다.
-    const itemRow = (item: TodoItem, section: Section) => {
+    const itemRow = (item: TodoItem, section: Section, index: number, count: number) => {
       const id = rowId(section, item)
       const isDone = section === 'done'
       return (
@@ -372,6 +398,14 @@ export const register: Register = on => {
                 <Text strikethrough={isDone}>{item.text}</Text>
               </Button>
             </Box>
+            {!isDone && (
+              <Box flexDirection="row">
+                <Text> </Text>
+                {shiftButton(id, item, 'up', index > 0)}
+                <Text> </Text>
+                {shiftButton(id, item, 'down', index < count - 1)}
+              </Box>
+            )}
             <Text> </Text>
             <Button
               key={`delete:${id}`}
@@ -415,6 +449,11 @@ export const register: Register = on => {
     )
 
     const shown = activeTab === 'today' ? current : past
+
+    // 입력란에서 가려지는 글(폭 초과)이나 붙여넣은 여러 줄은 추가될 모양 그대로 펼쳐 보인다.
+    const typedLines = draftLines(typed)
+    const fieldColumns = Math.max(8, e.props.bodyColumns - INPUT_CHROME_COLUMNS)
+    const isPreviewWanted = typedLines.length > 1 || displayWidth(typed.trim()) > fieldColumns
 
     return (
       <Box flexDirection="column">
@@ -462,10 +501,12 @@ export const register: Register = on => {
                 <Text bold>새 할 일</Text>
                 <Box borderStyle="round" borderColor="suggestion" paddingX={1} flexDirection="row">
                   <Text color="suggestion">› </Text>
+                  {/* desktop 은 Input 을 고정 폭으로 그려 flex 로 넓혀지지 않는다(2026-10-15 실측, InputProps 에 폭 지정 없음).
+                      긴 글은 아래 미리보기와 `/todo add` 로 대신한다. */}
                   <Box flexGrow={1} flexShrink={1}>
                     <Input
                       key={QUICK_INPUT_KEY}
-                      placeholder="입력 후 Enter ('-'로 시작하면 하위)"
+                      placeholder="할 일 입력 후 Enter"
                       submitLabel="추가"
                       value={typed}
                       autoFocus
@@ -474,6 +515,18 @@ export const register: Register = on => {
                     />
                   </Box>
                 </Box>
+                {isPreviewWanted && (
+                  <Box key="draft-preview" flexDirection="column" paddingX={1}>
+                    {typedLines.map(line => (
+                      <Box paddingLeft={line.isSub ? 4 : 0}>
+                        <Text dimColor wrap="wrap">
+                          {line.isSub ? '◦ ' : '☐ '}
+                          {line.text}
+                        </Text>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
               </Box>
             )}
 
@@ -484,7 +537,7 @@ export const register: Register = on => {
               {current.open.length === 0 ? (
                 <Text dimColor>남은 할 일이 없습니다</Text>
               ) : (
-                current.open.map(item => itemRow(item, 'open'))
+                current.open.map((item, index) => itemRow(item, 'open', index, current.open.length))
               )}
             </Box>
 
@@ -493,7 +546,7 @@ export const register: Register = on => {
                 <Text bold dimColor>
                   완료 {current.done.length}
                 </Text>
-                {current.done.map(item => itemRow(item, 'done'))}
+                {current.done.map((item, index) => itemRow(item, 'done', index, current.done.length))}
               </Box>
             )}
           </Box>
@@ -505,7 +558,7 @@ export const register: Register = on => {
           </Text>
           {sync.error && <Text color="error">{sync.error}</Text>}
           {e.props.isFocused && (
-            <Text dimColor>1 오늘 · 2 어제 · Enter 추가 · '-'로 시작하면 하위 · 행 클릭 완료/되돌리기 · ✕ 삭제 · 글 수정은 Notion에서</Text>
+            <Text dimColor>1 오늘 · 2 어제 · Enter 추가 · '-'로 시작하면 하위 · 행 클릭 완료/되돌리기 · ↑↓ 순서 · ✕ 삭제 · 글 수정은 Notion에서</Text>
           )}
         </Box>
       </Box>

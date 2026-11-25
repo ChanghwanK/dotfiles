@@ -198,7 +198,7 @@ last_updated: YYYY-MM-DD
 2. **이월 반복 태스크**: clickhouse 모니터링 3일 이월, 우선순위 vs 관성 충돌
 
 ### 다음 ingest 권고
-- daily:review Step 4가 raw/에 매일 추가 → 주 1회 /personal:ingest 실행 권고
+- daily:retrospective Step 4가 raw/에 매일 추가 → 주 1회 /personal:ingest 실행 권고
 ```
 
 ---
