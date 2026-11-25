@@ -1,0 +1,1110 @@
+{
+ "date": "2026-11-24",
+ "weekday": "화",
+ "span": "07:24~20:39",
+ "title": "11월 24일 업무 회고 트리",
+ "lead": "PgBouncer 도입을 설계 확정부터 dev 재부팅 시험까지 하루에 진행한 날입니다.",
+ "stats": [
+  {
+   "label": "머지 PR",
+   "value": "9건",
+   "note": "kubernetes 7, charts 2"
+  },
+  {
+   "label": "작업 세션",
+   "value": "21개",
+   "note": "PgBouncer 13개"
+  },
+  {
+   "label": "근무",
+   "value": "약 13시간",
+   "note": "07:24~20:39"
+  },
+  {
+   "label": "남은 결정",
+   "value": "6건",
+   "note": "PgBouncer Tech Spec"
+  }
+ ],
+ "overview": [
+  {
+   "n": "1",
+   "title": "무엇을 했나",
+   "text": "PgBouncer 도입에 하루 대부분을 썼습니다. 설계 결정을 확정하고, 표준 차트를 머지하고, dev에서 연결 검증과 부하 중 재부팅 시험까지 했습니다. 오전에는 socraai-ctiapi의 배포 시간대 차단, 종료 정리, 발신 경로 분리 PR 3건을 머지했습니다."
+  },
+  {
+   "n": "2",
+   "title": "이어서 할 일",
+   "text": "재부팅 시험 쓰기 정합성은 오늘 확인을 마쳤습니다(커밋된 실패 0건). 남은 우선순위는 재부팅 스크립트 PR, ctiapi #10314의 prod 반영 확인, 휘발성 위치에 있는 cert-manager 알럿 작성본 옮기기입니다."
+  },
+  {
+   "n": "3",
+   "title": "어떤 고민을 했나",
+   "text": "대부분 PgBouncer 설계의 트레이드오프였고 어제 모두 결론이 났습니다(가용성 vs 비용, 보안 vs 운영 부담, 셀프서비스 구조, 변경 안전성). 열린 고민은 문서 가독성과 팀 미션 문장입니다."
+  },
+  {
+   "n": "4",
+   "title": "어떤 어려움이 있었나",
+   "text": "AI가 범위와 이전 결정을 놓친 일이 가장 자주 드러났습니다. 그 바탕에는 병렬 세션 6~7개와 정본 3곳을 손으로 맞추는 작업 구조가 있었던 것으로 봅니다(추론). 새 개념이 한꺼번에 들어와 인지 부하도 컸습니다."
+  }
+ ],
+ "carryover": [],
+ "trees": {
+  "done": {
+   "root": "11-24 한 일",
+   "caption": "상위 주제 4개, 상태는 어제 퇴근 시점(19:52) 기준입니다.",
+   "groups": [
+    {
+     "name": "PgBouncer 도입",
+     "chip": null,
+     "sub": "k6·socraai DB 연결을 앱 → PgBouncer → Aurora로 표준화. 설계 확정부터 차트 머지, dev 검증까지 하루에 진행",
+     "detail": [
+      "목표: dev·stg·prod의 DB 연결 계층을 앱 → PgBouncer → DB로 같게 만들기",
+      "대상: k6, socraai (Python/Django)",
+      "prod는 RDS Proxy를 철거하고 Aurora writer에 직결"
+     ],
+     "kids": [
+      {
+       "name": "설계 논의",
+       "chip": {
+        "kind": "y",
+        "text": "대부분 확정"
+       },
+       "sub": "TLS 구간별 수준, circle 이름, 배치(결정 8·9번), pool·종료 설정, 앱 연결 표준을 확정. 남은 결정은 6건",
+       "detail": [
+        "TLS: 앱 → PgBouncer는 prefer(cert-manager 서버 인증서, 앱은 CA 검증 안 함), PgBouncer → Aurora는 verify-full",
+        "circle 이름 domain-pgbouncer, DB당 1개, namespace는 {sphere}-domain",
+        "배치: amd64-default, replicas 2, writer AZ preferred, PDB 1, do-not-disrupt 미사용",
+        "pool: default_pool_size 35, max_db_connections 40, query_wait_timeout 10초, 종료 유예 90초",
+        "앱 표준: CONN_HEALTH_CHECKS=True, CONN_MAX_AGE 60 (asgi는 0)",
+        "비밀번호 교체는 Non-Goal로 뺌",
+        "문서: Tech Spec v33 → v41, Notion PE-2 복제본 재배치와 높음 5건 반영",
+        "남은 결정: 11, 14, 15, 16, 17, 18"
+       ],
+       "kids": []
+      },
+      {
+       "name": "차트 설계 및 생성",
+       "chip": {
+        "kind": "g",
+        "text": "완료"
+       },
+       "sub": "표준 차트 #152(0.1.0-v1beta1) 머지. RDS CA 번들 내장, dev에 cert-manager ClusterIssuer, 테스트 DB 스크립트 #153",
+       "detail": [
+        "kubernetes-charts #152 머지(16:52), 0.1.0-v1beta1",
+        "설계 원칙: 설정할 것은 최소로, 나머지는 검증된 기본값으로",
+        "ini 변경은 롤링으로만 반영(pod 어노테이션 + Downward API)",
+        "RDS CA 번들: 도쿄 리전 번들을 차트에 포함, 우선순위 existingSecret > existingConfigMap > bundled",
+        "cert-manager: dev ClusterIssuer pgbouncer-ca-issuer(#10326), 시험 namespace 제거(#10340), stg·prod 보류",
+        "#153: test-aurora.sh up/status/down"
+       ],
+       "kids": []
+      },
+      {
+       "name": "dev 검증",
+       "chip": {
+        "kind": "y",
+        "text": "진행 중"
+       },
+       "sub": "테스트 Aurora와 copy circle 2개로 실제 dev 앱을 건드리지 않고 연결과 장애 동작을 확인",
+       "detail": [
+        "테스트 Aurora tech-pgbouncer-lab-dev에 copy circle 2개(k6/domain-copy, socraai/domain-copy, #10331·#10333)",
+        "실제 dev domain 앱은 건드리지 않음"
+       ],
+       "kids": [
+        {
+         "name": "연결 검증",
+         "chip": {
+          "kind": "g",
+          "text": "완료"
+         },
+         "sub": "두 구간 모두 TLSv1.3, Aurora에 보이는 클라이언트는 PgBouncer pod뿐, exporter 4/4 정상. socraai health만 미판정",
+         "detail": [
+          "앱 → PgBouncer ssl_in_use True (TLSv1.3)",
+          "PgBouncer → Aurora verify-full (TLSv1.3)",
+          "Aurora client_addr는 PgBouncer pod IP 4개뿐",
+          "pgbouncer_up 4/4, 서버 인증서 지문 일치",
+          "판정 못 함: socraai copy HTTP health(/health 403)"
+         ],
+         "kids": []
+        },
+        {
+         "name": "부하 중 재부팅 시험",
+         "chip": {
+          "kind": "y",
+          "text": "진행 중"
+         },
+         "sub": "재부팅 1·2에서 DB 다운 9·13초, 앱 실패 15~24초. 대부분 수십 ms 빠른 실패. 3회차와 쓰기 정합성은 그날 미확인",
+         "detail": [
+          "DB 다운: 9초, 13초(1초 간격 직접 탐침)",
+          "socraai 500: 144건·150건, 실패 구간 각 15.3초",
+          "k6 503: 77건·31건, 실패 구간 15.7초·24.1초",
+          "DB 복구 뒤 3~9초 실패가 이어짐(server_login_retry로 추정)",
+          "실패 대부분 수십 ms, 최대 약 10초(query_wait_timeout으로 추정)",
+          "미확인: 3회차 데이터, 쓰기 정합성, 18:01 consolidation 겹침"
+         ],
+         "kids": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "socraai-ctiapi 안정화",
+     "chip": null,
+     "sub": "배포가 상담 통화를 끊거나 발신을 두 번 걸 수 있는 경로를 막는 Istio·ArgoCD 설정 3건",
+     "detail": [
+      "배포 중 상담 통화가 끊기거나 발신이 두 번 걸릴 위험을 줄이는 작업"
+     ],
+     "kids": [
+      {
+       "name": "배포 시간대 차단",
+       "chip": {
+        "kind": "g",
+        "text": "완료"
+       },
+       "sub": "#10313: prod 자동 sync를 평일 09:00~19:30에 막아 상담 중 파드 교체를 차단. 급하면 수동 sync",
+       "detail": [
+        "#10313 머지(08:10)",
+        "tech AppProject syncWindow: 평일 09:00~19:30 deny, manualSync 허용",
+        "19:30 이후 자동 sync 재개, 급하면 수동 sync"
+       ],
+       "kids": []
+      },
+      {
+       "name": "파드 종료 정리",
+       "chip": {
+        "kind": "y",
+        "text": "반영 확인"
+       },
+       "sub": "#10314: preStop은 sleep 10만 남기고 SIGTERM 하나로 종료. 머지했지만 prod 파드 교체는 아직 확인 못 함",
+       "detail": [
+        "#10314 머지(08:30)",
+        "preStop에서 종료 curl을 빼고 sleep 10만 남김",
+        "SIGTERM 하나로 종료와 교환기 넘겨주기를 일원화",
+        "머지 뒤 파드가 교체되지 않음: sync 차단 시간대 때문으로 추정"
+       ],
+       "kids": []
+      },
+      {
+       "name": "발신 경로 분리",
+       "chip": {
+        "kind": "y",
+        "text": "검증 대기"
+       },
+       "sub": "#10315: 발신 API만 60초 대기, 서버 도달 전 실패만 재시도. dev 반영 뒤 주환님 검증 대기",
+       "detail": [
+        "#10315 dev 머지(09:06), 1/2",
+        "문제: 발신 API가 일반 규칙(시도당 5초, 재시도 2회)을 타서 교체 중 화면은 실패인데 실제로는 발신될 수 있었음",
+        "변경: 발신 경로만 60초 대기, 서버에 닿기 전 실패만 재시도",
+        "검증은 주환님께 요청"
+       ],
+       "kids": []
+      },
+      {
+       "name": "기록·이해",
+       "chip": {
+        "kind": "g",
+        "text": "완료"
+       },
+       "sub": "Jira PLE-27로 작업을 남기고, CTI·교환기 구조를 이해해 draw.io 아키텍처 그림을 그림",
+       "detail": [
+        "Jira PLE-27 등록(syncWindow + 발신 경로 Istio)",
+        "관련 티켓 PLE-14(ctiapi 전용 노드풀 분리) 연결",
+        "CTI·교환기 구조를 이해하고 draw.io로 아키텍처 그림"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "팀·스킬",
+     "chip": null,
+     "sub": "팀이 쓰는 자산(Dockerfile 스킬)과 팀 정체성(미션·R&R) 작업",
+     "detail": [
+      "팀 자산(스킬)과 팀 정체성(미션) 작업"
+     ],
+     "kids": [
+      {
+       "name": "create-dockerfile 스킬",
+       "chip": {
+        "kind": "y",
+        "text": "리뷰 대기"
+       },
+       "sub": "안티패턴 Dockerfile을 막는 스킬 초안. eval 6회 12/12 통과, 뷰어 리뷰를 제출하면 2라운드",
+       "detail": [
+        "pe-agent-plugins에 들어갈 Dockerfile 작성 지원 스킬",
+        "ctiapi Dockerfile 같은 안티패턴을 막고 멀티 스테이지 경량 빌드로 유도",
+        "eval 6회 12/12, 뷰어 리뷰 뒤 2라운드",
+        "논의: harbor 미러 FROM과 syntax 지시자 중 무엇이 일반적인가"
+       ],
+       "kids": []
+      },
+      {
+       "name": "팀 미션·R&R 문안",
+       "chip": {
+        "kind": "z",
+        "text": "미확인"
+       },
+       "sub": "세 문장을 플랫폼 철학이 묻어나는 톤으로 다듬고 4·5번 문장, R&R 초안을 받음. 확정 여부는 미확인",
+       "detail": [
+        "초안 3문장: 신뢰성 책임, 쓰기 쉬운 인프라, 비용 효율",
+        "요청: 플랫폼 철학이 묻어나게, 가드레일은 단어 없이",
+        "추가 제안: 먼저 알아채기, 끝까지 닫기, R&R도 같은 톤"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "개인 업무 환경",
+     "chip": null,
+     "sub": "오전 약 2시간, 업무 도구와 로컬 디스크를 손봄",
+     "detail": [
+      "본업 밖의 작업 환경 손보기, 오전 약 2시간"
+     ],
+     "kids": [
+      {
+       "name": "업무 도구",
+       "chip": {
+        "kind": "g",
+        "text": "완료"
+       },
+       "sub": "daily:start 보드 상태를 Notion 일지와 연동, Raycast로 오늘 일지를 바로 여는 '업무 todo' 추가",
+       "detail": [
+        "daily:start: HTML 보드 상태 관리, retrospective가 item_state를 읽게 함",
+        "보드 체크를 Notion 일지에 반영, 메일·Jira 링크, property 취소선",
+        "Raycast '업무 todo': 오늘 일지 페이지 바로 열기",
+        "dotfiles 커밋·push(notion-daily-journal.sh는 포함된 채 둠)"
+       ],
+       "kids": []
+      },
+      {
+       "name": "로컬 디스크 정리",
+       "chip": {
+        "kind": "y",
+        "text": "진행 중"
+       },
+       "sub": "저장공간 부족 알림 → Podman VM trim으로 약 72GB 회수. uv 캐시는 MCP 잠금으로 오늘 아침까지 이어짐",
+       "detail": [
+        "저장공간 부족 알림에서 시작",
+        "Podman VM trim으로 약 72GB 회수",
+        "Podman 소켓 오류(hard stop), buildah 잔여 작업 컨테이너 정리",
+        "uv cache prune은 MCP 서버의 캐시 잠금으로 대기, 오늘 아침 로컬 uv 제거 후 7GB 회수"
+       ],
+       "kids": []
+      }
+     ]
+    }
+   ]
+  },
+  "next": {
+   "root": "다음 할 일",
+   "caption": "칩은 급한 정도입니다. 빨강은 오늘, 노랑은 이번 주, 회색은 날짜가 정해진 일입니다.",
+   "groups": [
+    {
+     "name": "PgBouncer 도입",
+     "chip": null,
+     "sub": "결정 16번 근거를 닫고, prod 전에 필요한 시험과 인프라 2단계를 채우는 단계",
+     "detail": [
+      "결정 16번 근거를 닫고 prod 전 시험을 채우는 단계"
+     ],
+     "kids": [
+      {
+       "name": "재부팅 시험 마무리",
+       "chip": {
+        "kind": "g",
+        "text": "11-25 확인"
+       },
+       "sub": "실패로 보였지만 커밋된 쓰기 0건, 재부팅 3회 모두 쓰기 중단 약 15~17초",
+       "detail": [
+        "11-25 확인: 기록 구간(17:55:36~18:02:33)의 guest 행 1430 = 클라이언트 쓰기 성공 1430, 쓰기 실패 59건은 하나도 커밋되지 않음",
+        "DB created 기준 쓰기 중단: 재부팅 1 15.5초, 2 15.4초, 3 16.6초(3회차는 DB 쪽으로만 복원)",
+        "18:01 consolidation: 최대 간격 2.2초, 이벤트 없는 구간의 간격(최대 3.2초)과 구별되지 않음",
+        "부하는 로컬 기록이 끊긴 뒤에도 pod 안에서 18:13:36까지 계속 돎(그 뒤 행 2427)",
+        "남음: Tech Spec 결정 16번 반영"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n01",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "재부팅 스크립트 PR",
+       "chip": {
+        "kind": "r",
+        "text": "오늘"
+       },
+       "sub": "push만 해 둔 재사용 스크립트를 e2e 1회로 검증하고 PR. 부하를 클러스터 안 Job으로 옮기는 개선 포함",
+       "detail": [
+        "브랜치 ChanghwanK/pgbouncer-reboot-test-script(303a671), PR 없음",
+        "run.sh --reboots 1 --stable 60으로 e2e 1회",
+        "개선: 부하를 클러스터 안 Job으로 돌리기, aws rds wait에 타임아웃"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n02",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "cert-manager 2단계",
+       "chip": {
+        "kind": "y",
+        "text": "이번 주"
+       },
+       "sub": "만료 알럿 작성본이 휘발성 scratchpad에만 있어 먼저 옮겨야 함. 그 뒤 stg, 24시간 뒤 prod",
+       "detail": [
+        "만료 알럿 5종과 VMServiceScrape 작성본이 그 세션 scratchpad(step2/)에만 있음",
+        "stg 적용, 24시간 뒤 prod"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n03",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "추가 시험",
+       "chip": {
+        "kind": "y",
+        "text": "이번 주"
+       },
+       "sub": "롤링 재시작 중 끊기는 연결, stats 비밀번호 교체와 인증서 갱신이 재시작 없이 반영되는지",
+       "detail": [
+        "롤링 재시작 중 실패 수, SIGKILL로 끊긴 연결",
+        "stats 비밀번호 교체 반영",
+        "인증서 갱신 뒤 RELOAD 반영"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n04",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "설계 마무리",
+       "chip": {
+        "kind": "y",
+        "text": "이번 주"
+       },
+       "sub": "남은 결정 6건(11·14·15·16·17·18)과 socraai asgi 60초 초과 요청이 끝에 DB를 쓰는지 확인",
+       "detail": [
+        "11 KR3·KR4 임계값, 14 ExternalName 빠른 복귀, 15 보안 릴리스 담당",
+        "16 재부팅 중 오류 처리, 17 실습 저장소, 18 AI 키트 전달 수단",
+        "socraai-domain-asgi 요청 54%가 60초 초과: 끝에서 DB를 쓰는지 확인"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n05",
+       "since": "2026-11-24"
+      }
+     ]
+    },
+    {
+     "name": "socraai-ctiapi",
+     "chip": null,
+     "sub": "어제 머지한 설정이 prod에 실제로 반영됐는지 보고, 검증이 끝나면 2/2로 마무리",
+     "detail": [
+      "prod 반영 확인과 2/2 전환"
+     ],
+     "kids": [
+      {
+       "name": "#10314 prod 반영 확인",
+       "chip": {
+        "kind": "r",
+        "text": "오늘"
+       },
+       "sub": "sync 차단 시간대 때문에 어제 교체되지 않은 prod 파드가 19:30 이후 자동 sync로 바뀌었는지",
+       "detail": [
+        "prod Rollout revision과 파드 생성 시각 확인",
+        "교체 안 됐으면 원인 확인 뒤 수동 sync 판단"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n06",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "#10315 prod PR",
+       "chip": {
+        "kind": "y",
+        "text": "검증 대기"
+       },
+       "sub": "주환님 dev 검증(발신 1회, 화면과 실제 발신 일치) 결과를 받은 뒤 prod 쪽 PR",
+       "detail": [
+        "주환님 검증 항목: 교체 중 발신이 한 번만 걸리는지, 화면 결과와 실제 발신이 일치하는지",
+        "결과를 받으면 prod PR(2/2)"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n07",
+       "since": "2026-11-24"
+      }
+     ]
+    },
+    {
+     "name": "팀·스킬",
+     "chip": null,
+     "sub": "어제 열어 두고 닫지 못한 두 작업",
+     "detail": [
+      "어제 열어 둔 두 작업 닫기"
+     ],
+     "kids": [
+      {
+       "name": "create-dockerfile 리뷰",
+       "chip": {
+        "kind": "y",
+        "text": "이번 주"
+       },
+       "sub": "eval 결과를 뷰어에서 리뷰 제출하고, harbor 미러 규칙을 스킬에 넣을지 2라운드에서 결정",
+       "detail": [
+        "eval 결과를 뷰어에서 리뷰 제출",
+        "2라운드에서 harbor 미러 규칙을 반영할지 결정"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n08",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "팀 미션 문안 확정",
+       "chip": {
+        "kind": "y",
+        "text": "이번 주"
+       },
+       "sub": "4·5번 문장(먼저 알아채기, 끝까지 닫기) 채택 여부와 R&R 문안 확정",
+       "detail": [
+        "4·5번 문장 채택 여부",
+        "R&R 문안 확정"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n09",
+       "since": "2026-11-24"
+      }
+     ]
+    },
+    {
+     "name": "날짜 고정·기록",
+     "chip": null,
+     "sub": "날짜가 정해진 정리·검증 작업과, 발견했지만 아직 기록하지 않은 위험",
+     "detail": [
+      "잊기 쉬운 날짜 작업과 범위 밖 위험"
+     ],
+     "kids": [
+      {
+       "name": "테스트 리소스 정리",
+       "chip": {
+        "kind": "z",
+        "text": "12-01"
+       },
+       "sub": "delete-after 태그 날짜. copy circle revert PR과 test-aurora.sh down으로 테스트 DB 제거",
+       "detail": [
+        "리소스 태그 delete-after=2026-12-01",
+        "copy circle revert PR",
+        "./test-aurora.sh down(purpose 태그 가드)"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n10",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "cert-manager 결과 검증",
+       "chip": {
+        "kind": "z",
+        "text": "12-02"
+       },
+       "sub": "dev 11-28·prod 12-01 clickhouse 인증서 자연 갱신에서 RenewalOverdue 오발화가 0인지",
+       "detail": [
+        "dev 11-28, prod 12-01 clickhouse 인증서 자연 갱신",
+        "RenewalOverdue 오발화 0이면 통과"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n11",
+       "since": "2026-11-24"
+      },
+      {
+       "name": "범위 밖 위험 기록",
+       "chip": {
+        "kind": "y",
+        "text": "이번 주"
+       },
+       "sub": "VPC CNI 네트워크 정책이 꺼져 NetworkPolicy가 무효, 개발자 exec 권한으로 CA Secret 접근 가능",
+       "detail": [
+        "VPC CNI enable-network-policy=false: 확정한 NetworkPolicy가 지금은 효과 없음",
+        "개발자 ClusterRole이 전 namespace pods/exec: cert-manager ns에서 CA Secret 마운트 가능",
+        "Notion Task로 남기기"
+       ],
+       "kids": [],
+       "id": "2026-11-24-n12",
+       "since": "2026-11-24"
+      }
+     ]
+    }
+   ]
+  },
+  "thoughts": {
+   "root": "어제의 고민",
+   "caption": "고민의 성격으로 묶었습니다. 초록은 어제 결론이 난 것, 노랑은 아직 열린 것입니다.",
+   "groups": [
+    {
+     "name": "설계 트레이드오프",
+     "chip": null,
+     "sub": "PgBouncer 설계에서 두 가치가 부딪힌 지점. 다섯 건 모두 어제 결론",
+     "detail": [
+      "PgBouncer 설계에서 두 가치가 부딪힌 지점"
+     ],
+     "kids": [
+      {
+       "name": "가용성 vs 비용",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "zone 분산은 월 25~30달러, DB도 단일 AZ라 효과가 작음 → writer AZ preferred로 결정",
+       "detail": [
+        "후보: writer AZ 단일 배치 vs zone 분산",
+        "DB도 단일 AZ라 AZ 장애면 어차피 전면 중단",
+        "zone 분산은 BC-0에만 두는 것이 팀 표준(k6 BC-1, socraai BC-2)",
+        "결론: writer AZ preferred"
+       ],
+       "kids": []
+      },
+      {
+       "name": "보안 vs 운영 부담",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "앱 구간은 암호화만, DB 구간은 verify-full. 대가는 CA 번들 관리와 세대 교체 런북",
+       "detail": [
+        "앱 → PgBouncer는 암호화만, CA 검증 없음",
+        "PgBouncer → Aurora는 verify-full",
+        "대가: RDS CA 번들 관리와 CA 세대 교체 런북"
+       ],
+       "kids": []
+      },
+      {
+       "name": "셀프서비스 구조",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "'새 서비스는 값 3개로 붙인다'를 기준으로 CA 번들은 차트 내장, Issuer는 ClusterIssuer 하나",
+       "detail": [
+        "번들: 차트 포함 vs kustomize vs trust-manager → 차트 포함",
+        "Issuer: ClusterIssuer 하나로 issuerRef 고정",
+        "기준: 새 서비스는 값 3개로 PgBouncer를 붙인다"
+       ],
+       "kids": []
+      },
+      {
+       "name": "변경 안전성",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "RELOAD는 틀린 줄 앞까지만 반영되는 위험 → ini 변경은 롤링으로만 반영하도록 차트를 설계",
+       "detail": [
+        "RELOAD는 틀린 줄 앞까지만 부분 반영",
+        "틀린 ini로 재시작하면 FATAL로 기동 불가",
+        "결론: 롤링으로만 반영(어노테이션 + Downward API)"
+       ],
+       "kids": []
+      },
+      {
+       "name": "앱 표준값",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "CONN_MAX_AGE 60(asgi만 0), query_wait_timeout 10초를 '연결을 얻기까지 기다리는 상한'으로 정리",
+       "detail": [
+        "CONN_MAX_AGE 60: 연결 재사용과 종료 유예시간 사이",
+        "Django 문서는 ASGI만 0 권장 → asgi 0, Celery 60",
+        "query_wait_timeout: 풀에서 연결을 얻기까지 기다리는 상한, 10초"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "운영 경계 (ctiapi)",
+     "chip": null,
+     "sub": "배포 속도와 상담 안정성, 그리고 내가 직접 판단할 수 있는 범위 사이",
+     "detail": [
+      "배포 속도와 상담 안정성 사이"
+     ],
+     "kids": [
+      {
+       "name": "배포 제한 vs 긴급 대응",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "업무 시간 자동 sync는 막되 수동 sync는 열어 둬 긴급 수정 경로를 남김",
+       "detail": [
+        "업무 시간 자동 sync 차단",
+        "급한 수정은 수동 sync로 가능"
+       ],
+       "kids": []
+      },
+      {
+       "name": "비멱등 요청의 재시도",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "발신은 다시 보내면 전화가 다시 걸림 → 503 재시도를 빼고 서버 도달 전 실패만 재시도",
+       "detail": [
+        "발신은 다시 보내면 전화가 다시 걸리는 요청",
+        "503 포함 재시도 조건을 빼고 서버 도달 전 실패만 재시도"
+       ],
+       "kids": []
+      },
+      {
+       "name": "내가 검증할 수 있는 범위",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "교환기·업무 지식이 필요한 발신 실험은 직접 하지 않고 검증 항목을 정리해 위임",
+       "detail": [
+        "발신 실험은 교환기·업무 지식이 필요",
+        "검증 항목을 정리해 주환님께 요청"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "문서와 소통",
+     "chip": null,
+     "sub": "테크 스펙을 남이 읽기 좋은 구조로 만드는 고민",
+     "detail": [
+      "테크 스펙을 남이 읽기 좋게"
+     ],
+     "kids": [
+      {
+       "name": "테크 스펙 구조",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "뱅크샐러드·컬리·Lyft 사례를 보고 AS-IS 절을 서비스별로, TO-BE 결정 요약 절을 새로 둠",
+       "detail": [
+        "참고: 뱅크샐러드, 컬리, Lyft 사례",
+        "AS-IS 절을 서비스별로, TO-BE 결정 요약 절 신설"
+       ],
+       "kids": []
+      },
+      {
+       "name": "가독성",
+       "chip": {
+        "kind": "y",
+        "text": "열림"
+       },
+       "sub": "토글 없이는 너무 길어짐. 제목 단계를 맞춘 비교본을 만들었지만 최종 형식은 미정",
+       "detail": [
+        "토글 없이는 너무 길다",
+        "A~G 제목 단계를 맞춘 비교본을 만듦",
+        "최종 형식은 아직 미정"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "팀과 일하는 방식",
+     "chip": null,
+     "sub": "팀 정체성과 내 업무 도구에 대한 고민",
+     "detail": [
+      "팀과 내 업무 방식에 대한 고민"
+     ],
+     "kids": [
+      {
+       "name": "팀 미션 문장",
+       "chip": {
+        "kind": "y",
+        "text": "열림"
+       },
+       "sub": "'신뢰성은 가드레일로 보장한다'는 핵심을 단어 없이 녹이는 톤. 미션 범위도 아직 열려 있음",
+       "detail": [
+        "신뢰성을 가드레일로 보장한다는 핵심을 단어 없이 녹이기",
+        "미션에 조기 탐지, 끝까지 닫기를 더할지"
+       ],
+       "kids": []
+      },
+      {
+       "name": "브레인스토밍·마인드맵",
+       "chip": {
+        "kind": "y",
+        "text": "열림"
+       },
+       "sub": "플랫폼 문제 해결에 쓸모 있는지 질문하고 PgBouncer 범위 마인드맵을 한 번 만들어 봄",
+       "detail": [
+        "질문: 플랫폼 문제 해결에 도움이 되나",
+        "PgBouncer 도입 범위 마인드맵 Artifact를 한 번 만들어 봄"
+       ],
+       "kids": []
+      },
+      {
+       "name": "업무 보드 상태 원장",
+       "chip": {
+        "kind": "g",
+        "text": "결론"
+       },
+       "sub": "HTML 보드의 체크 상태를 어디에 둘지 → Notion 일지에 반영하기로 정함",
+       "detail": [
+        "HTML 보드 상태를 어디에 저장할지",
+        "보드 체크를 Notion 일지에 반영하기로 정함"
+       ],
+       "kids": []
+      }
+     ]
+    }
+   ]
+  },
+  "hard": {
+   "root": "어려웠던 점",
+   "caption": "원인 성격으로 묶고, 직접 말씀하신 것과 로그로 추론한 것을 칩으로 구분했습니다.",
+   "groups": [
+    {
+     "name": "AI 협업 품질",
+     "chip": null,
+     "sub": "AI가 맥락을 놓치거나 틀려서 생긴 비용. 직접 말씀하신 것 3건, 추론 1건",
+     "detail": [
+      "AI가 맥락을 놓치거나 틀려서 생긴 비용"
+     ],
+     "kids": [
+      {
+       "name": "범위 이탈 반복",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "작업 대상이 prod인데 dev/stg 내용을 계속 섞음. 11:02 '좀 빼라 제발'",
+       "detail": [
+        "작업 대상이 prod인데 dev/stg 내용을 계속 섞음",
+        "11:02 '좀 빼라 제발 작업 대상이 아니라니까'"
+       ],
+       "kids": []
+      },
+      {
+       "name": "이전 세션 결정 누락",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "다른 세션에서 정한 TLS prefer·CA 미검증이 이어지지 않음. 10:03 'F/U 못한 것 같은데'",
+       "detail": [
+        "다른 세션에서 정한 TLS prefer, CA 미검증이 반영되지 않음",
+        "10:03 '이전 세션들에서 정리된 내용을 F/U 못한 것 같은데'"
+       ],
+       "kids": []
+      },
+      {
+       "name": "스타일·링크 반복 수정",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "다이어그램 스타일을 같은 요청으로 다시 요구(16:52), 잘못된 링크 3회",
+       "detail": [
+        "다이어그램 스타일 재요청(16:49, 16:52), 기울기 제거, 아이콘",
+        "잘못된 링크: 14:25, 14:44, 15:55(다른 리포 PR 링크)"
+       ],
+       "kids": []
+      },
+      {
+       "name": "AI 주장 정정",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "'readiness가 CA 오류를 거른다', '2초×3 재시도' 두 주장이 틀려 정정. 구현 구멍도 리뷰에서 잡힘",
+       "detail": [
+        "'PDB·readiness가 CA 오류를 거른다': readiness는 관리 콘솔만 봐서 틀림",
+        "'2초×3 재시도가 흡수한다': spec에 없던 내용",
+        "차트 구현(45ed05a)의 구멍이 PR 리뷰에서 잡힘"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "작업 구조",
+     "chip": null,
+     "sub": "일을 여러 세션으로 쪼갠 방식 자체에서 생긴 비용(모두 추론)",
+     "detail": [
+      "일을 쪼갠 방식에서 생긴 비용"
+     ],
+     "kids": [
+      {
+       "name": "병렬 세션 조율",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "PgBouncer만 6~7개 세션이 동시에 돌며 메시지 수십 통. 결정 전파가 늦어 정본이 어긋남",
+       "detail": [
+        "메인, 차트, cert-manager, RDS CA, zone 결정, Notion 재배치, dev 검증",
+        "결정이 전파되기 전에 다른 세션이 앞서 나감",
+        "'F/U 못함'과 같은 원인으로 추정(원인 미확인)"
+       ],
+       "kids": []
+      },
+      {
+       "name": "정본 3곳 수동 동기화",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "Tech Spec, Notion PE-2, 차트 README에 같은 결정을 손으로 옮김. replicas 4 같은 잔재가 남음",
+       "detail": [
+        "Tech Spec Artifact, Notion PE-2(원본·복제본), 차트 README",
+        "같은 결정을 손으로 여러 번 옮김",
+        "예: PE-2 replicas 4, Tech Spec 설정 변경 반영 절"
+       ],
+       "kids": []
+      },
+      {
+       "name": "설계 번복",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "ini 반영 방식이 하루에 세 번, RDS 번들 배치가 한 번 바뀜. 그만큼 재검증 부담",
+       "detail": [
+        "ini 반영: RELOAD → subPath+checksum → Downward API",
+        "RDS 번들: (b) kustomize → (a) 차트 포함",
+        "CONN_MAX_AGE: 60 → asgi만 0"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "인지 부하",
+     "chip": null,
+     "sub": "하루에 들어온 새 개념과 결정의 양",
+     "detail": [
+      "하루에 들어온 정보량"
+     ],
+     "kids": [
+      {
+       "name": "맥락 과부하",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "16:21 '어떤 문제가 있었고 어떻게 해결했는지 다시 정리해줘 까먹음'",
+       "detail": [
+        "16:21 '어떤 문제가 있었고 어떻게 해결했는지 다시 정리해줘 까먹음'"
+       ],
+       "kids": []
+      },
+      {
+       "name": "새 개념 동시 유입",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "Issuer·CA 체인·verify-full·tolerationSeconds를 한꺼번에. query_wait_timeout은 6분 사이 세 번 확인",
+       "detail": [
+        "Issuer, ClusterIssuer, CA 체인, RDS CA 번들, upstream, verify-full, tolerationSeconds",
+        "query_wait_timeout 의미를 16:00~16:06에 세 번 확인"
+       ],
+       "kids": []
+      },
+      {
+       "name": "긴 근무",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "07:24~20:39로 약 13시간. 큰 세션 2개가 컨텍스트 소진으로 요약 후 재시작",
+       "detail": [
+        "07:24~20:39, 약 13시간",
+        "큰 세션 2개가 컨텍스트 소진으로 요약 후 재시작"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "문서 표현",
+     "chip": null,
+     "sub": "생각을 읽히는 글로 옮기는 어려움(모두 직접)",
+     "detail": [
+      "읽히는 글로 만드는 어려움"
+     ],
+     "kids": [
+      {
+       "name": "가독성 아쉬움",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "'뭔가 아쉬워 가독성이나 글 구조가', '토글을 안 하면 너무 길어'",
+       "detail": [
+        "'뭔가 아쉬워 가독성이나 글 구조가'",
+        "'토글을 안 하면 너무 길어'"
+       ],
+       "kids": []
+      },
+      {
+       "name": "서식 유실",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "마크다운으로 다시 쓴 Notion 임시본에서 색·콜아웃이 모두 빠져 복제 방식으로 다시 만듦",
+       "detail": [
+        "마크다운으로 읽어 다시 쓴 임시본에서 색과 콜아웃이 빠짐",
+        "Notion 페이지 복제 방식으로 다시 만듦"
+       ],
+       "kids": []
+      },
+      {
+       "name": "팀 미션 톤",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "'플랫폼 엔지니어링 철학이 묻어나는 문장이 없어', 가드레일은 단어 없이 묻어야 함",
+       "detail": [
+        "'플랫폼 엔지니어링 철학이 묻어나는 문장이 없어'",
+        "'가드레일이란 단어가 직접 들어가진 말고 묻어야 함'"
+       ],
+       "kids": []
+      }
+     ]
+    },
+    {
+     "name": "역량·도구 경계",
+     "chip": null,
+     "sub": "도메인 지식, 시험 도구, 로컬 환경처럼 내 손 밖에 있던 것들",
+     "detail": [
+      "내 손 밖에 있던 것들"
+     ],
+     "kids": [
+      {
+       "name": "도메인 역량 경계",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "교환기 소유권과 발신 흐름은 앱 도메인 지식이라 검증을 주환님께 넘김",
+       "detail": [
+        "교환기 소유권과 발신 흐름은 앱 도메인 지식",
+        "검증을 주환님께 위임"
+       ],
+       "kids": []
+      },
+      {
+       "name": "시험 도구 불안정",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "로컬 exec 스트림 단절로 18:02:33 이후 기록 유실, 40분 제한, 19:30 dev API 무응답",
+       "detail": [
+        "로컬 kubectl exec 스트림이 끊겨 18:02:33 이후 기록 없음",
+        "aws rds wait가 40분 제한에 걸려 중단",
+        "19:30경 dev API 무응답"
+       ],
+       "kids": []
+      },
+      {
+       "name": "로컬 환경",
+       "chip": {
+        "kind": "d",
+        "text": "직접"
+       },
+       "sub": "디스크 부족, Podman 소켓 오류, Jira 연결 끊김, Orca 재시작이 하루에 겹침",
+       "detail": [
+        "디스크 부족, Podman 소켓 오류",
+        "Jira 연결 끊김 후 재연결, Orca 재시작"
+       ],
+       "kids": []
+      },
+      {
+       "name": "동료 리뷰 공백",
+       "chip": {
+        "kind": "i",
+        "text": "추론"
+       },
+       "sub": "dev PR이 1~2분 만에 머지되고 charts 리뷰어 지정도 실패. prod 표준 차트는 사람 리뷰 확인 필요",
+       "detail": [
+        "#10331 2분, #10333·#10340 1분 만에 머지",
+        "charts 리포 리뷰어 팀 지정 실패",
+        "#152는 prod 표준 차트라 사람 리뷰 여부 확인 권장"
+       ],
+       "kids": []
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "prs": [
+  {
+   "group": "PgBouncer 도입",
+   "repo": "riiid/kubernetes-charts",
+   "number": 152,
+   "title": "feat(pgbouncer): PgBouncer 표준 차트 신설 (0.1.0-v1beta1)",
+   "merged_at": "16:52"
+  },
+  {
+   "group": "PgBouncer 도입",
+   "repo": "riiid/kubernetes-charts",
+   "number": 153,
+   "title": "feat(pgbouncer): 테스트 Aurora 구성 스크립트로 dev·stg 검증 DB를 한 줄로 만들고 지운다",
+   "merged_at": "17:37"
+  },
+  {
+   "group": "PgBouncer 도입",
+   "repo": "riiid/kubernetes",
+   "number": 10326,
+   "title": "[dev] infra/cert-manager: PgBouncer 서버 인증서용 CA ClusterIssuer 추가",
+   "merged_at": "14:50"
+  },
+  {
+   "group": "PgBouncer 도입",
+   "repo": "riiid/kubernetes",
+   "number": 10331,
+   "title": "[common,dev] k6,socraai: PgBouncer 차트 dev 검증용 domain copy circle 추가 (임시)",
+   "merged_at": "16:53"
+  },
+  {
+   "group": "PgBouncer 도입",
+   "repo": "riiid/kubernetes",
+   "number": 10333,
+   "title": "[dev] k6/domain-copy: migrate Job에 OpenAI 더미 키를 넣어 Django 로딩 실패 해결",
+   "merged_at": "17:28"
+  },
+  {
+   "group": "PgBouncer 도입",
+   "repo": "riiid/kubernetes",
+   "number": 10340,
+   "title": "[dev] infra/cert-manager: CA Issuer 검증을 마친 시험 namespace cert-manager-smoke 제거",
+   "merged_at": "17:56"
+  },
+  {
+   "group": "socraai-ctiapi 안정화",
+   "repo": "riiid/kubernetes",
+   "number": 10313,
+   "title": "[global] infra/argocd: socraai-ctiapi 운영 자동 동기화를 평일 09:00~19:30 막아 상담 중 파드 교체 차단",
+   "merged_at": "08:10"
+  },
+  {
+   "group": "socraai-ctiapi 안정화",
+   "repo": "riiid/kubernetes",
+   "number": 10314,
+   "title": "[common] tech/socraai-ctiapi: preStop 종료 curl을 빼 SIGTERM 하나로 종료·교환기 넘겨주기 일원화",
+   "merged_at": "08:30"
+  },
+  {
+   "group": "socraai-ctiapi 안정화",
+   "repo": "riiid/kubernetes",
+   "number": 10315,
+   "title": "[dev] tech/socraai-ctiapi: 발신 경로를 분리해 60초 대기·서버 도달 전 실패만 재시도 (1/2)",
+   "merged_at": "09:06"
+  }
+ ],
+ "open_branches": [
+  "kubernetes-charts ChanghwanK/pgbouncer-reboot-test-script (재부팅 시험 재사용 스크립트)"
+ ],
+ "sources": "11-24 세션 로그 21개, riiid/kubernetes·kubernetes-charts PR 목록, PgBouncer 프로젝트 메모리, 19:52 인계 문서.",
+ "artifact_url": "https://claude.ai/artifact/MHb3XUvF447qsLSg9Yk1Ks"
+}
