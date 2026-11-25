@@ -9,6 +9,7 @@ work:tracking 재료 수집. 하루치 세션 로그, 머지된 PR, 인계 문�
 - PR: gh search prs --author @me --owner riiid, 그 날(KST) 머지된 것
 - 인계 문서: ~/.claude/tmp/handoff-D-*.json 중 가장 늦은 것
 - 이월 후보: ~/.claude/work-tracking/ 에서 D보다 앞선 가장 최근 기록의 trees.next 항목(id 있는 것)
+- 아침 계획: ~/.claude/work-tracking/<D>.plan.json (daily:start가 그날 아침 Todos로 고른 항목)
 - 출력 파일: ~/.claude/work-tracking/raw/<D>.json
 - stdout: 파일 경로와 개수 요약 JSON 한 줄 (본문은 파일을 Read한다)
 """
@@ -115,6 +116,17 @@ def carry_candidates(d: str):
     return {"date": rec["date"], "artifact_url": rec.get("artifact_url")}, found
 
 
+def morning_plan(d: str):
+    """daily:start가 남긴 그날 아침 계획. 없으면 None"""
+    p = STORE / f"{d}.plan.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=datetime.now(KST).date().isoformat())
@@ -134,6 +146,7 @@ def main() -> int:
         "existing_record": str(existing) if existing.exists() else None,
         "previous_record": prev,
         "carry_candidates": carry,
+        "morning_plan": morning_plan(d),
         "prs": pr_items,
         "handoff": handoff(d),
         "sessions": sess,
@@ -144,6 +157,7 @@ def main() -> int:
     raw.write_text(json.dumps(out, ensure_ascii=False, indent=1))
     print(json.dumps({"path": str(raw), "date": d, "sessions": len(sess), "prs": len(pr_items),
                       "carry_candidates": len(carry), "previous": prev and prev["date"],
+                      "morning_plan": len((out["morning_plan"] or {}).get("items", [])),
                       "existing_record": out["existing_record"], "errors": out["errors"]}, ensure_ascii=False))
     return 0
 

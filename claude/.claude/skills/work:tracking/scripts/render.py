@@ -95,6 +95,10 @@ def overview_html(d: dict) -> str:
             cnt[c["status"]] = cnt.get(c["status"], 0) + 1
         parts = " · ".join(f"{CARRY_LABEL[k]} {cnt[k]}" for k in ("done", "carried", "dropped") if k in cnt)
         carry = f'<p class="ov-meta">지난 기록의 이어서 할 일 {len(co)}건: {E(parts)}</p>'
+    pr_ = d.get("plan_review") or []
+    if pr_:
+        done = sum(1 for x in pr_ if x.get("status") == "done")
+        carry += f'<p class="ov-meta">아침에 고른 할 일 {len(pr_)}건: 완료 {done} · 미완료 {len(pr_) - done}</p>'
     rows = "".join(
         f'<div class="ov-row"><h3><a href="#s{r["n"]}"><span class="ovn">{r["n"]}</span>{E(r["title"])}</a></h3>'
         f'<p>{E(r["text"])}</p></div>' for r in d["overview"])

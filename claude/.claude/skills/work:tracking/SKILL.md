@@ -34,7 +34,8 @@ allowed-tools:
 | `scripts/render.py` | 기록 JSON → `~/.claude/work-tracking/<날짜>.html` |
 | `assets/example.json` | 스키마 겸 실제 예시(2026-11-24). 기록을 쓰기 전에 Read한다 |
 | `assets/tree.css` | 확정 디자인(가로 트리, 단일 라이트 테마) |
-| `~/.claude/work-tracking/<날짜>.json` | 그날의 기록. 다음 회고의 이월 원천 |
+| `~/.claude/work-tracking/<날짜>.json` | 그날의 기록. 다음 회고의 이월 원천, daily:start가 아침에 읽는다 |
+| `~/.claude/work-tracking/<날짜>.plan.json` | daily:start가 그날 아침 Todos로 고른 항목(이 스킬은 읽기만 한다) |
 
 ## 워크플로우
 
@@ -60,6 +61,7 @@ python3 /Users/changhwan/.claude/skills/work:tracking/scripts/collect.py --date 
 - `dropped`: 사용자가 그만두기로 했거나 더 필요 없다는 증거가 있다
 - 항목마다 `evidence`에 판정 근거 한 줄(세션 제목, PR 번호, 발화)을 쓴다. 증거가 없으면 `carried`로 둔다
 - 새로 생긴 할 일은 `id`를 `<날짜>-n<두 자리 번호>`로, `since`를 그날로 준다
+- `morning_plan`(아침 계획)이 있으면 항목마다 그날 끝냈는지를 판정해 `plan_review`(`title`, `id`, `status`: done | not_done, `evidence`)에 쓴다. `id`가 있는 항목은 이월 판정과 결과를 맞춘다. 끝내지 못한 아침 계획 항목은 2번 트리에 남긴다(`id`가 있으면 같은 `id`로)
 
 ### Step 3: 정리 (기록 JSON 쓰기)
 
@@ -92,7 +94,7 @@ python3 /Users/changhwan/.claude/skills/work:tracking/scripts/render.py --data ~
 
 세 줄로 끝낸다.
 1. 결론 한 줄(그날의 `lead`)
-2. 이월 요약 한 줄(예: "지난 기록의 할 일 12건: 완료 3, 이월 8, 중단 1"). 이월 후보가 없으면 "첫 기록입니다"
+2. 이월 요약 한 줄(예: "지난 기록의 할 일 12건: 완료 3, 이월 8, 중단 1 / 아침 계획 3건 중 완료 2"). 이월 후보가 없으면 "첫 기록입니다"
 3. Artifact 링크
 
 ## 주의사항
