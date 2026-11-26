@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Raycast Script Command: Notion Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 바로 연다.
+# Raycast Script Command: Notion Daily Todo DB에서 오늘 업무 일지 페이지를 Chrome 새 탭으로 연다.
 # 페이지 ID는 날짜로 계산할 수 없어서(UUID에 무작위 부분이 있음) Due Date 필터로 조회한다.
 # 오늘 페이지가 없으면(주말 등) 기본 템플릿으로 만든 뒤 연다.
 #
@@ -12,7 +12,7 @@
 # Optional parameters:
 # @raycast.packageName Notion
 # @raycast.icon /Users/changhwan/.dotfiles/raycast/scripts/images/notion.png
-# @raycast.description Daily Todo DB에서 오늘 업무 일지 페이지를 Notion 앱으로 연다
+# @raycast.description Daily Todo DB에서 오늘 업무 일지 페이지를 Chrome 새 탭으로 연다
 
 set -uo pipefail
 
@@ -88,6 +88,7 @@ if [[ "$page_id" == NEW* ]]; then
   msg="$target 업무 일지를 만들어 엽니다"
 fi
 
-# notion:// scheme은 Notion 데스크톱 앱이 받는다(웹 브라우저를 거치지 않음).
-open "notion://www.notion.so/$page_id"
+# Notion 데스크톱 앱은 notion:// 링크를 지금 보고 있는 탭이 아니라 원래 탭에 열어 그 탭을 덮어쓴다(2026-11-26 확인).
+# 새 탭 URL 파라미터도 없어서 Chrome으로 연다. Chrome은 외부에서 넘어온 URL을 새 탭에 연다.
+open -a "Google Chrome" "https://www.notion.so/$page_id"
 echo "$msg"
