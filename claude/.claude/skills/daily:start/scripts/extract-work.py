@@ -25,7 +25,7 @@
     ]
   }
 
-project, file, user_messages는 handoff:pause, tasks:ing-listup이 기대하는 기존 필드다.
+project, file, user_messages는 handoff:pause 등 다른 스킬이 기대하는 기존 필드다.
 이름이나 의미를 바꾸지 않는다. 새 필드는 뒤에 덧붙이기만 한다.
 """
 

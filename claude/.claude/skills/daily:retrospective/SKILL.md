@@ -64,10 +64,12 @@ python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/growth-log.p
 python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/growth-log.py due-predictions --date today
 ```
 
-(6) **오늘 한 일 (Claude 정리)**: `~/.claude/skills/tasks:ing-listup/SKILL.md`를 Read하고 그 Step 1(수집)과 Step 2(프로젝트별 그룹핑, 완료/진행 중 분류, 중복 제거)를 따른다. 절차를 이 문서에 복사하지 않는다(정리 방식의 정본은 그 스킬이다).
-- 세션 transcript는 위 (3)의 결과를 재사용하고 다시 부르지 않는다
-- claude-mem timeline과 현재 세션 분석을 더한다
-- 출력은 그 스킬의 Step 3 형식 대신 아래 Step 2의 "오늘 한 일" 형식을 쓴다
+(6) **오늘 한 일 (Claude 정리)**: 아래 세 소스를 모아 실제로 한 일을 정리한다.
+- 수집: 위 (3)의 세션 transcript 결과를 재사용하고(다시 부르지 않는다), `mcp__plugin_claude-mem_mcp-search__timeline`으로 오늘 관찰 기록을, 현재 대화 컨텍스트에서 오늘 한 작업을 더한다. 응답이 없는 소스는 생략한다
+- 프로젝트별 그룹핑: extract-work.py의 `project` 필드 기준. 불명확하면 경로·키워드로 추론한다(`/workspace/riiid/` 하위는 리포명)
+- 상태 분류: 완료(문서 저장, 이슈 해결, 구현 마무리처럼 끝이 명확함)와 진행 중(명시적 완료 없음)으로 나눈다
+- 중복 제거: 여러 소스가 같은 작업을 말하면 1건으로 합친다. 항목은 1줄로 핵심 동작과 결과를 쓴다
+- 출력은 아래 Step 2의 "오늘 한 일" 형식을 쓴다
 
 | 소스 | 쓰는 곳 |
 |------|---------|
