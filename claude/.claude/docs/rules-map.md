@@ -6,12 +6,12 @@
 
 | 규칙 범주 | 정본 | 로딩 |
 |-----------|------|------|
-| 우선순위, 응답 기본값, 조건부 덧붙임, 작업 원칙, 하드 가드레일, 라우팅 표, 규칙 생애주기 | `~/.claude/CLAUDE.md` | 상시 |
+| 우선순위, 응답 기본값, 조건부 덧붙임, 작업 원칙, Hypothesis-First 경량 등급, 하드 가드레일, 라우팅 표, 세션과 플랜(플랜 모드 진입 조건), 규칙 생애주기 | `~/.claude/CLAUDE.md` | 상시 |
 | 문제와 가설, 원인 가설 단계, 근본 원인 사슬(5 Whys), 검증 목록(항목·칸·합의·날짜 자격), 판정과 갱신 | `docs/hypothesis-first.md` | Read (CLAUDE.md 라우팅 표) |
 | 검증 시나리오·테스트 케이스·DoD 판정 기준 문장 | `docs/verification-scenario.md` | Read |
 | 작업 계획·작업 결과 검토용 HTML 문서(형식 요구사항, 참고 금지 자료) | `docs/review-html.md` | Read (CLAUDE.md 라우팅 표) |
 | Task·업무 노트·Tech Spec의 Goals·Key Result·Todo 구분과 문체 | `skills/task:keyresult/SKILL.md` | Skill (capture·eng-note·tech-spec·grill-me가 포인터로 호출) |
-| 플랜 섹션 순서·이름, 플랜 TODO 운영(`plan-todo.py`) | `docs/plan-format.md` | 훅 (PostToolUse `EnterPlanMode`) |
+| 플랜 섹션 순서·이름, 플랜 TODO 운영(`plan-todo.py`) | `docs/plan-format.md` | 훅 (PostToolUse `EnterPlanMode`). 사용자가 Shift+Tab으로 플랜 모드를 켜면 도구 호출이 없어 훅이 돌지 않는다 |
 | 코드 작성·리팩터링·테스트 품질 | `docs/code-quality-convention.md` | Read |
 | DevOps·SOCRA 작업 방식(GitOps, prod 체크리스트, 알럿·runbook, ROI, 내재화 가중치, 레거시 재설계) | `docs/devops-work.md` | 훅 (SessionStart, 인프라 레포 cwd) |
 | kubectl context·네임스페이스·리포지토리 지도 | `docs/kubectl-contexts.md` | 훅 (devops-work와 함께) |
@@ -36,6 +36,7 @@
 | Source-First: 원리 질문에 답하기 전 웹 1차 자료 대조 강제 | 2026-09-11 | 모든 원리 질문을 느리게 만드는 병목. 검증은 `/review`를 명시 호출할 때만 한다 |
 | 복귀 재브리핑 훅(15분 임계) | 2026-10-17 | 장시간 턴마다 발화해 노이즈가 됨 |
 | 로컬 Todo 시스템(todo_store, TUI, todo 스킬) | 2026-09-18 | 할 일을 Notion Task로 단일화 |
+| 실행 단계 3개 이상이면 플랜 모드 자동 진입(task:resume 실행 경로 포함) | 2026-11-26 | 거의 모든 작업이 기준에 걸려 플랜 오버헤드가 커짐. 플랜 모드는 사용자가 켤 때만 쓴다 |
 
 ## 충돌 해소 기록 (2026-10-22)
 

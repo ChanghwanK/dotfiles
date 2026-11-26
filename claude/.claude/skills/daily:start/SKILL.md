@@ -213,7 +213,7 @@ date '+%s'
    - 지워졌으면 같은 repo에서 `orca worktree create --name <지운 이름>`
 3. 렌더·게시한 페이지의 항목 펼침에 [구체화/실행으로 이어가기] 버튼을 둔다(`launch` 명령 복사)
 4. 사용자가 명령을 터미널에 붙여넣으면, Orca가 채팅을 열고 `/task:resume {date} {id} {의도}`를 입력한다
-5. `task:resume` 스킬이 `load-context.py brief`(브리핑 JSON + `extract-work.py`로 지난 세션)로 맥락을 읽고 5줄 요약을 출력한 뒤, 구체화면 grill-me, 실행이면 EnterPlanMode로 넘긴다. 이 절차는 task:resume SKILL.md가 정본이다
+5. `task:resume` 스킬이 `load-context.py brief`(브리핑 JSON + `extract-work.py`로 지난 세션)로 맥락을 읽고 5줄 요약을 출력한 뒤, 구체화면 grill-me로 넘기고, 실행이면 바로 착수한다. 이 절차는 task:resume SKILL.md가 정본이다
 
 필드 약속. 이 표의 필드를 바꾸면 쓰는 곳과 읽는 곳을 함께 고친다.
 
