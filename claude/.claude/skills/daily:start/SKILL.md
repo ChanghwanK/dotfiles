@@ -2,10 +2,10 @@
 name: daily:start
 description: |
   하루 시작 스킬(Task Manage 코치의 절차 본체). 어제 한 작업(세션 로그, PR)을 스레드로 정리해 오늘 이어 갈 Top 3를 제안하고,
-  밤사이 알럿·메일·어제 회고·Task·일정을 함께 본다. 긴급 이슈를 맨 앞에 두고 결과를 날짜별 HTML Artifact로 게시하며, 확인 후 오늘 일지에 반영한다.
-  사용 시점: (1) 하루 시작, (2) 어제 하던 작업 이어 가기, (3) 밤사이 이슈 확인.
+  밤사이 알럿·메일·어제 회고·Task·일정을 함께 본다. 긴급 이슈를 맨 앞에 두고 결과를 날짜별 HTML Artifact로 게시하며, 확인 후 오늘 일지와 TickTick에 반영한다.
+  사용 시점: (1) 하루 시작, (2) 어제 하던 작업 이어 가기, (3) 밤사이 이슈 확인, (4) 오늘 할 일 상태 동기화.
   트리거 키워드: "하루 시작", "daily start", "오늘 할 것들", "오늘 할 일 정리", "밤사이 이슈",
-  "어제 뭐 했지", "이어서 할 일", "업무 일지", "보드 반영해", "/daily:start".
+  "어제 뭐 했지", "이어서 할 일", "업무 일지", "보드 반영해", "상태 동기화", "/daily:start".
 model: sonnet
 allowed-tools:
   - Bash(bash /Users/changhwan/.claude/skills/daily:start/scripts/env-init.sh *)
@@ -29,6 +29,7 @@ allowed-tools:
   - mcp__claude_ai_Gmail__unlabel_thread
   - mcp__claude_ai_TickTick__list_undone_tasks_by_date
   - mcp__claude_ai_TickTick__batch_add_tasks
+  - mcp__claude_ai_TickTick__list_completed_tasks_by_date
 ---
 
 # Daily Start: 아침 코치 절차
@@ -177,7 +178,7 @@ date '+%s'
       "priority": 5, "dueDate": "{today_date}T00:00:00+09:00", "isAllDay": true, "timeZone": "Asia/Seoul"}]}
     ```
   - TickTick 도구가 없거나 실패하면 건너뛰고 나머지 쓰기는 계속한다. 결과는 바닥글 `env.ticktick`에 한 줄로 쓴다("Top 3 N건 추가, M건은 이미 있음" / 건너뛴 이유)
-  - 완료 상태는 동기화하지 않는다. TickTick에서 체크해도 Notion 일지와 보드는 바뀌지 않는다
+  - 이 단계는 완료 상태를 맞추지 않는다. TickTick에서 체크한 것을 일지에 옮기는 일은 "상태 동기화" 서브 모드가 한다
 - 메일 보관: 승인했으면 후보마다 `mcp__claude_ai_Gmail__unlabel_thread(threadId, labelIds=["INBOX"])`를 한 메시지에 병렬로 부른다. 실패한 thread id는 HTML 바닥글에 남긴다. 잘못 보관한 메일은 `label_thread(threadId, ["INBOX"])`로 되돌린다
 - **어제 Tomorrow → 오늘 Yesterday** (질문 없이 매일): Step 1이 끝나면 위 질문과 상관없이 실행한다. `--from-date`는 Notion 에이전트의 `retro_date`. dry-run 다음 실제 실행
   ```bash
@@ -223,7 +224,24 @@ date '+%s'
    - 고정이 성공하면 전날 페이지 고정을 푼다. `~/.claude/tmp/daily-start/`에서 오늘보다 앞선 가장 최근 `{date}.json`의 `artifact_url`이 있고 오늘 URL과 다르면 Artifact `action: "unpin"`을 부른다(주말·휴가로 비어도 가장 최근 하나만). 없거나 실패해도 계속하고 실패만 콘솔에 한 줄로 알린다
    - `capabilities: {db: {}, user: {}, mcp: {servers: [{server: "host:notion-personal", tools: ["API-update-a-block"]}]}}`를 넘긴다. `mcp`는 데스크톱 앱 `claude_desktop_config.json`의 `mcpServers.notion-personal`(command `~/.claude/scripts/mcp-notion-personal.sh`, `env.PATH`에 `/opt/homebrew/bin`)이 있어야 보인다. 없으면(브라우저 포함) pending 방식으로 동작한다
    - 게시 결과의 URL을 브리핑 JSON의 `artifact_url`에 저장한다. 아침 계획 파일이 있으면 그 `artifact_url`에도 쓴다
-4. 콘솔 응답은 세 줄로 끝낸다: 결론 한 줄, Top 3 제목 한 줄, Artifact 링크
+4. 콘솔 응답은 결론 한 줄, 주제별 목록, Artifact 링크 순으로 쓴다. 주제별 목록은 아래 "출력 형식: 주제별 목록"을 따르고, Top 3 주제를 순위대로 앞에 둔 뒤 Todos로 고른 나머지 주제를 잇는다. 하위 할 일 끝에 근거 링크(PR, 메일, Jira)를 붙인다
+
+### 출력 형식: 주제별 목록
+
+콘솔(채팅)에서 할 일이나 상태를 보일 때 쓰는 형식이다. 이 skill의 콘솔 응답(Step 5, 상태 동기화)은 모두 이 형식을 쓴다. 표와 `##` 제목을 쓰지 않는다.
+
+```markdown
+**주제별 할 일**
+
+1. **PgBouncer AI 마이그레이션 코치 개발**
+   - 코치 스킬 PR 리뷰 요청하기 ([#7](<PR URL>))
+   - TYPES 수정 방식(A/B)과 담당 정해 1차 공지 초안 쓰기
+2. **카나리 수동 제어**
+   - chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인 ([#156](<PR URL>))
+```
+
+- 주제는 번호와 굵은 글씨로, 하위 항목은 불릿으로 쓴다. 주제 이름과 하위 할 일 문구는 Step 4 "주제로 묶기"를 따른다
+- 목록 위 한 줄은 결론, 목록 아래 `**정리**` 불릿은 한 것과 정하실 것만 쓴다
 
 페이지 DB 컬렉션(템플릿이 쓰고, 보드 반영과 daily:retrospective가 읽는다):
 - `board_items`: 보드 칸의 "+ 추가" 항목(`col`: todo | doing | done, `text`, `createdAt`, 반영 뒤 `ledger`). 날짜별 새 페이지라 전날 항목은 넘어오지 않는다(필요하면 `ArtifactData`로 전날 페이지를 읽는다)
@@ -242,7 +260,7 @@ date '+%s'
 | `threads[].source`, `tomorrow_ref` | 어제 작업 에이전트(어제 일지 Tomorrow의 PR 링크, `notion-daily.py read`의 `tomorrow_items[].links`) | Step 2 합성 |
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
 | `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
-| `top3[].ticktick_id`, `env.ticktick` | Step 4 (TickTick `batch_add_tasks` 결과, 또는 이미 있던 할 일 id) | 템플릿 바닥글(`env.ticktick`). `ticktick_id`는 아직 읽는 곳이 없고, 완료 상태 대조용으로 남긴다 |
+| `top3[].ticktick_id`, `tomorrow[].ticktick_id`, `env.ticktick` | Step 4 (TickTick `batch_add_tasks` 결과, 또는 이미 있던 할 일 id), 상태 동기화 2번(뜻으로 맞춘 할 일 id) | 템플릿 바닥글(`env.ticktick`), 상태 동기화 2번 |
 | `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
 | `tomorrow[]` (`subs`, `related_top`, `block_id`) | Step 5 합성 (Notion 컨텍스트 에이전트의 `continue_items.detail`) | 템플릿 |
 | `launch`, `launch_error` | resolve-launch | 템플릿 |
@@ -284,6 +302,30 @@ date '+%s'
      ```
    - 성공한 문서마다 `ArtifactData` `update`(`if_version`)로 `ledger: {daily: <done 값>, block: <블록 id | null>, at: <ISO 시각>}`을 쓴다. "반영하지 않음"은 `ledger: {daily: false, skipped: true, at}`으로 남겨 다시 묻지 않는다(체크를 바꾸면 다시 대상이 된다)
 8. 결과를 한 줄씩 보고한다: 항목, 들어간 자리(상위 항목), Jira 키, 체크 반영·해제한 할 일
+
+## 상태 동기화 (서브 모드)
+
+"오늘 상태 동기화해", "상태 맞춰"처럼 오늘 할 일의 완료 상태를 TickTick, Notion 일지, 하루 시작 보드 사이에서 맞추라는 요청이면 Step 0~5 대신 이 절만 실행한다. TickTick은 읽기만 하고, 쓰기는 Notion 일지 체크뿐이며 확인 후에 한다.
+
+1. **세 곳 읽기** (한 메시지에 병렬): 브리핑 JSON은 오늘 `~/.claude/tmp/daily-start/{date}.json`
+   - TickTick `Work`(`6b08cbdecc0f63a9eae4af06`): `list_undone_tasks_by_date`와 `list_completed_tasks_by_date`, 둘 다 오늘 하루, `client_timezone: "Asia/Seoul"`
+   - Notion 일지: `notion-daily.py list-todos --page-id <page_id>`(모든 깊이, 체크 상태와 id)
+   - 보드: 브리핑 JSON `artifact_url`의 `item_state`와 `board_items`를 `ArtifactData` `list`로
+2. **같은 일 맞추기**: id가 있으면 id로 맞춘다(`top3[].ticktick_id`·`tomorrow[].ticktick_id`는 TickTick, `block_id`는 Notion, `thread-`/`top-`/`tomorrow-` 키는 보드). id가 없으면 글자가 달라도 뜻이 같은 일을 같은 항목으로 본다. 뜻으로 맞춘 TickTick id는 브리핑 JSON에 적어 다음 동기화부터 id로 찾는다
+3. **결과 출력**: "출력 형식: 주제별 목록"을 따른다. 주제마다 하위 불릿으로 각 시스템의 이름과 상태를 쓴다(없으면 "없음"). Top 3 주제를 순위대로 앞에 둔다
+   ```markdown
+   1. **카나리 수동 제어**
+      - TickTick: "카나리 수동 제어 - webserver chart 리뷰 및 기능 파악하기", 완료
+      - Notion: "카나리 수동 제어 기능 차트 반영하기", 미체크
+      - 보드: 2순위 카드, 진행 중
+   ```
+   `**정리**`에는 차이(어느 곳에서 완료, 어느 곳에서 미완료), 한 일, 정하실 것을 쓴다. 차이가 없으면 "반영할 체크 없음"으로 끝낸다
+4. **차이 반영**: TickTick에서 완료인데 Notion 일지가 미체크인 항목만 대상이다. 한 번의 `AskUserQuestion`으로 항목마다 "일지에 체크" / "반영하지 않음"을 묻고, 고른 것만 `check-todos`로 dry-run, 실제 실행 순으로 체크한다
+   ```bash
+   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py check-todos --page-id <page_id> --block-ids '["<id>"]' --dry-run
+   ```
+   - 보드에서 완료로 옮긴 카드와 일지의 차이는 "보드 반영" 7번이 맡는다. 이 절에서는 차이만 보이고 반영은 하지 않는다
+   - TickTick 완료 처리, Notion 체크 해제, TickTick에만 있는 항목의 일지 추가는 하지 않는다. 차이로 보이기만 한다
 
 ## 특정 날짜 일지 읽기 (서브 모드)
 
