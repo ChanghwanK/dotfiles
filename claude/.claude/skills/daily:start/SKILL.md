@@ -27,6 +27,8 @@ allowed-tools:
   - Skill
   - Artifact
   - mcp__claude_ai_Gmail__unlabel_thread
+  - mcp__claude_ai_TickTick__list_undone_tasks_by_date
+  - mcp__claude_ai_TickTick__batch_add_tasks
 ---
 
 # Daily Start: 아침 코치 절차
@@ -38,10 +40,11 @@ allowed-tools:
 - **긴급이 먼저다.** 긴급 대응 섹션은 결과 맨 앞에 둔다. 없으면 없다고 한 줄로 쓴다
 - **어제를 이어 간다.** 오늘 순위는 마감일이 아니라 어제 작업 스레드의 상태(진행 중, 중단)로 정한다. 마감일은 가산점과 경고로만 쓴다
 - **실제로 한 일이 계획보다 우선이다.** 회고 문서(Notion)와 세션 로그·PR이 다르면 세션 로그·PR을 사실로 본다
-- **쓰기는 세 가지다. 기존 블록은 고치거나 지우지 않는다.**
+- **쓰기는 네 가지다. 기존 블록은 고치거나 지우지 않는다.**
   - 어제 일지 Tomorrow 칸을 오늘 일지 Yesterday 칸에 옮겨 적기(`carry-tomorrow`, 묻지 않고 매일)
   - 오늘 일지 할 일 칸(본문 제목 "Today", 예전 템플릿은 "Todo's")과 `Todo's` property에 고른 항목 덧붙이기(`append-todos`, 확인 후)
   - Gmail 보관 후보 중 사용자가 승인한 스레드만 보관(`unlabel_thread`로 `INBOX` 제거). 삭제·읽음 처리는 하지 않는다
+  - TickTick `Work` 프로젝트에 Todos로 고른 Top 3를 오늘 할 일로 추가(`batch_add_tasks`, 확인 후). 기존 할 일은 고치거나 완료 처리하지 않는다. Notion 일지는 기록, TickTick은 오늘 실행 목록이다
 - **읽기 전용 소스**: Slack, GitHub, Google Calendar, Task DB. 알럿 ack, Task 생성은 하지 않는다(Task 후보는 제안만)
 - **Notion은 스크립트로만 읽고 쓴다** (`daily:retrospective/scripts/notion-daily.py`가 일지 파싱의 단일 출처). 쓰기는 모두 dry-run 먼저 실행한다
   - 예외 하나: 보드의 "상태 반영하기"는 Claude 데스크톱 앱에서 열렸을 때 `append-todos`가 돌려준 `block_id`의 to_do `checked`만 바꾼다(`host:notion-personal` MCP)
@@ -142,7 +145,7 @@ date '+%s'
 
 한 번의 `AskUserQuestion`에 두 질문을 담는다.
 
-1. **Todos** (multiSelect): "오늘 Notion 일지 Todos에 넣을 주제를 고르세요". 옵션은 Top 3 주제(설명에 하위 할 일 요약) + "나머지 후보 전체"(스레드에 없는 회고 항목, 메일 할 일, 근본 원인 후보로 만든 주제 중 오늘 Todos와 뜻이 겹치지 않는 것. 설명에 주제 이름을 나열). 뜻이 같은 후보는 하나만 남긴다
+1. **Todos** (multiSelect): "오늘 Notion 일지 Todos에 넣을 주제를 고르세요. 고른 Top 3 주제는 TickTick Work에도 오늘 할 일로 들어갑니다". 옵션은 Top 3 주제(설명에 하위 할 일 요약) + "나머지 후보 전체"(스레드에 없는 회고 항목, 메일 할 일, 근본 원인 후보로 만든 주제 중 오늘 Todos와 뜻이 겹치지 않는 것. 설명에 주제 이름을 나열). 뜻이 같은 후보는 하나만 남긴다
 2. **메일 보관** (single): "받은편지함에서 노이즈 메일 N건을 보관할까요?" 옵션은 "전부 보관" / "보관하지 않음". 본문에 후보의 보낸 사람·제목을 최대 8건 적고 나머지는 "외 N건". 후보가 0건이면 이 질문을 뺀다
 
 답을 받은 뒤 실행한다. 아무것도 고르지 않으면 쓰지 않는다.
@@ -159,6 +162,22 @@ date '+%s'
     - Jira가 걸린 항목: 키(`PLE-6`). 메일 본문에서 나온 키면 메일 링크와 함께
     - Top 3·스레드: `resume`이 https URL(PR)이면 그 URL, 스레드의 open PR URL
     - https가 아닌 값과 개인 페이지(하루 시작 Artifact)는 넣지 않는다
+- **TickTick 오늘 실행 목록**: Todos에서 고른 주제 중 Top 3에 든 것만 TickTick `Work` 프로젝트(`6b08cbdecc0f63a9eae4af06`)에 넣는다. MCP에는 dry-run이 없으므로 Todos 답이 승인이다
+  - 제목: `<주제 이름> - <첫 행동>` 한 줄. 첫 행동은 그 주제의 맨 앞 하위 할 일(동사로 끝남)
+  - `content`: 나머지 하위 할 일을 한 줄씩, 그 아래 근거 링크(https만, 개인 페이지 제외)
+  - `priority`: 1·2순위와 `[긴급]` 자리는 5(높음), 3순위는 3(중간)
+  - `dueDate`는 오늘 00:00 KST, `isAllDay: true`, `timeZone: "Asia/Seoul"`
+  - 중복 방지: 먼저 `list_undone_tasks_by_date`(`projectIds: ["6b08cbdecc0f63a9eae4af06"]`, 오늘 하루)로 미완료 할 일을 읽는다. 제목의 뜻이 같은 주제인 할 일(사용자가 직접 넣은 것 포함)이 있으면 만들지 않고 그 id를 쓴다
+  - 남은 것을 `batch_add_tasks` 한 번으로 만들고, 돌려받은 id를 `top3[].ticktick_id`에 저장한다(Step 5)
+    ```json
+    {"client_timezone": "Asia/Seoul", "tasks": [{
+      "projectId": "6b08cbdecc0f63a9eae4af06",
+      "title": "카나리 수동 제어 - webserver chart 리뷰 및 기능 파악하기",
+      "content": "리뷰어 지정해 리뷰 요청하기\nhttps://github.com/<owner>/<repo>/pull/<n>",
+      "priority": 5, "dueDate": "{today_date}T00:00:00+09:00", "isAllDay": true, "timeZone": "Asia/Seoul"}]}
+    ```
+  - TickTick 도구가 없거나 실패하면 건너뛰고 나머지 쓰기는 계속한다. 결과는 바닥글 `env.ticktick`에 한 줄로 쓴다("Top 3 N건 추가, M건은 이미 있음" / 건너뛴 이유)
+  - 완료 상태는 동기화하지 않는다. TickTick에서 체크해도 Notion 일지와 보드는 바뀌지 않는다
 - 메일 보관: 승인했으면 후보마다 `mcp__claude_ai_Gmail__unlabel_thread(threadId, labelIds=["INBOX"])`를 한 메시지에 병렬로 부른다. 실패한 thread id는 HTML 바닥글에 남긴다. 잘못 보관한 메일은 `label_thread(threadId, ["INBOX"])`로 되돌린다
 - **어제 Tomorrow → 오늘 Yesterday** (질문 없이 매일): Step 1이 끝나면 위 질문과 상관없이 실행한다. `--from-date`는 Notion 에이전트의 `retro_date`. dry-run 다음 실제 실행
   ```bash
@@ -181,6 +200,7 @@ date '+%s'
    - `headline`: 문자열 배열 3~5개, 명사형 종결. 순서는 밤사이 알럿, 긴급, 오늘 첫 작업, 참고 섹션(마감·메일·일정)
    - `top3[].added`: Step 4에서 Todos에 넣었으면 true
    - `top3[].thread_id`: 어제 스레드에서 왔으면 그 스레드 `id`
+   - `top3[].ticktick_id`: Step 4에서 TickTick에 만들었거나 이미 있던 할 일의 id. 넣지 않았으면 null
    - `top3[].tracking_id`, `carry_label`, `tracking_note`: 회고 기록에서 왔거나 합친 항목만. `carry_label`은 이월이면 "이월 N일째"(N = 오늘 - since + 1), 아니면 null. `tracking_note`는 노드의 `sub`
    - `tracking`: 회고 기록이 있으면 `{date, artifact_url, next_count, carried_count}`, 없으면 키를 두지 않는다
    - `tomorrow[]`: `continue_items` 중 `source: tomorrow`를 하나씩 `{text, subs: [{text, done, depth}], related_top, note, added, block_id}`로 옮긴다(할 일 칸 맨 앞 카드 하나씩)
@@ -222,6 +242,7 @@ date '+%s'
 | `threads[].source`, `tomorrow_ref` | 어제 작업 에이전트(어제 일지 Tomorrow의 PR 링크, `notion-daily.py read`의 `tomorrow_items[].links`) | Step 2 합성 |
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
 | `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
+| `top3[].ticktick_id`, `env.ticktick` | Step 4 (TickTick `batch_add_tasks` 결과, 또는 이미 있던 할 일 id) | 템플릿 바닥글(`env.ticktick`). `ticktick_id`는 아직 읽는 곳이 없고, 완료 상태 대조용으로 남긴다 |
 | `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
 | `tomorrow[]` (`subs`, `related_top`, `block_id`) | Step 5 합성 (Notion 컨텍스트 에이전트의 `continue_items.detail`) | 템플릿 |
 | `launch`, `launch_error` | resolve-launch | 템플릿 |
