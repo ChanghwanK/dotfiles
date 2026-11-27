@@ -1,13 +1,6 @@
 ---
 name: notion:add-engineering-note
-description: |
-  Notion Engineering DB에 업무 노트를 만드는 스킬. grill-me로 인터뷰해 설계 판단의 빈틈을 메우고,
-  tasks:tech-spec(문제 검증 게이트, codex·Claude 교차 리뷰)으로 내용을 확정한 뒤
-  업무 노트 템플릿에 저장한다. 연결된 Task의 문제/근본 원인/기대 가치도 노트 최종본으로 맞춘다.
-  사용 시점: (1) 인프라/시스템 설계 대화 후 결과를 Notion에 정리, (2) 의사결정 문서화,
-  (3) 기술 검토/설계 노트 생성, (4) 이슈 분석 노트 작성.
-  트리거 키워드: "업무 노트", "engineering note", "노트 생성", "eng-note",
-  "엔지니어링 노트 써줘", "노션에 정리해줘", "노션에 노트 만들어줘", "설계 내용 노션에".
+description: Notion Engineering DB에 업무 노트를 만드는 스킬. grill-me 인터뷰와 tasks:tech-spec으로 내용을 확정해 템플릿에 저장하고, 연결된 Task의 문제·근본 원인·기대 가치를 노트에 맞춘다. 사용 시점: (1) 설계 대화 결과를 Notion에 정리, (2) 의사결정 문서화, (3) 기술 검토·이슈 분석 노트 작성. 트리거 키워드: "업무 노트", "engineering note", "eng-note", "노트 생성", "엔지니어링 노트 써줘", "노션에 정리해줘", "설계 내용 노션에".
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py *)
@@ -65,22 +58,15 @@ allowed-tools:
 
 ```
 [📌 목차]
-## 왜 이걸 해야하는가?
-### 문제              ← problem
-### 근본 원인         ← root_cause
-### 기대 가치         ← value
-## 현재 상태와 목표
-[ ### Before ← before | ### After ← after ]
-### 변경 사항         ← changes
-[ ### Goals ← goals | ### Non Goals ← non_goals ]
-## 설계               ← design
-## 실행 기록          ← plan (### 실행 계획), history (### 진행 기록)
-## 작업 결과          ← result
+## 왜 이걸 해야하는가?  ### 문제 ← problem / ### 근본 원인 ← root_cause / ### 기대 가치 ← value
+## 현재 상태와 목표     [ ### Before ← before | ### After ← after ]
+                        ### 변경 사항 ← changes
+                        [ ### Goals ← goals | ### Non Goals ← non_goals ]
+## 설계                 ← design
+## 실행 기록            ← plan (### 실행 계획), history (### 진행 기록)
+## 작업 결과            ← result
 ---
-## Task Review
-### 성과 측정         ← review_metrics
-### 성과 문장 (...)   ← review_par
-### 성장 회고 (...)   ← review_retro
+## Task Review          ### 성과 측정 ← review_metrics / ### 성과 문장 (...) ← review_par / ### 성장 회고 (...) ← review_retro
 ```
 
 - 섹션 제목이 H2/H3이므로 섹션 내용에는 heading을 `###`만 쓴다(스크립트가 H3 기준으로 보정한다).
@@ -177,7 +163,7 @@ tech-spec이 돌려준 내용을 sections 키별로 다듬는다. Tech Spec 섹�
 sections JSON은 스크래치패드에 Write한 뒤 넘긴다.
 
 ```bash
-# 1. 노트 생성 (Task가 있으면 항상 --task)
+# 1. 노트 생성 (Task가 있으면 반드시 --task)
 python3 /Users/changhwan/.claude/skills/notion:add-engineering-note/scripts/notion-eng-note.py create \
   --title "제목" \
   --group "#업무노트" \

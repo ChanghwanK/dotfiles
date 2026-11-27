@@ -1,6 +1,6 @@
 ---
 name: task:keyresult
-description: Task·업무 노트·Tech Spec의 Goals(큰 방향)·Key Result(한 줄 지표 제목 + 구체 기준 하위 불릿) 작성 기준 레퍼런스, 세 칸(Goals·KR·Todo) 구분의 정본. Todo(실행 계획) 작성 기준은 task:split. 사용 시점: (1) Task·노트의 Key Result 작성, (2) 노트 Goals 작성, (3) 목표·KR·Todo가 섞였는지 점검. 트리거 키워드: "Key Result", "KR 작성", "Goals 작성", "OKR", "task:keyresult", "/task:keyresult".
+description: Task·업무 노트·Tech Spec의 Goals(큰 방향)·Key Result(지표 제목 한 줄 + 구체 기준) 작성 기준과 세 칸(Goals·KR·Todo) 구분의 정본. Todo 작성 기준은 task:split. 사용 시점: (1) Key Result 작성, (2) Goals 작성, (3) 목표·KR·Todo가 섞였는지 점검. 트리거 키워드: "Key Result", "KR 작성", "Goals 작성", "OKR", "/task:keyresult".
 model: sonnet
 allowed-tools:
   - Read
