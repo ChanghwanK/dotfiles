@@ -55,7 +55,7 @@ if (user.isPaidMember && score >= PREMIUM_ELIGIBILITY_SCORE) {
 
 ## 2. 책임 경계가 명확한 구조
 
-- 함수 하나가 여러 책임을 동시에 갖지 않게 합니다.
+- 함수 하나가 여러 책임을 동시에 갖지 않게 합니다. 책임은 "하는 일의 개수"가 아니라 "변경될 이유"로 셉니다(Single Responsibility Principle). 예를 들어 계산하면서 상태도 바꾸는 함수는 계산 정책과 저장 방식이라는 두 이유로 바뀌므로 책임이 둘입니다.
 - 도메인 로직, I/O, 외부 API 호출, 포맷 변환, 영속성 처리는 가능한 한 분리합니다(부수효과를 다루는 방식: 아래 "부수효과 격리").
 - 추상화는 내부를 숨기기 위해서가 아니라 변경 경계를 명확히 하기 위해 사용합니다.
 - 너무 잘게 나눠 실행 흐름이 흐려지는 구조는 피합니다(판단 기준: 아래 "함수 추출 기준").
@@ -66,6 +66,7 @@ if (user.isPaidMember && score >= PREMIUM_ELIGIBILITY_SCORE) {
 부수효과(상태 변경, I/O, 외부 호출)는 없앨 수 없으므로 정해진 곳에 모으고 이름으로 드러냅니다.
 
 - 계산·판단 로직은 순수 함수로 작성합니다. 입력은 인자로만 받고 결과는 반환값으로만 냅니다. 부수효과는 호출하는 쪽 가장자리(핸들러, 서비스 진입점)에 모읍니다.
+- 순수 함수는 참조 투명(referential transparency)해야 합니다. 같은 입력이면 누가 언제 불러도 같은 결과를 냅니다. 부수효과가 없어도 현재 시각, 난수, 전역 변수·싱글턴, 환경 변수처럼 인자가 아닌 곳에서 읽는 숨은 입력이 있으면 이 성질이 깨지므로, 숨은 입력은 인자로 받습니다.
 - 값을 돌려주는 메서드(Accessor, 질의)는 상태를 바꾸지 않습니다. 상태를 바꾸는 메서드(Mutator, 명령)는 값을 돌려주지 않습니다(Command-Query Separation).
 - 인자로 받은 객체를 고쳐서 결과를 전달하는 출력 파라미터를 쓰지 않고 새 값을 반환합니다.
 - 예외: 읽기와 쓰기가 원자적이어야 하는 연산(pop, compare-and-set, 원자적 증가)은 둘로 나누면 경쟁 상태가 생기므로 합칩니다. 대신 이름(`pop`, `take`, `incrementAndGet`)으로 쓰기가 일어남을 드러냅니다.
@@ -85,6 +86,38 @@ peekNextInvoiceNo(): number {
 
 advanceInvoiceNo(): void {
   this.counter += 1
+}
+```
+
+```ts
+// 부족한 코드: 같은 token인데 부르는 시점에 따라 결과가 다르다 (숨은 입력: 현재 시각)
+isExpired(token: Token): boolean {
+  return token.exp < Date.now()
+}
+
+// 더 좋은 코드: 숨은 입력을 인자로 드러낸다
+isExpired(token: Token, now: number): boolean {
+  return token.exp < now
+}
+```
+
+### 멱등성
+
+- 안전(safe)과 멱등(idempotent)을 구분합니다. 안전은 상태를 바꾸지 않는 성질이고, 멱등은 여러 번 실행해도 한 번 실행한 결과와 같은 성질입니다(RFC 9110). 부수효과가 없는 질의는 안전하므로 저절로 멱등합니다.
+- 명령은 부수효과를 분리해도 멱등해지지 않습니다. 재시도, 타임아웃 뒤 재요청, at-least-once 전달(메시지 큐, 웹훅, 잡 재실행)로 두 번 이상 실행될 수 있는 명령은 멱등하게 설계합니다.
+- 방법: 증가·추가 대신 목표 상태를 쓰는 연산(set, upsert, PUT)을 쓰거나, 요청 식별자(idempotency key)로 이미 반영한 요청을 건너뜁니다.
+
+```ts
+// 부족한 코드: 재시도하면 두 번 적립된다
+addCredit(user: User, amount: number): void {
+  user.credit += amount
+}
+
+// 더 좋은 코드: 같은 requestId는 한 번만 반영한다
+applyCredit(user: User, requestId: string, amount: number): void {
+  if (user.appliedRequests.has(requestId)) return
+  user.appliedRequests.add(requestId)
+  user.credit += amount
 }
 ```
 
@@ -227,6 +260,8 @@ it("does not issue coupons to inactive paid users", () => {
 - 이름과 구조만으로 의도가 읽히는가?
 - 책임 경계가 흐려진 부분은 없는가?
 - 값을 돌려주는 함수가 상태를 바꾸지 않고, 계산 로직에 I/O가 섞이지 않았는가?
+- 계산 함수가 현재 시각, 난수, 전역 상태를 직접 읽지 않고 인자로 받는가?
+- 두 번 이상 실행될 수 있는 명령은 멱등한가?
 - 추출한 함수는 본문을 열지 않고 이름만으로 읽히는가?
 - 주석은 필요한 이유만 설명하는가?
 - 테스트가 정책, 경계값, 실패 조건 중 변경 위험에 맞는 부분을 보호하는가?
