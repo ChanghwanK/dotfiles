@@ -121,6 +121,7 @@ date '+%s'
    - 연결된 Task가 오늘 마감이거나 기한 지남: +1
 3. **스레드와 연결되지 않은 오늘 마감 Task는 Top 3에 넣지 않는다.** 마감 Task 섹션에 경고 칩으로 두고, 결론 줄에 "오늘 마감 N건은 마감 섹션 참고"를 덧붙인다
 4. 항목마다 붙인다
+   - **제목**: 그 항목의 주제 이름(Step 4 "주제로 묶기"). Top 3 한 자리는 주제 하나이고, 같은 주제의 후보는 두 자리를 차지하지 않고 하나로 합친다(점수는 큰 쪽)
    - 태그: `[긴급]` / `[이어서]` / `[검토]`(리뷰 요청)
    - **어제 멈춘 곳**(`stopped_at`), **오늘 첫 행동**(`next_action`), **재개**(`resume`: PR URL 또는 `claude --resume` 명령)
    - 회고 기록에서 온 항목은 노드의 `detail` 불릿을 `next_action`·`done_when`의 근거로 쓰고, `tracking_id`·`carry_label`·`tracking_note`를 채운다(Step 5)
@@ -130,9 +131,18 @@ date '+%s'
 
 ### Step 4: 확인 후 쓰기
 
+**주제로 묶기** (질문 전에 한다). Todos 후보(Top 3와 나머지 후보)를 같은 목적끼리 주제 하나로 묶어 주제 > 하위 할 일 두 단계로 만든다.
+- **주제**(상위 할 일): 같은 프로젝트나 목적을 위한 일을 모은다. 같은 스레드에서 나온 행동, 같은 PR을 다루는 회고 항목과 스레드의 다음 행동, 같은 성격의 메일 할 일(예: 외부 서비스 공지 영향 확인)은 한 주제다
+  - 이름은 `task:split` "표현" 절의 Task 제목 규칙(대상 + 행동 명사, 명사형 종결)을 따른다. PR 번호, 차트 values 키, 작업 디렉터리·브랜치·세션 이름은 넣지 않는다
+  - 좋음: `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`
+  - 나쁨: `webserver 차트 #156 manualPromoteWeights`(PR 번호와 키), `pgbouncer-ai-migration-kit: 키트 초안`(디렉터리 이름)
+- **하위 할 일**: 주제 아래에 바로 시작할 수 있는 행동을 하나씩, 동사(`~하기`)로 끝낸다. 근거 PR·메일·Jira는 글에 쓰지 않고 그 하위 할 일의 `links`에 넣는다
+  - 좋음: `chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인`, `코치 스킬 PR 리뷰 요청하기`
+- 행동이 하나뿐인 일도 주제 아래 하위 할 일 하나로 둔다. 주제만 있고 행동이 없는 항목은 만들지 않는다
+
 한 번의 `AskUserQuestion`에 두 질문을 담는다.
 
-1. **Todos** (multiSelect): "오늘 Notion 일지 Todos에 넣을 항목을 고르세요". 옵션은 Top 3 + "나머지 후보 전체"(스레드에 없는 회고 항목, 메일 할 일, 근본 원인 후보 중 오늘 Todos와 뜻이 겹치지 않는 것). 뜻이 같은 후보는 하나만 남긴다
+1. **Todos** (multiSelect): "오늘 Notion 일지 Todos에 넣을 주제를 고르세요". 옵션은 Top 3 주제(설명에 하위 할 일 요약) + "나머지 후보 전체"(스레드에 없는 회고 항목, 메일 할 일, 근본 원인 후보로 만든 주제 중 오늘 Todos와 뜻이 겹치지 않는 것. 설명에 주제 이름을 나열). 뜻이 같은 후보는 하나만 남긴다
 2. **메일 보관** (single): "받은편지함에서 노이즈 메일 N건을 보관할까요?" 옵션은 "전부 보관" / "보관하지 않음". 본문에 후보의 보낸 사람·제목을 최대 8건 적고 나머지는 "외 N건". 후보가 0건이면 이 질문을 뺀다
 
 답을 받은 뒤 실행한다. 아무것도 고르지 않으면 쓰지 않는다.
@@ -140,10 +150,11 @@ date '+%s'
 - Todos: dry-run 다음 실제 실행. `success: false`면 오류를 그대로 전하고 Todos만 멈춘다
   ```bash
   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos \
-    --page-id {today_page_id} --items '[{"text": "항목1", "links": ["PLE-6", "<메일 link>"]}, "링크 없는 항목"]' --dry-run
+    --page-id {today_page_id} --tree '[{"text": "카나리 수동 제어", "links": [], "children": [{"text": "chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인", "links": ["<PR URL>"]}]}]' --dry-run
   ```
-  - 실제 실행 출력의 `blocks[]`(`text`, `id`, `skipped`)에서 항목마다 `id`를 받아 그 항목의 `top3[].block_id`에 저장한다(Step 5). `skipped: true`도 기존 id가 나온다
-  - `links`에는 항목의 근거 링크를 넣는다(본문과 property 줄 끝에 라벨 링크로 붙는다)
+  - 실제 실행 출력의 `blocks[]`(`text`, `id`, `skipped`)는 주제(상위) 블록만 돌려준다. 그 `id`를 그 주제인 `top3[].block_id`와, 그 주제에 합친 `tomorrow[].block_id`에 저장한다(Step 5). property에는 주제 이름만 한 줄씩 붙는다
+  - 같은 주제가 오늘 일지에 이미 있으면(`skipped: true`, 기존 id가 나온다) 빠진 하위 할 일만 `--tree '[{"text": "<하위>", "links": [...]}]' --parent-block <그 id>`로 덧붙인다
+  - `links`에는 하위 할 일의 근거 링크를 넣는다(본문과 property 줄 끝에 라벨 링크로 붙는다)
     - 메일 할 일: 그 메일의 `link`
     - Jira가 걸린 항목: 키(`PLE-6`). 메일 본문에서 나온 키면 메일 링크와 함께
     - Top 3·스레드: `resume`이 https URL(PR)이면 그 URL, 스레드의 open PR URL
@@ -160,7 +171,7 @@ date '+%s'
 - **아침 계획 남기기** (work:tracking 되먹임): Todos에 넣은 항목을 `~/.claude/work-tracking/{today_date}.plan.json`에 Write한다. 고른 것이 없으면 쓰지 않고, 재실행하면 덮어쓴다
   ```json
   {"date": "{today_date}", "source": "daily:start", "artifact_url": null,
-   "items": [{"title": "<Todos 문구>", "id": "<tracking_id | null>", "origin": "top3 | thread | tomorrow | mail | task", "done_when": "<완료 조건 | null>"}]}
+   "items": [{"title": "<주제 이름>", "id": "<tracking_id | null>", "origin": "top3 | thread | tomorrow | mail | task", "done_when": "<완료 조건 | null>"}]}
   ```
 
 ### Step 5: HTML 결과 게시
