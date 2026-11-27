@@ -10,7 +10,8 @@
 | 문제와 가설, 원인 가설 단계, 근본 원인 사슬(5 Whys), 검증 목록(항목·칸·합의·날짜 자격), 판정과 갱신 | `docs/hypothesis-first.md` | Read (CLAUDE.md 라우팅 표) |
 | 검증 시나리오·테스트 케이스·DoD 판정 기준 문장 | `docs/verification-scenario.md` | Read |
 | 작업 계획·작업 결과 검토용 HTML 문서(형식 요구사항, 참고 금지 자료) | `docs/review-html.md` | Read (CLAUDE.md 라우팅 표) |
-| Task·업무 노트·Tech Spec의 Goals·Key Result·Todo 구분과 문체 | `skills/task:keyresult/SKILL.md` | Skill (capture·eng-note·tech-spec·grill-me가 포인터로 호출) |
+| Task·업무 노트·Tech Spec의 Goals·Key Result 작성과 세 칸(Goals·KR·Todo) 구분 | `skills/task:keyresult/SKILL.md` | Skill (capture·eng-note·tech-spec·grill-me가 포인터로 호출) |
+| 실행 계획(Todo)과 큰 작업의 분해(단계 > Task > 하위 항목), 판단 조건 3가지, Task 완료 조건(As-is → To-be)·연결된 결정·판정 근거, 선행관계와 순서 | `skills/task:split/SKILL.md` | Skill (사용자 호출, eng-note `plan`·task:keyresult Todo 칸이 포인터로 호출) |
 | 플랜 섹션 순서·이름, 플랜 TODO 운영(`plan-todo.py`) | `docs/plan-format.md` | 훅 (PostToolUse `EnterPlanMode`). 사용자가 Shift+Tab으로 플랜 모드를 켜면 도구 호출이 없어 훅이 돌지 않는다 |
 | 코드 작성·리팩터링·테스트 품질 | `docs/code-quality-convention.md` | Read |
 | DevOps·SOCRA 작업 방식(GitOps, prod 체크리스트, 알럿·runbook, ROI, 내재화 가중치, 레거시 재설계) | `docs/devops-work.md` | 훅 (SessionStart, 인프라 레포 cwd) |

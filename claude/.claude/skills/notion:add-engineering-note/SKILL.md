@@ -147,11 +147,11 @@ tech-spec이 돌려준 내용을 sections 키별로 다듬는다. Tech Spec 섹�
 
 #### Goals·Key Result·실행 계획 구분
 
-`goals`(Goals), `value`의 `Key Result:`(Key Result), `plan`(실행 계획)은 세 칸 구분 기준을 따른다. 정본은 `task:keyresult` 스킬이다(Goals는 큰 방향, Key Result는 한 줄 지표 제목 + 구체 기준 하위 불릿, 실행 계획은 Action Item). sections.json을 쓰기 전에 그 스킬을 읽는다.
+`goals`(Goals), `value`의 `Key Result:`(Key Result), `plan`(실행 계획)은 세 칸 구분 기준을 따른다. Goals·Key Result의 정본은 `task:keyresult`, 실행 계획의 정본은 `task:split` 스킬이다(Goals는 큰 방향, Key Result는 한 줄 지표 제목 + 구체 기준 하위 불릿, 실행 계획은 단계 > Task > 하위 항목). sections.json을 쓰기 전에 두 스킬을 읽는다.
 
 #### 실행 계획 작성 기준
 
-- 항목 단위·문체·KR 표시·단계 라벨·환경별 분리는 `task:keyresult` 스킬 "Todo (실행 계획)"를 따른다.
+- 단계·Task·하위 항목의 단위, 순서, 문체, 완료 조건, KR 표시는 `task:split` 스킬을 따른다.
 - 인프라·설정 변경이 있으면 마지막에 `롤백:` 라벨 불릿으로 원복 방법과 소요 시간을 적고, 생략하지 않는다.
   문서·설계만 하는 작업처럼 되돌릴 인프라 변경이 없으면 `롤백:` 라벨째 생략한다("변경 없음, 문서 수정으로 되돌림" 같은
   빈 문장을 쓰지 않는다. 2026-09-27 QA 피드백).

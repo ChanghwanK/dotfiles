@@ -1,6 +1,6 @@
 ---
 name: task:keyresult
-description: Task·업무 노트·Tech Spec의 Goals(큰 방향)·Key Result(한 줄 지표 제목 + 구체 기준 하위 불릿)·Todo(Action Item) 작성 기준 레퍼런스, 세 칸 구분의 정본. 사용 시점: (1) Task·노트의 Key Result 작성, (2) 노트 Goals·실행 계획 작성, (3) 목표·KR·Todo가 섞였는지 점검. 트리거 키워드: "Key Result", "KR 작성", "Goals 작성", "Todo 정리", "Action Item", "OKR", "task:keyresult", "/task:keyresult".
+description: Task·업무 노트·Tech Spec의 Goals(큰 방향)·Key Result(한 줄 지표 제목 + 구체 기준 하위 불릿) 작성 기준 레퍼런스, 세 칸(Goals·KR·Todo) 구분의 정본. Todo(실행 계획) 작성 기준은 task:split. 사용 시점: (1) Task·노트의 Key Result 작성, (2) 노트 Goals 작성, (3) 목표·KR·Todo가 섞였는지 점검. 트리거 키워드: "Key Result", "KR 작성", "Goals 작성", "OKR", "task:keyresult", "/task:keyresult".
 model: sonnet
 allowed-tools:
   - Read
@@ -8,7 +8,7 @@ allowed-tools:
 
 # Goals·Key Result·Todo 작성 기준
 
-Task와 업무 노트에서 목표, 판정 기준, 행동을 세 칸으로 나눠 쓰는 기준의 정본이다(2026-11-16 사용자 결정, Key Result 형식은 2026-11-23 OKR 형식으로 변경).
+Task와 업무 노트에서 목표, 판정 기준, 행동을 세 칸으로 나눠 쓰는 기준의 정본이다(2026-11-16 사용자 결정, Key Result 형식은 2026-11-23 OKR 형식으로 변경). 세 칸 중 Todo(실행 계획)의 작성 기준은 2026-11-27부터 `task:split`이 정본이다.
 소비처: `tasks:capture`(기대 가치의 `Key Result:`), `notion:add-engineering-note`(`goals`, `value`, `plan`), `tasks:tech-spec`, `grill-me`, `alfred` gate, Jira 티켓(`docs/jira-ticket-template.md`). 소비처에는 이 스킬을 가리키는 포인터만 둔다.
 
 ---
@@ -21,9 +21,9 @@ OKR의 Objective·Key Result·Initiative 구조와 같다.
 |----|------------|------|----------|---------|
 | Goals | 끝나면 시스템이 어떤 모습인가 | 큰 방향, 개선 뒤의 모습 | 수단이 정해지지 않은 작업이면, 설계를 다른 안으로 바꿔도 이 문장이 그대로 참인가 | 업무 노트 `goals` |
 | Key Result | Goals에 도달했음을 무엇으로 아는가 | 한 줄 지표 제목 + 구체 기준 하위 불릿 | 제3자가 대시보드·쿼리·PR diff의 숫자로 달성 여부를 판정할 수 있는가 | Task·노트 기대 가치의 `Key Result:` |
-| Todo | 목표에 도달하려면 무엇을 하는가 | 구체적 Action Item 체크박스 | 했다·안 했다로 끝나는가 | 업무 노트 `plan` (실행 계획) |
+| Todo | 목표에 도달하려면 무엇을 하는가 | 단계 > Task > 하위 항목 (`task:split`) | Task가 끝나면 As-is → To-be 변화가 관측되는가 | 업무 노트 `plan` (실행 계획) |
 
-- 칸이 섞였는지는 거꾸로 본다: 수단이 정해지지 않은 작업의 Goals에 수단 이름이 있으면 설계가, Goals에 수치가 있으면 Key Result가 섞였다. Key Result에 "작성한다"가 있으면 Todo가, Todo에 "0%"가 있으면 Key Result가 섞였다.
+- 칸이 섞였는지는 거꾸로 본다: 수단이 정해지지 않은 작업의 Goals에 수단 이름이 있으면 설계가, Goals에 수치가 있으면 Key Result가 섞였다. Key Result에 행동("작성", "배포")이 있으면 Todo가, Todo에 "0%"가 있으면 Key Result가 섞였다.
 - 검증 방법(무엇으로 재는가, 그 측정이 신호를 잡는가, 언제 판정하는가)은 세 칸 어디에도 쓰지 않고 업무 노트 설계 섹션의 `### 검증 설계`에 둔다.
 
 ---
@@ -97,19 +97,7 @@ Developer Goal: 결제 API를 빠르고 믿을 수 있게 만든다.
 
 ## Todo (실행 계획)
 
-- 목표에 도달하기 위한 구체적 Action Item을 체크박스(`- [ ]`)로 실제 실행 순서대로 나열한다. 한 체크박스 = 따로 착수하고 따로 끝낼 수 있는 행동 하나(문의, 측정, 스크립트 작성, PR 하나, 환경 롤아웃 하나).
-- 동사로 끝내고("~한다"), Key Result에 번호가 있으면 끝에 기여하는 KR을 `(KR1, KR3)`로 붙인다. 통과 기준(수치)은 Key Result에만 두고 반복하지 않는다.
-- 항목이 많으면 단계 라벨(`*사전 확인*`, `*환경별 적용*`, `*정착*`, `*분리*`)로 묶는다.
-- 환경별로 PR이 따로 나가면(dev → stg → prod 단계적 배포) 환경마다 항목을 나눈다.
-- 범위 밖 후속 작업도 `*분리*` 아래 체크박스로 남긴다.
-- 롤백(`롤백:`) 등 업무 노트 고유 규칙은 `notion:add-engineering-note` "실행 계획 작성 기준"을 따른다.
-
-```markdown
-*사전 확인*
-- [ ] 제품팀에 auth-server 국가 판정이 XFF의 어느 값을 쓰는지 문의한다 (KR2)
-*환경별 적용*
-- [ ] dev PR을 열고, 머지 뒤 검증 스크립트를 돌린다 (KR1, KR3)
-```
+작성 기준(단위, 순서, 문체, 완료 조건, KR 표시)은 `task:split`이 정본이다. 이 스킬에서는 Key Result의 수치를 Todo에 반복하지 않는다는 경계만 지킨다.
 
 ---
 
@@ -119,7 +107,7 @@ Developer Goal: 결제 API를 빠르고 믿을 수 있게 만든다.
 2. Key Result 제목이 지표 하나·목표값 하나이고, 하위 불릿에 대상 범위·기준값이 구체적으로 있는가. 기한이 들어가지 않았는가
 3. Key Result에 막지 않는 쪽 문장이 있는가
 4. Key Result에 행동·측정 방법이 섞이지 않았는가
-5. Todo가 모두 동사로 끝나는 행동이고, 수치 기준을 반복하지 않는가
+5. Todo에 Key Result의 수치 기준을 반복하지 않았는가 (Todo 형식 점검은 `task:split`)
 6. 이번 변경이 바꾸지 않는 대상의 변화를 결과로 쓰지 않았는가
 
 전체 예시(2026-11-16 XFF 위조 차단): `references/example-xff.md`
