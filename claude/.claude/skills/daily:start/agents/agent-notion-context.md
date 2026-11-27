@@ -36,8 +36,7 @@ allowed-tools:
    python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py search-tasks --status active
    ```
 4. **오늘 일정**
-   - Read로 `/tmp/alfred-calendar.json`을 먼저 시도한다. `date`가 오늘이면 그 `today` 배열을 쓴다
-   - 없거나 날짜가 다르면 `mcp__claude_ai_Google_Calendar__list_events`로 `calendarId="primary"`, 오늘 00:00~23:59(`Asia/Seoul`)를 조회한다
+   - `mcp__claude_ai_Google_Calendar__list_events`로 `calendarId="primary"`, 오늘 00:00~23:59(`Asia/Seoul`)를 조회한다
    - 제목이 "Busy", "Todo List Up", "daily sync up(오후)"인 일정은 뺀다
 
 ## 가공 규칙

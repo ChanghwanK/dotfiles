@@ -258,6 +258,6 @@ JSON의 `success`로 판단한다.
 
 ## 범위
 
-- 이 스킬은 Task 생성만 한다. 상태 변경은 Alfred week·task 모드(`notion-task.py update-status`), 이월은 `notion-task.py carry-over`, 삭제는 Notion에서 직접 한다
+- 이 스킬은 Task 생성만 한다. 상태 변경은 `notion-task.py update-status`, 이월은 `notion-task.py carry-over`, 삭제는 Notion에서 직접 한다
 - 업무 노트(`notion:add-engineering-note`)를 쓰면 노트의 문제/근본 원인/기대 가치가 최종본이 되어 `update-why`로 이 Task에 반영된다. 작업 Context는 교체되지 않는다
 - 같은 이름 Task가 있어도 중복 생성한다(의도된 설계)

@@ -9,7 +9,7 @@ allowed-tools:
 # Goals·Key Result·Todo 작성 기준
 
 Task와 업무 노트에서 목표, 판정 기준, 행동을 세 칸으로 나눠 쓰는 기준의 정본이다(2026-11-16 사용자 결정, Key Result 형식은 2026-11-23 OKR 형식으로 변경). 세 칸 중 Todo(실행 계획)의 작성 기준은 2026-11-27부터 `task:split`이 정본이다.
-소비처: `tasks:capture`(기대 가치의 `Key Result:`), `notion:add-engineering-note`(`goals`, `value`, `plan`), `tasks:tech-spec`, `grill-me`, `alfred` gate, Jira 티켓(`docs/jira-ticket-template.md`). 소비처에는 이 스킬을 가리키는 포인터만 둔다.
+소비처: `tasks:capture`(기대 가치의 `Key Result:`), `notion:add-engineering-note`(`goals`, `value`, `plan`), `tasks:tech-spec`, `grill-me`, Jira 티켓(`docs/jira-ticket-template.md`). 소비처에는 이 스킬을 가리키는 포인터만 둔다.
 
 ---
 

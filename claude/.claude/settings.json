@@ -82,14 +82,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/scripts/alfred-session-start.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "python3 $HOME/.claude/scripts/inject-devops-rules.py",
             "timeout": 10
           }

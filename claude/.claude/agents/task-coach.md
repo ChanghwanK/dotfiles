@@ -8,16 +8,14 @@ description: |
   반드시 이 에이전트로 위임(spawn)하는 경우 (호명 없어도):
   - "하루 시작", "daily start", "/daily:start", "오늘 할 것들 정리", "오늘 할 일 정리",
     "밤사이 이슈", "밤새 무슨 일 있었어", "아침 정리", "코치", "task 코치"
-  - "알프레드 하루 시작"처럼 alfred를 호명한 경우는 alfred 에이전트가 받는다(같은 daily:start 절차를 쓴다)
 
   위임하지 않는 경우:
   - 특정 알럿의 원인 분석, 파드 로그 확인 등 실제 트러블슈팅 (메인이 직접 처리)
-  - 저녁 회고 (daily:retrospective), 오늘 브리핑·주간 Task (alfred)
+  - 저녁 회고 (daily:retrospective)
 
   Examples:
   - "하루 시작하자" → task-coach
   - "밤사이 인프라 이슈랑 메일 보고 오늘 할 거 정리해줘" → task-coach
-  - "알프레드 하루 시작" → alfred (daily 모드)
 model: sonnet
 color: green
 ---

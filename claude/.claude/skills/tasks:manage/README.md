@@ -3,7 +3,7 @@
 이 디렉토리에는 `SKILL.md`가 없다. 스킬이 아니라 Notion Task DB를 다루는 공용 스크립트를 두는 곳이다.
 사용 기록에 스킬로 잡히지 않는다고 지우면 아래 스킬이 전부 멈춘다.
 
-- `scripts/notion-task.py`: Task 생성·조회·상태 변경·연결. tasks:capture, alfred, daily:start, daily:retrospective,
+- `scripts/notion-task.py`: Task 생성·조회·상태 변경·연결. tasks:capture, daily:start, daily:retrospective,
   notion:add-engineering-note, task:review, tasks:tech-spec이 부른다
 - `scripts/task-progress.py`: Task 진행 기록 (`test_task_progress.py`가 테스트)
 
