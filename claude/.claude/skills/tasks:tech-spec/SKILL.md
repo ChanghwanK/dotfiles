@@ -317,9 +317,13 @@ Agent(subagent_type="general-purpose", run_in_background=true, description="Cros
 | Background(문제) | `problem` |
 | Background의 원인·근거, `(원인 미확인)` 후보 | `root_cause` |
 | Key Result + 해결 가설 | `value` (`가설:` / `Key Result:` 라벨) |
+| Background의 현재 상태, 설계 및 계획의 변경 전·후 | `before` / `after` / `changes` |
 | Goal / Non-Goal | `goals` / `non_goals` |
-| 설계 및 계획의 주제별 H3, 고려해야할 것, 검증, 예상 질문 정리 | `design` (H3는 `###` 유지, 예상 질문은 `### 예상 질문`) |
-| Todo + 마일스톤 | `plan` |
+| 결정 필요, 설계 및 계획의 주제별 H3, 고려해야할 것, 예상 질문 정리 | `design` (H3는 `###` 유지, 예상 질문은 `### 예상 질문`) |
+| 검증 | `design`의 `### 검증 설계` |
+| Todo + 마일스톤, 롤아웃 계획의 롤백 | `plan` (롤백은 마지막 `롤백:` 불릿) |
+
+키별 작성 기준은 `notion:add-engineering-note` Step 3이 정본이다.
 
 ## 스펙 유형 (Claude 리뷰 강도 결정용)
 

@@ -2,7 +2,7 @@
 name: notion:add-engineering-note
 description: |
   Notion Engineering DB에 업무 노트를 만드는 스킬. grill-me로 인터뷰해 설계 판단의 빈틈을 메우고,
-  tasks:tech-spec 방법론(문제 검증 게이트, Goal Challenge, 리뷰 Agent)으로 내용을 확정한 뒤
+  tasks:tech-spec(문제 검증 게이트, codex·Claude 교차 리뷰)으로 내용을 확정한 뒤
   업무 노트 템플릿에 저장한다. 연결된 Task의 문제/근본 원인/기대 가치도 노트 최종본으로 맞춘다.
   사용 시점: (1) 인프라/시스템 설계 대화 후 결과를 Notion에 정리, (2) 의사결정 문서화,
   (3) 기술 검토/설계 노트 생성, (4) 이슈 분석 노트 작성.
@@ -119,30 +119,31 @@ python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py read
 
 `tasks:tech-spec`을 Skill 도구로 호출한다. args에 **eng-note 모드**, 연결할 Task page_id, Step 1 인터뷰 결과를 넘긴다.
 
-- Standard mode의 Phase 1~3을 grill-me 결과로 미리 채운 상태에서 진행한다(이미 확정된 내용은 다시 묻지 않는다).
-- 공통 문제 검증 게이트(G1~G4), Goal Challenge, 저장 전 자동 검증, 리뷰 Agent(F)를 그대로 거친다.
-- tech-spec은 Obsidian에 저장하지 않는다. 확정된 스펙을 아래 Step 3의 매핑으로 이 스킬에 돌려준다.
+- tech-spec은 grill-me 결과를 Step 1 입력으로 쓴다(이미 확정된 내용은 다시 묻지 않는다).
+- 문제 검증 게이트(G1~G4, tech-spec Step 1-c), 계획 교차 리뷰(Step 2), lint와 codex·Claude 스펙 리뷰 루프(Step 5~6)를 그대로 거친다.
+- tech-spec은 Notion에 쓰지 않는다. 확정된 스펙을 tech-spec Step 7 "eng-note 모드의 매핑"으로 sections 키에 나눠 돌려주고, Notion 저장은 이 스킬의 Step 4가 한다.
 
 ### Step 3: sections.json 작성
 
-tech-spec 산출물을 아래 표로 sections 키에 옮긴다.
+tech-spec이 돌려준 내용을 sections 키별로 다듬는다. Tech Spec 섹션 → sections 키 대응은 `tasks:tech-spec` Step 7
+"eng-note 모드의 매핑"이 정본이고, 이 표는 키별 작성 기준의 정본이다.
 
-| tech-spec 섹션 | sections 키 | 작성 기준 |
-|----------------|-------------|-----------|
-| 왜 이걸 해야 하는가? > 문제 | `problem` | 관측된 사건이 아니라 그 사건을 가능하게 한 경계·장치·절차의 결함을 현재형으로 쓴다(판별: `tasks:capture` "현상을 빼고 문제를 쓴다") |
-| 왜 이걸 해야 하는가? > 배경(원인) | `root_cause` | 신호가 아니라 신호를 만든 메커니즘. 측정으로 확정한 원인만 사실로 쓰고, 확인하지 못했으면 `(원인 미확인)` 아래에 원인 후보(둘 이상 + 그 외)와 변별 증거를 적는다 |
-| 임팩트 측정 > 해결 가설·Key Result | `value` | 개선 후 사람·팀이 얻는 것(1~4 불릿) + `가설:` 해결 가설 한 문장 + `Key Result:` 한 줄 지표 제목 + 구체 기준 하위 불릿(`task:keyresult` 스킬). 라벨 형식은 `tasks:capture` "섹션별 작성 기준 > 기대 가치"와 같다 |
-| 현재 상태와 목표 > Before / After | `before` / `after` | 같은 축으로 대응되게 쓴다(Before의 각 항목에 After가 짝을 이룬다) |
-| 현재 상태와 목표 > 변경 사항 (Diff) | `changes` | 변경 대상별 As-Is → To-Be. 설정 수준 diff는 코드 블록 |
-| 목표 | `goals` | 아래 "Goals·Key Result·실행 계획 구분" |
-| 임팩트 측정 > 검증 설계 | `design`의 `### 검증 설계` | Key Result마다 필수 3항목(무엇으로 재는가, 그 측정이 신호를 잡는가와 기각한 방법, 언제 판정하는가)을 쓴다. 세부 케이스는 `plan`의 검증 도구 항목에 둔다 |
-| Non-Goals | `non_goals` | 이번엔 다루지 않는 것(오버엔지니어링 방지 경계), 비가역 변경이면 롤백 시나리오 |
-| 설계 + 왜 이 방법인가 | `design` | `### 선택 이유`, `### 대안 및 트레이드오프`, 스펙 아티팩트 표, 다이어그램(Step 3-1) |
-| 실행 계획 | `plan` | 아래 "실행 계획 작성 기준" |
-| (진행 기록) | `history` | 생성 시점엔 보통 비운다. 이후 `append-content --section "실행 기록"`으로 날짜별 누적 |
-| 실제 결과 (Outcome) | `result` | 완료 후 채운다. 성공 기준 대비 측정값 |
-| (완료 후 회고) | `review_metrics` / `review_par` / `review_retro` | `task:review` 출력 구조. PAR은 대표 PAR / 이력서 bullet(명사형 종결) / 성과평가용 확장형 3종 모두 |
-| (완료 후 회고, 한 문자열) | `review` | 편의 키. `### 성과 측정` / `### ...성과 문장` / `### 성장 회고` 하위 heading으로 쓰면 스크립트가 위 세 섹션에 나눠 넣는다. `review_*`와 함께 쓰지 않는다 |
+| sections 키 | 작성 기준 |
+|-------------|-----------|
+| `problem` | 관측된 사건이 아니라 그 사건을 가능하게 한 경계·장치·절차의 결함을 현재형으로 쓴다(판별: `tasks:capture` "현상을 빼고 문제를 쓴다") |
+| `root_cause` | 신호가 아니라 신호를 만든 메커니즘. 측정으로 확정한 원인만 사실로 쓰고, 확인하지 못했으면 `(원인 미확인)` 아래에 원인 후보(둘 이상 + 그 외)와 변별 증거를 적는다 |
+| `value` | 개선 후 사람·팀이 얻는 것(1~4 불릿) + `가설:` 해결 가설 한 문장 + `Key Result:` 한 줄 지표 제목 + 구체 기준 하위 불릿(`task:keyresult` 스킬). 라벨 형식은 `tasks:capture` "섹션별 작성 기준 > 기대 가치"와 같다 |
+| `before` / `after` | 같은 축으로 대응되게 쓴다(Before의 각 항목에 After가 짝을 이룬다) |
+| `changes` | 변경 대상별 As-Is → To-Be. 설정 수준 diff는 코드 블록 |
+| `goals` | 아래 "Goals·Key Result·실행 계획 구분" |
+| `design`의 `### 검증 설계` | Key Result마다 필수 3항목(무엇으로 재는가, 그 측정이 신호를 잡는가와 기각한 방법, 언제 판정하는가)을 쓴다. 세부 케이스는 `plan`의 검증 도구 항목에 둔다 |
+| `non_goals` | 이번엔 다루지 않는 것(오버엔지니어링 방지 경계), 비가역 변경이면 롤백 시나리오 |
+| `design` | `### 선택 이유`, `### 대안 및 트레이드오프`, 스펙 아티팩트 표, 다이어그램(Step 3-1) |
+| `plan` | 아래 "실행 계획 작성 기준" |
+| `history` | 생성 시점엔 보통 비운다. 이후 `append-content --section "실행 기록"`으로 날짜별 누적 |
+| `result` | 완료 후 채운다. 성공 기준 대비 측정값 |
+| `review_metrics` / `review_par` / `review_retro` | `task:review` 출력 구조. PAR은 대표 PAR / 이력서 bullet(명사형 종결) / 성과평가용 확장형 3종 모두 |
+| `review` | 편의 키. `### 성과 측정` / `### ...성과 문장` / `### 성장 회고` 하위 heading으로 쓰면 스크립트가 위 세 섹션에 나눠 넣는다. `review_*`와 함께 쓰지 않는다 |
 
 #### Goals·Key Result·실행 계획 구분
 

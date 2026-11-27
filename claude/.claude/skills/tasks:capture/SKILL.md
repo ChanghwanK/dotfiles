@@ -202,7 +202,7 @@ Description: {한 줄}
 
 섹션 합성과 게이트를 건너뛴다. Due가 파싱됐으면 바로 Step 3. 누락이면 1회 묻는다:
 `1. 이번 주 금요일 ({날짜}) [추천]` / `2. 다음 주 금요일 ({날짜})` / `3. 마감일 없음` / `4. 직접 입력 (예: 내일)` / `0. 취소`.
-직접 입력 파싱에 실패하면 마감일 없음으로 두고 완료 메시지에 ⚠️ 표시한다.
+직접 입력 파싱에 실패하면 마감일 없음으로 두고 완료 메시지에 경고로 표시한다.
 
 ### Step 3: Notion Task 생성
 
@@ -242,19 +242,19 @@ PR은 `PR #1234` 텍스트 대신 실제 URL(`https://github.com/riiid/kubernete
 
 JSON의 `success`로 판단한다.
 
-**성공**: 첫 줄 `📥 캡처 완료`에 Due가 있으면 ` (~{due})`, 경고가 있으면 ` ⚠️ ({사유})`를 붙이고, 다음 줄에 `제목: [{name}]({url})`을 반드시 쓴다
+**성공**: 첫 줄 `캡처 완료`에 Due가 있으면 ` (~{due})`, 경고가 있으면 ` (경고: {사유})`를 붙이고, 다음 줄에 `제목: [{name}]({url})`을 반드시 쓴다
 (URL을 따로 노출하지 않는다).
 
 ```
-📥 캡처 완료 (~2026-03-20)
+캡처 완료 (~2026-03-20)
 제목: [#Task - Task 이름](https://www.notion.so/xxxxxxxx)
 ```
 
-- ⚠️ 사유: 직접 입력 파싱 실패(→ 마감일 없음), 또는 simple 경로가 아닌데 `template_applied: false`(`템플릿 미적용: {template_error} → 같은 구조로 대체 생성, 버튼 없음`)
+- 경고 사유: 직접 입력 파싱 실패(→ 마감일 없음), 또는 simple 경로가 아닌데 `template_applied: false`(`템플릿 미적용: {template_error} → 같은 구조로 대체 생성, 버튼 없음`)
 - 템플릿 경로에서만 마지막에 한 줄을 붙이고, 실행은 사용자가 요청할 때만 한다:
-  `💡 이어서 작업을 정리하려면 /notion:add-engineering-note (grill-me → tech-spec → 노트, 이 Task에 연결)`
+  `이어서 작업을 정리하려면 /notion:add-engineering-note (grill-me → tech-spec → 노트, 이 Task에 연결)`
 
-**실패**: `error`를 사람이 읽을 말로 옮긴다. 예: `❌ 캡처 실패: NOTION_TOKEN 미설정. 1Password에서 토큰을 확인하세요.`
+**실패**: `error`를 사람이 읽을 말로 옮긴다. 예: `캡처 실패: NOTION_TOKEN 미설정. 1Password에서 토큰을 확인하세요.`
 
 ## 범위
 
