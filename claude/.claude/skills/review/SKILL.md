@@ -24,110 +24,84 @@ allowed-tools:
 ---
 # review Skill
 
-Take a mechanism hypothesis formed during troubleshooting or deep analysis, split it into mechanism claims, observations, and the inference linking them, verify the mechanism against primary sources for the version we actually run, verify observations against measurements, then judge whether the inference holds.
-
----
+Split a mechanism hypothesis into mechanism claims, observations, and the inference linking them; verify mechanisms against primary sources for the version we run, observations against measurements, then judge the inference.
 
 ## Core principles
 
-- **Neither agreement nor disagreement is the goal.** The weight of evidence decides. Forced contrarianism is a bias too.
-- **Mechanism claims are verified against the version we run.** A doc for another version is not evidence. Anchor the component version first (values, kustomization, `cluster-summary.md`), then read that version's docs and release notes (source only when the user explicitly asked for source level, see `references/evidence-tiers.md`).
-- **Disconfirm first.** For each mechanism claim, look for the condition that makes it false before looking for support.
-- **Observations are data only when they come with the query.** A sentence written earlier in the session ("CPU was fine") is not an observation; the query and its result are. Negative observations ("no OOM") need the query that returned zero.
-- **The inference is where sycophancy bites.** "Your theory fits the data" is the answer the user hopes for during an RCA. The `blind-evaluator` judges the inference without knowing whose theory it is.
-- **Fixed verdicts**: `SUPPORTED` / `PARTIAL` / `REFUTED` / `UNDETERMINED`, each with `[n]`. Model knowledge (T3) has no link, is labeled, and caps at `UNDETERMINED`. Tier rules: `references/evidence-tiers.md`.
-- **Pushback needs new evidence** to flip a verdict. Protocol: `references/bias-checklist.md`.
-- **Output in Korean, formal register, conclusion first.** Template: `assets/output-format.md`.
-
----
+- **Neither agreement nor disagreement is the goal.** The weight of evidence decides; forced contrarianism is a bias too.
+- **Fixed verdicts**: `SUPPORTED` / `PARTIAL` / `REFUTED` / `UNDETERMINED`, each with `[n]`. Tier and confidence rules: `references/evidence-tiers.md`.
+- **Output template**: `assets/output-format.md`. Length is proportional: one M claim settled by T1 is a few lines; a full RCA hypothesis is a full report.
+- **Read-only.** Measure, read, propose; never change cluster or repo state.
 
 ## Workflow
 
 ### Step 0: Scope gate, target, stance
 
 1. **Scope gate.** The target must contain at least one **mechanism claim**: how or why a component behaves, what causes what, what a setting does internally. If the request is a state or capacity judgement with no mechanism in it ("should we raise replicas", "how much memory", "is prod OK"), stop and answer in one line: `이 요청은 메커니즘 검토 대상이 아니라 상태·용량 판단입니다. <devops:infra-rca / cost-analyzer-agent / 직접 답변>으로 진행하겠습니다.` Resumes, prose, Notion wording, blog posts: same one-liner, route to `resume:bullet` or `blog:review`.
-2. **Target** = the text preceding the trigger word, or the hypothesis under discussion in the current analysis if that text only points to it. Two equally plausible candidates: ask one question.
-3. **Stance** (internal): what the user believes and how strongly. In an RCA this is usually `favors` their own hypothesis. This is what the blind evaluator must not see and what Step 4 must resist.
+2. **Target** = the text preceding the trigger word, or the hypothesis under discussion if that text only points to it. Two equally plausible candidates: ask one question.
+3. **Stance** (internal): what the user believes and how strongly (in an RCA, usually `favors` their own hypothesis). The blind evaluator must not see it; Step 4 must resist it.
 
 ### Step 1: Decompose into mechanism, observation, inference
 
 | Kind | Definition | Example | Falsified if |
 |------|-----------|---------|--------------|
-| **M** mechanism | General statement about how a component works | "Envoy closes an idle upstream connection after `idleTimeout` and a request racing that close gets 503 UC" | The doc for our version says otherwise, or the behavior is version-gated |
-| **O** observation | A fact about our system, with the query that produced it | "503 UC count rose 40x at 14:02 (Loki query Q1)" | Re-running the query gives a different result, or the claim has no query |
-| **I** inference | The causal link: M plus O explains the symptom | "Therefore the 503s are idle-close races, not upstream crashes" | An alternative mechanism explains O equally well, or M and O do not predict the symptom's shape (timing, magnitude, distribution) |
+| **M** mechanism | How a component works in general | "Envoy closes an idle upstream connection after `idleTimeout`; a request racing that close gets 503 UC" | The doc for our version says otherwise, or the behavior is version-gated |
+| **O** observation | A fact about our system, with the query that produced it | "503 UC rose 40x at 14:02 (Loki query Q1)" | Re-running the query differs, or there is no query |
+| **I** inference | M plus O explains the symptom | "So the 503s are idle-close races, not upstream crashes" | An alternative explains O equally well, or M and O do not predict the symptom's shape (timing, magnitude, distribution) |
 | **P** premise | Unstated assumption everything rests on | "The app uses keep-alive", "traffic is HTTP/1.1" | Checked against config or a measurement |
 
-Strip evaluative words. Write each claim so that it can be false. List the alternative mechanisms the inference competes with (at least one; "no alternative" is itself a claim needing evidence).
+Strip evaluative words; write each claim so it can be false. List at least one alternative mechanism the inference competes with ("no alternative" is itself a claim needing evidence).
 
 ### Step 2: Evidence collection, routed by kind
 
-**Version anchor first (MUST for M claims).** Find the installed version: `values.yaml` / `kustomization.yaml` image tag or chart version, or `devops-wiki/02-context/cluster-summary.md`. Record it as `A1`. Every M citation must be for that version or state the version delta explicitly.
+**Version anchor first (MUST for M claims).** Find the installed version (`values.yaml` / `kustomization.yaml` image tag or chart version, or `devops-wiki/02-context/cluster-summary.md`) and record it as `A1`. Every M citation is for `A1` or states the version delta explicitly.
 
-| Kind | Sources, in order | Link form |
+| Kind | Sources, in order (search against before for) | Link form |
 |------|------------------|-----------|
-| **M** | (1) against: T1 docs for `A1`, release notes and changelog between the doc version and `A1`; (2) for: same T1, then T2 named engineers and big-tech blogs (`references/evidence-tiers.md`); (3) TX: `devops-wiki/04-postmortems/`, `04-issues/`, `03-guardrails/` Lessons, project memory, `claude-mem:mem-search`. Docs ambiguous is not a reason to read source: `UNDETERMINED` instead (`references/evidence-tiers.md`). Freshness and versioned-docs trap: `~/.claude/skills/research/references/source-tiers.md` | URL, wiki path |
-| **O** | The query in the conversation. If the observation is a conclusion without a query, re-measure now: VictoriaMetrics, Loki, `kubectl get/describe/logs`. Record query and result | query text + result, or `path:line` |
-| **I** | No separate source. Judged in Step 3 and 4 from verified M and O, against the listed alternatives | derived |
+| **M** | (1) against: T1 docs for `A1`, release notes and changelog between the doc version and `A1`; (2) for: same T1, then T2 (`references/evidence-tiers.md`); (3) TX: `devops-wiki/04-postmortems/`, `04-issues/`, `03-guardrails/` Lessons, project memory, `claude-mem:mem-search`. Ambiguous docs are not a reason to read source: `UNDETERMINED` instead. Freshness and versioned-docs trap: `~/.claude/skills/research/references/source-tiers.md` | URL, wiki path |
+| **O** | The query in the conversation. A conclusion without a query (including negatives like "no OOM") is re-measured now: VictoriaMetrics, Loki, `kubectl get/describe/logs`. Record query and result | query text + result, or `path:line` |
+| **I** | No separate source; judged in Step 3 and 4 from verified M and O against the alternatives | derived |
 | **P** | Config (`Grep`/`Read`) or one measurement | `path:line` or query |
 
-**Delegate** M-claim research to `agents/agent-evidence-collector.md` (model `sonnet`) when there are 2+ M claims or any web fetch is needed. Pass only `{claims}` (M and P), `{version_anchor}`, `{domain_hints}`. Never pass the user's wording, stance, or the inference. O claims are measured by the main flow, not the agent.
+**Delegate** M-claim research to `agents/agent-evidence-collector.md` (model `sonnet`) when there are 2+ M claims or any web fetch is needed. Pass only `{claims}` (M and P), `{version_anchor}`, `{domain_hints}`; never the user's wording, stance, or the inference. O claims are measured by the main flow.
 
 Each evidence item: `id`, `claim_id`, `direction` (`against` / `for`), `tier`, `title`, `url_or_path`, `date_or_version`, `quote` (verbatim, short), `note`.
 
 ### Step 3: Blind evaluation of the inference
 
-Run when there is at least one I claim (the usual case in an RCA). Skip only for a bare M fact check already settled by T1 for `A1`.
+Run when there is at least one I claim. Skip only for a bare M fact check already settled by T1 for `A1`.
 
-1. **Write your own preliminary verdict per claim first** (internal). Forming it after reading the agent's output defeats the purpose.
+1. **Write your own preliminary verdict per claim first** (internal), before reading the agent's output.
 2. Spawn `agents/agent-blind-evaluator.md` (model `opus`) with `{claims}` (M, O, I, P), `{alternatives}`, `{evidence_pack}`. Forbidden: the user's original text, stance, authorship, phrases like "the user thinks".
-3. Compare. A mismatch is reported in `판정 불일치` with both positions and the evidence each relied on. Do not average.
+3. Compare. Report a mismatch in `판정 불일치` with both positions and their evidence. Do not average.
 
 ### Step 4: Verdict
 
-Per claim, worst news first:
-
-- verdict + confidence (`high` / `medium` / `low`, rules in `references/evidence-tiers.md`)
-- evidence `[n]` for and against
-- **strongest counterargument**, mandatory even for `SUPPORTED`
-- **what would change this verdict**: a measurement, a version, a doc page
+Per claim, worst news first: verdict + confidence (`high` / `medium` / `low`), evidence `[n]` for and against, the **strongest counterargument** (mandatory even for `SUPPORTED`), and **what would change this verdict** (a measurement, a version, a doc page).
 
 Gates:
 - M claim cited from a doc for a version other than `A1` without a changelog check: at most `PARTIAL`.
-- O claim without a query: `UNDETERMINED`, and the query to run is named.
-- I claim: `SUPPORTED` only when every M it depends on is `SUPPORTED` for `A1`, every O has a query, and the listed alternatives are ruled out by evidence, not by absence of evidence.
+- O claim without a query: `UNDETERMINED`, naming the query to run.
+- I claim: `SUPPORTED` only when every M it depends on is `SUPPORTED` for `A1`, every O has a query, and every alternative is ruled out by evidence, not by absence of evidence.
 - A refuted P refutes the I claims that depend on it.
 - T3 only: `UNDETERMINED`.
 
 ### Step 5: What resolves the remaining ambiguity
 
-This section MUST be present. For every `PARTIAL` / `UNDETERMINED` claim and every alternative not ruled out, list the concrete action: the PromQL or LogQL, the `kubectl` command, the doc page for `A1`, the config to read. Run the ones that are read-only and available now; report the result inline. The report must not end at "measurement needed" when the measurement is one query away.
+MUST be present. For every `PARTIAL` / `UNDETERMINED` claim and every alternative not ruled out, list the concrete action (PromQL/LogQL, `kubectl` command, doc page for `A1`, config to read). Run the read-only ones available now and report the result inline; do not stop at "measurement needed" when it is one query away.
 
 ### Step 6: Self-check and validate (MUST), then output
 
-Walk `references/bias-checklist.md`. Fix failures by adding evidence or removing the claim, never by softening wording. Output with `assets/output-format.md`.
+Walk `references/bias-checklist.md`. Fix failures by adding evidence or removing the claim, never by softening wording.
 
 Fail conditions that block output:
 - a verdict without `[n]`
 - an M claim with no version anchor `A1`
 - an O claim presented as fact without its query
-- an I claim `SUPPORTED` with an alternative that was never addressed
+- an I claim `SUPPORTED` with an alternative never addressed
 - a `SUPPORTED` / `REFUTED` resting on T3 only
 - an opening sentence from the banned-agreement list
 
----
-
 ## After the report: pushback handling
 
-1. Ask which claim and which evidence item is disputed, or what new evidence exists.
-2. Re-run Step 2 for that claim only. New evidence flips the verdict: `판정 변경: I1 PARTIAL → SUPPORTED, 근거 [7]`. No new evidence: `판정 유지`, with the specific reason.
-3. Never restate the same verdict in softer words as a compromise.
-
----
-
-## Notes
-
-- Do not open with agreement or praise. Banned openings: `references/bias-checklist.md`.
-- Do not fabricate URLs. Cite only fetched pages, read paths, or executed queries.
-- Proportional length: one M claim with a T1 answer is a few lines; a full RCA hypothesis is a full report.
-- Read-only. This skill measures, reads, and proposes; it does not change cluster or repo state.
+Follow the pushback protocol in `references/bias-checklist.md`: a verdict flips only on new evidence; never restate the same verdict in softer words as a compromise.

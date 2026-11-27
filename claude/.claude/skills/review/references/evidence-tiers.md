@@ -18,7 +18,7 @@ Rules:
 - T2 vendor material arguing its own product's superiority: downgrade one step unless an independent source agrees.
 - TX is scoped: it says what happened here under those conditions. Do not generalize `n=1`. Count impact by affected units (pods, requests, users), not tool units (alerts, log lines).
 - T3 must be tried last, after a T1 and a T2 search both returned nothing relevant. Record that the searches were made.
-- Source code is not an evidence tier here. Docs being ambiguous about a mechanism is not a reason to read source: go to T2 next, and if the claim is still unsettled after T1 and T2, issue `UNDETERMINED` and name the T1 page that would settle it. Read source only when the user explicitly asked for source level; when you do, pin it to the GitHub tag matching the version we run, cite it alongside (never instead of) the doc section, and restate it in one plain sentence. Rationale: a source citation cannot prove it matches the version we run, and it forces the reader to follow surrounding context, so it fails the "quickly and easily verifiable" bar that makes evidence persuasive.
+- Source code is not an evidence tier here. Docs being ambiguous about a mechanism is not a reason to read source: go to T2 next, and if the claim is still unsettled after T1 and T2, issue `UNDETERMINED` and name the T1 page that would settle it. Read source only when the user explicitly asked for source level; then pin it to the GitHub tag matching the version we run, cite it alongside (never instead of) the doc section, and restate it in one plain sentence.
 
 ---
 

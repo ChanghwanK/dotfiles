@@ -9,78 +9,37 @@ allowed-tools:
   - Bash(git *)
 ---
 
-# Commit Skill: Git 커밋 워크플로우
+# git:commit
 
-Staged 파일을 분석하고 커밋 컨벤션에 맞게 커밋한다.
-
----
-
-## 워크플로우
-
-### Step 1: Staged 변경사항 수집
+## Step 1: Staged 변경사항 수집
 
 ```bash
-git diff --cached --name-only   # staged 파일 목록 확인
+git diff --cached --name-only
 ```
 
-**staged 파일이 없으면 → 자동 스테이징 절차:**
-
-```bash
-git status --short   # 전체 변경사항 파악
-```
-
-- 변경 파일이 없으면 → "커밋할 변경사항이 없습니다." 출력 후 종료.
-- 변경 파일이 있으면 → 이번 작업에서 변경한 파일만 경로를 지정해 스테이징한다 (`git add .` 금지):
+staged 파일이 없으면 `git status --short`로 전체 변경을 본다.
+- 변경이 없으면 "커밋할 변경사항이 없습니다." 출력 후 종료
+- 이번 작업에서 변경한 파일만 경로를 지정해 스테이징한다(`git add .` 금지):
 
 ```bash
 git add <path1> <path2> ...
 ```
 
-- 그 외 변경(이번 작업과 무관한 수정 파일, untracked 파일)은 스테이징하지 않고 목록을 보여준 뒤 포함 여부를 사용자에게 묻는다:
+- 이번 작업과 무관해 보이는 변경(다른 수정 파일, untracked)은 스테이징하지 않고, 스테이징한 목록과 함께 보여 주며 포함 여부를 묻는다
 
-```
-스테이징한 파일 (이번 작업):
-  M  src/tech/ai-gateway/infra-k8s-dev/values.yaml
-  M  src/tech/ai-gateway/infra-k8s-stg/values.yaml
+스테이징 후 `git diff --cached`로 staged diff를 수집한다.
 
-이번 작업과 무관해 보이는 변경 (포함할까요?):
-  M  src/santa/worker/infra-k8s-dev/values.yaml
-  ?? scratch.txt
-```
+## Step 2: Commit Message 생성
 
-스테이징 후 `git diff --cached` 로 staged diff를 수집하고 Step 2로 진행한다.
+**형식:** `type(scope): subject` + 빈 줄 + body 1~3 bullet (Conventional Commits)
 
-### Step 2: 레포 타입 감지
+커밋은 "무엇을 / 왜" 요약만 담고, 원인 분석·해결 과정·롤백·blast radius는 PR 본문에 쓴다. PR squash merge라 main에는 subject 한 줄(PR title)만 남으므로 정보는 subject에 먼저 압축한다.
 
-staged 파일 경로를 분석해 레포 타입을 결정한다:
-
-| 조건 | 레포 타입 |
-|------|-----------|
-| `src/{sphere}/{circle}/infra-k8s-{env}/` 패턴 존재 | kubernetes |
-| `.tf` 파일 또는 `terraform/` 경로 존재 | terraform |
-| 그 외 | general |
-
-### Step 3: Commit Message 생성
-
-**형식:** `type(scope): subject` + 빈 줄 + body 요약 (Conventional Commits)
-
-커밋 메시지는 사람과 LLM이 나중에 `git log`로 작업 history와 맥락을 파악하는 1차 소스다.
-**역할 분담:** 커밋은 "무엇을 / 왜" 요약만, 원인 분석·해결 과정·롤백·blast radius는 PR 본문에 적는다.
-
-> **squash 인지:** 이 레포는 PR squash merge다. main에 남는 건 subject 한 줄(= PR title)뿐이며 body는 휘발한다.
-> 따라서 정보 밀도는 subject에 우선 압축하고, body 요약은 feature 브랜치·PR 리뷰·로컬 history 용도다.
-
-**Type 선택:**
-- `chore`: 설정/인프라 변경 (image tag, values, config)
-- `feat`: 새 리소스/기능 추가
-- `fix`: 버그 수정
-- `docs`: 문서만 변경
-- `refactor`: 기능 변경 없는 구조 개선
+**Type:** `chore`(설정/인프라: image tag, values, config), `feat`(새 리소스/기능), `fix`(버그), `docs`(문서만), `refactor`(기능 변경 없는 구조 개선)
 
 **Subject 규칙 (가장 중요):**
-- `동작 + 대상 + (가능하면) 의도/효과`를 한 줄로 압축한다.
-- 단순 `Update X` / `Change Y` 금지: diff만 봐도 아는 "무엇"만 적지 말고 "왜/효과"를 한 조각 넣는다.
-- 길이 ~72자 가이드. 넘으면 body로 빼지 말고 subject에서 의도를 압축한다.
+- `동작 + 대상 + (가능하면) 의도/효과` 한 줄, ~72자. 넘으면 body로 빼지 말고 subject에서 압축
+- 단순 `Update X` / `Change Y` 금지: "왜/효과"를 한 조각 넣는다
 
 | generic (지양) | history-친화 (지향) |
 |----------------|---------------------|
@@ -88,35 +47,23 @@ staged 파일 경로를 분석해 레포 타입을 결정한다:
 | `chore(observability/alloy): update config` | `fix(observability/alloy): set GOMEMLIMIT to prevent OOMKill in prod` |
 | `chore(data-platform): exclude columns` | `chore(data-platform): exclude large JSON columns from k6 essay CDC` |
 
-**kubernetes 레포 scope 규칙:**
+**kubernetes 레포 scope 규칙** (staged 경로가 `src/{sphere}/{circle}/infra-k8s-{env}/` 패턴일 때):
 - 단일 circle, 단일 env → `chore(santa/authentication): ... in dev`
 - 단일 circle, 다중 env → `chore(santa/authentication): ... in dev, stg`
 - 다중 circle, 단일 sphere → `chore(santa): ... for authentication, worker in dev`
 - 다중 sphere → scope 없이 기술
 
-**Body 요약 규칙:**
-- subject 다음 빈 줄 뒤에 **1~3개 bullet**로 변경 요약을 적는다.
-- 각 bullet은 "무엇을 왜" 한 줄. diff가 자명하게 말하는 내용을 산문으로 반복하지 않는다.
-- 추론이 불확실한 의도는 단정하지 않는다 (틀린 body는 안 적느니만 못함).
-- 원인 분석·재현 절차·롤백 방법·영향 범위는 body에 넣지 않고 PR로 미룬다.
+**Body 규칙:**
+- bullet마다 "무엇을 왜" 한 줄. diff가 자명하게 말하는 내용을 반복하지 않는다
+- 불확실한 의도는 단정하지 않는다(틀린 body는 안 적느니만 못하다)
 
-```
-fix(observability/alloy): set GOMEMLIMIT to prevent OOMKill in prod
+**공통:** subject·body 모두 영어, 명령형 현재형. 이모지 금지, Co-Authored-By 라인 금지.
 
-- Alloy pod가 limit 미만에서도 Go heap 누적으로 OOMKill되던 문제 완화
-- GOMEMLIMIT을 limit의 ~90%로 설정해 GC를 조기 유발
-```
+## Step 3: 민감 파일 체크
 
-**공통 규칙:**
-- 이모지 금지, Co-Authored-By 금지
-- subject·body 모두 영어, 명령형 현재형 (Update, Add, Fix, Remove...)
+staged에 `.env`, `.env.*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`가 있으면 커밋 전 경고하고 진행 여부를 확인한다.
 
-### Step 4: 민감 파일 체크
-
-아래 패턴 파일은 staged에 포함되어 있어도 커밋 전 경고 후 진행 여부를 확인한다:
-- `.env`, `.env.*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`
-
-### Step 5: Commit 실행
+## Step 4: Commit 실행
 
 ```bash
 git commit -m "$(cat <<'EOF'
@@ -128,28 +75,9 @@ EOF
 )"
 ```
 
-pre-commit hook 실패 시: 문제를 수정한 후 **새 커밋 생성** (amend 금지).
+- pre-commit hook 실패 시 문제를 고친 뒤 새 커밋을 만든다(amend 금지)
+- push는 하지 않는다
 
-### Step 6: 결과 출력
+## Step 5: 결과 출력
 
-`git commit` 출력에서 커밋 해시와 메시지를 직접 표시한다.
-
-```
-커밋 완료:
-─────────────────────────────
-chore(santa/authentication): bump image to dev-4164f0a for OTel trace fix
-─────────────────────────────
-```
-
----
-
-## 규칙 요약
-
-- subject는 `동작 + 대상 + 의도/효과` 한 줄(~72자). generic한 `Update X` 금지
-- subject 다음 빈 줄 + body 1~3 bullet로 "무엇을 왜" 요약. diff 자명한 내용 반복 금지
-- 원인·해결·롤백·blast radius는 커밋이 아닌 PR 본문에 적는다 (squash로 body는 main에서 휘발)
-- staged 파일이 없으면 `git status --short`로 변경 목록을 확인하고, 이번 작업에서 변경한 파일만 `git add <path>`로 스테이징한다. 그 외 변경은 목록을 보여주고 포함 여부를 묻는다 (`git add .` 금지)
-- push는 실행하지 않는다
-- 이모지를 커밋 메시지에 절대 사용하지 않는다
-- Co-Authored-By 라인을 커밋 메시지에 추가하지 않는다
-- amend 금지: MUST 새 커밋 생성
+`git commit` 출력의 커밋 해시와 subject를 보여 준다.

@@ -1,19 +1,6 @@
 # Bias Checklist for `review`
 
-Why the skill is shaped the way it is, the banned openings, the self-check that gates output, and the pushback protocol.
-
----
-
-## What the skill is countering
-
-| Failure | Mechanism | Counter in this skill | Source |
-|---------|-----------|-----------------------|--------|
-| Sycophancy | Preference-trained assistants tend to match the user's stated belief; both humans and preference models sometimes prefer a convincing sycophantic answer over a correct one, and models change correct answers under pushback | Blind evaluator that never sees the stance (Step 3); pushback protocol that requires new evidence to flip a verdict | Sharma et al., "Towards Understanding Sycophancy in Language Models", 2023 · https://arxiv.org/abs/2310.13548 (T2, fetched 2026-09-10) |
-| Confirmation bias | Search and interpretation favor the hypothesis already held; supporting evidence is found first and weighted more | Disconfirm-first ordering (Step 2); mandatory strongest counterargument per claim (Step 4) | Lord, Lepper, Preston, "Considering the opposite: a corrective strategy for social judgment", J Pers Soc Psychol 1984, doi:10.1037/0022-3514.47.6.1231 (model knowledge, link not fetched: PubMed and APA pages did not render; verify before relying on the exact wording) |
-| Anchoring on the user's framing | Evaluative words in the request ("obviously", "cleaner") pull the verdict | Neutral restatement with falsification conditions (Step 1) | Same as above |
-| Outcome-only reasoning on plans | Plans are judged by whether they sound right, not by how they fail | "What would change this verdict" per claim; premise check before logic check | Klein, "Performing a Project Premortem", HBR, Sept 2007 · https://hbr.org/2007/09/performing-a-project-premortem (T2, fetched 2026-09-10) |
-| Self-citation | Earlier summary sentences get reused as measurements; negative conclusions ("no impact") hide "not measured" | Own-conclusions-are-not-evidence rule; negative conclusions need the query | Global CLAUDE.md "작업 원칙" (TX, 2026-09-07 incident: VPCCNIIPAllocationFailing RCA) |
-| Framework recitation | Mapping a claim onto an external framework's headings reads as review but adds no judgement | Verdict must cite evidence, not framework headings; frameworks only as a completeness check | Global CLAUDE.md "응답 기본값" (TX) |
+Banned openings, the self-check that gates output, and the pushback protocol.
 
 ---
 

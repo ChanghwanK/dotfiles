@@ -17,372 +17,156 @@ allowed-tools:
 
 # Skill Manager
 
-스킬 생명주기를 관리하는 메타 스킬. 기계적 작업(파일 I/O, 검증, 패키징)은
-`manage_skill.py`가 처리하고, Claude는 내용 작성(SKILL.md body, 스크립트 로직)만 담당한다.
-
----
+파일 조작·검증은 `manage_skill.py`가 하고, Claude는 내용(SKILL.md body, 스크립트 로직)만 쓴다.
 
 ## 핵심 원칙
 
-- **역할 분리**: 파일 조작 → 스크립트, 내용 작성 → Claude
-- **검증 우선**: create/update 후 MUST validate로 확인
-- **삭제는 hard delete**: delete는 복구 불가. 백업 기능은 제공하지 않으므로 삭제 전 사용자 동의 필수
-- **경로 규칙**: user scope는 절대 경로, project scope는 `${CLAUDE_PROJECT_DIR}` 사용
-- **stdlib only**: Python 스크립트는 표준 라이브러리만 사용
+- create/update 뒤에는 반드시 `validate`로 확인한다
+- delete는 hard delete(복구 불가, 백업 없음)다. 실행 전 사용자 동의가 필수다
+- Python 스크립트는 표준 라이브러리만 쓴다(`yaml`, `requests` 등 금지)
 
----
+## Scope
 
-## Scope (user vs project)
+모든 subcommand는 `--scope user|project`(`-s`)를 받는다. 생략하면 CWD에 `.claude/skills/`가 있으면 `project`, 없으면 `user`다.
+프로젝트 디렉토리에서 전역 스킬을 다루려면 `--scope user`를 명시한다.
 
-스킬은 두 위치 중 하나에 배치된다:
-
-| Scope | 디렉토리 | 용도 |
+| Scope | 디렉토리 | allowed-tools 스크립트 경로 (create가 적용) |
 |-------|---------|------|
-| `user` | `~/.claude/skills/` | 모든 프로젝트에서 공유되는 전역 스킬 |
-| `project` | `$PWD/.claude/skills/` | 특정 프로젝트 전용 스킬 (리포에 commit 가능) |
-
-모든 subcommand는 `--scope user|project` (또는 `-s`) 플래그를 받는다.
-
-**Auto-detect (플래그 미지정 시):**
-- 현재 디렉토리에 `.claude/skills/`가 존재 → `project`
-- 그 외 → `user`
-
-**Frontmatter 경로 규칙 (create가 자동 적용):**
-- user scope: `/Users/changhwan/.claude/skills/<name>/scripts/...` (절대 경로)
-- project scope: `${CLAUDE_PROJECT_DIR}/.claude/skills/<name>/scripts/...` (이식 가능)
-
-`${CLAUDE_PROJECT_DIR}`는 Claude Code가 자동 주입하는 환경변수로, 리포를 다른 위치로 옮겨도 동작한다.
-
----
+| `user` | `~/.claude/skills/` | `/Users/changhwan/.claude/skills/<name>/scripts/...` (절대 경로) |
+| `project` | `$PWD/.claude/skills/` | `${CLAUDE_PROJECT_DIR}/.claude/skills/<name>/scripts/...` |
 
 ## 워크플로우 분기
 
-사용자 요청을 분석해 아래 워크플로우 중 하나를 선택한다:
+목록·상세(list, show) → Read / 생성 → Create / 검증 → Validate / 리뷰·점수·평가 → Review / 수정 → Update / 삭제 → Delete
 
-```
-요청 분석
-    │
-    ├─ "목록", "어떤 스킬", "list"          → Read 워크플로우
-    ├─ "상세", "보여줘", "show"             → Read 워크플로우
-    ├─ "만들어줘", "생성", "create"         → Create 워크플로우
-    ├─ "검증", "validate", "확인"           → Validate 워크플로우
-    ├─ "리뷰", "review", "점수", "평가"     → Review 워크플로우
-    ├─ "수정", "변경", "update"             → Update 워크플로우
-    └─ "삭제", "제거", "delete"             → Delete 워크플로우
-```
-
----
-
-## Read 워크플로우
-
-### 목록 조회
+## Read
 
 ```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py list
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py list          # 결과를 | 이름 | 설명 | 모델 | 스크립트 수 | 표로 출력
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py show <name>   # frontmatter, 파일 목록, 검증 상태
 ```
 
-결과를 표 형식으로 출력한다:
-| 이름 | 설명 | 모델 | 스크립트 수 | 패키지 |
-
-### 상세 조회
-
-```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py show <name>
-```
-
-frontmatter, 파일 목록, 검증 상태를 출력한다.
-
----
-
-## Create 워크플로우
+## Create
 
 ### Step 1: 요구사항 파악
 
-새 스킬 생성 전 다음 체크리스트를 반드시 확인한다:
+- [ ] 스킬이 해결하는 문제가 명확한가(모호하면 묻는다)
+- [ ] `list`로 기존 스킬과 책임 범위가 겹치지 않는가
+- [ ] 스크립트가 필요한가(API 호출 → workflow, 지식 정리 → reference, CLI 래핑 → tool)
+- [ ] 병렬 Sub-Agent가 필요한가(독립적 데이터 수집 등 → `--with-agents`)
 
-- [ ] 스킬이 해결하는 문제가 명확한가? (모호하면 사용자에게 질문)
-- [ ] `list`로 기존 스킬 확인: 책임 범위가 겹치지 않는가?
-- [ ] 스크립트가 필요한가? (API 호출 → workflow, 지식 정리 → reference, CLI 래핑 → tool)
-- [ ] 병렬 Sub-Agent가 필요한가? (독립적 데이터 수집, 병렬 처리 등 → Step 3에서 `agents/` 생성)
+대화에서 명확하지 않으면 확인한다: 이름(명명 규칙은 `references/skill-conventions.md` 0절), 한국어 설명(사용 시점 포함), 타입(기본 workflow), 모델.
 
-#### Sub-Agent가 필요한 경우: 모델 자동 배정 (Claude 책임)
+#### Sub-Agent 모델 배정 (Claude가 판단)
 
-Claude는 각 Sub-Agent의 작업 성격을 분석하여 **명시적으로** 모델을 선택한다.
-사용자에게 모델을 묻지 말고, 아래 분류 신호로 직접 판단한다.
-
-**분류 rubric:**
+사용자에게 묻지 않고 각 agent 출력물에 필요한 추론 수준으로 고른다. 결정 근거를 한 줄로 알리고, sonnet ↔ opus 경계가 모호할 때만 단답형으로 묻는다.
 
 | 모델 | 작업 성격 신호 |
 |------|----------------|
-| `haiku` | 입력이 구조화/정형. 단순 변환·추출·필드 매핑·정규화·포맷팅. 판단 요소 거의 없음 |
-| `sonnet` (기본) | 다단계 분석, 파일 시스템 탐색, 패턴 매칭, 일반 코드 분석, 텍스트 가공 |
-| `opus` | 트레이드오프 평가, BP/원칙 해석, 아키텍처 판단, 우선순위 결정, 다중 신호 종합, 모호한 도메인 추론 |
+| `haiku` | 정형 입력의 단순 변환·추출·필드 매핑·포맷팅 (예: Notion API → JSON 추출) |
+| `sonnet` (기본) | 다단계 분석, 파일 탐색, 패턴 매칭, 일반 코드 분석 (예: PR 변경 패턴 분석) |
+| `opus` | 트레이드오프 평가, 원칙 해석, 아키텍처 판단, 다중 신호 종합 (예: 대안 비교 + 추천) |
 
-**판단 절차:**
-1. 각 agent 역할의 **출력물**을 머릿속으로 그려본다.
-2. "이 출력을 만들려면 어느 정도의 추론이 필요한가?" 질문.
-3. rubric의 신호와 매칭 → 모델 결정 + **결정 근거 한 줄을 사용자에게 알림**.
-4. **모호하면** (sonnet ↔ opus 사이가 불명확): 작업을 한 줄 요약하고 사용자에게 *단답형*으로 물어본 뒤 진행.
-
-**예시 분류:**
-- `notion-fetcher` (Notion API → JSON 추출) → `haiku` (구조화 추출)
-- `code-reviewer` (PR 변경사항 패턴 분석) → `sonnet` (일반 코드 분석)
-- `architect` (트레이드오프 비교 + 추천) → `opus` (판단 집약적)
-- `log-summarizer` (10MB 로그에서 에러 요약) → `sonnet`/`opus` 모호 → 사용자에게 질문
-
-이후 사용자에게 확인 (대화에서 명확하면 생략):
-- **스킬 이름** (아래 명명 규칙 참고, 필수)
-- **한국어 설명** (사용 시점 포함, 필수)
-- **타입**: `workflow` | `reference` | `tool` (기본: workflow)
-- **모델**: `sonnet` | `haiku` | 미지정
-
-#### 스킬 명명 규칙
-
-`references/skill-conventions.md` Section 0 "명명 규칙" 참조. 형식: `[namespace:]action[-target]`, lowercase only, 최대 64자.
-
-### Step 2: 스캐폴딩 생성 (스크립트)
-
-`--scope`를 명시하거나 (`user` | `project`), 생략하면 CWD 기반 auto-detect.
+### Step 2: 스캐폴딩 (스크립트)
 
 ```bash
-# User scope (전역): 기본 또는 CWD에 .claude/skills/ 없을 때 자동
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> \
-  --scope user \
-  --description "한국어 설명. 사용 시점: (1) ..." \
-  --model sonnet \
-  --type workflow
-
-# Project scope (현재 리포 전용): CWD/.claude/skills/<name>/ 생성
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> \
-  --scope project \
-  --description "한국어 설명. 사용 시점: (1) ..." \
-  --model sonnet \
-  --type workflow
-
-# 병렬 Sub-Agent가 필요한 경우 (Step 1 체크리스트에서 판단)
-# 형식: role[:model], model ∈ {haiku, sonnet, opus}, 생략 시 sonnet
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> \
-  --description "..." \
-  --type workflow \
-  --with-agents "collector:haiku,strategist:opus,parser"
-# → agents/agent-collector.md (haiku 추천), agent-strategist.md (opus 추천), agent-parser.md (sonnet 기본)
-# → frontmatter allowed-tools에 'Agent' 자동 주입
-# → 각 agent .md 상단에 'Recommended model' 표기 (Claude는 Agent 호출 시 model 인자로 명시)
-
-# 모델 선택 규칙:
-#   haiku  : 단순 변환/추출/형식화 (예: JSON 필드 추출, 텍스트 정규화)
-#   sonnet : 일반 분석/패턴 매칭/파일 탐색 (기본값)
-#   opus   : 깊은 판단/BP 해석/아키텍처 설계 (정성 평가, 트레이드오프 분석)
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py create <name> --scope user|project \
+  --description "한국어 설명. 사용 시점: (1) ..." --model sonnet --type workflow \
+  [--with-agents "collector:haiku,strategist:opus,parser"]
 ```
+
+`--with-agents`(형식 `role[:model]`, 생략 시 sonnet)는 `agents/agent-<role>.md`를 만들고 상단에 `Recommended model`을 적으며
+allowed-tools에 `Agent`를 넣는다. Agent 호출 시 그 모델을 `model` 인자로 명시한다.
 
 ### Step 3: 내용 작성 (Claude)
 
-`references/templates.md`의 해당 타입 템플릿을 참고하여:
+`references/templates.md`의 타입별 템플릿을 참고한다.
 
-1. **SKILL.md 수정**: TODO placeholder를 실제 내용으로 교체
-   - frontmatter: description 완성, allowed-tools 경로 수정
-   - body: 핵심 원칙, 워크플로우 단계, 주의사항 작성
-   - `TODO_script.py` 참조를 실제 스크립트명으로 변경
+1. SKILL.md의 TODO placeholder를 실제 내용으로 바꾼다(description, allowed-tools 경로, `TODO_script.py` 참조 포함)
+2. 스크립트가 필요하면 `scripts/TODO_script.py`를 실제 이름으로 바꿔 구현한다(`references/skill-conventions.md` 3절)
+3. body는 `references/skill-conventions.md` 5절을 따른다: 트리거는 description에만, body 500줄 이하, 마지막에 검증 Step,
+   관심사 분리(반복 bash → `scripts/`, 15줄 이상 출력 템플릿 → `assets/`, 10줄 이상 Agent 프롬프트 → `agents/`, raw 시스템 명령은 스크립트로 래핑)
+4. Agent 프롬프트는 `agents/agent-<역할>.md`에 `{변수명}` placeholder로 쓰고, body에 Read + 치환 지시를 둔다(`references/templates.md` "Agent 사용 시 참고 패턴")
 
-2. **스크립트 작성** (필요한 경우)
-   - `scripts/TODO_script.py` → `scripts/<actual>.py`로 이름 변경 후 구현
-   - `references/skill-conventions.md` Python 컨벤션 준수
+### Step 4: 검증
 
-3. **Body 품질 확인**: `references/skill-conventions.md` Section 5 "Body 작성의 5원칙" 준수
-   - Description에만 "언제 사용할지" 기술. Body에 반복 금지
-   - Body 500줄 이하. 초과 시 `references/`로 분리
-   - 개념 설명 대신 코드 블록/예시 사용
-   - 워크플로우 마지막에 검증 Step MUST 포함
+`python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py validate <name>`을 돌리고, 실패 항목을 고쳐 다시 돌린다.
 
-4. **관심사 분리**: inline bash → `scripts/`, 출력 템플릿 → `assets/`
-   - 3줄 이상의 반복 실행 bash → `scripts/*.sh`로 추출 (멱등성, `set -euo pipefail`)
-   - 15줄 이상의 출력 형식/템플릿 → `assets/*.md`로 분리
-   - `allowed-tools`에 raw 시스템 명령 금지 → 스크립트로 래핑
-
-5. **Agent 프롬프트 작성** (Step 1에서 병렬 Sub-Agent 필요로 판단된 경우)
-   - `agents/` 디렉토리를 생성하고 Agent별 프롬프트 파일 작성
-   - 파일 명명: `agent-<역할>.md` (lowercase, hyphen-case)
-   - 프롬프트 내 동적 값은 `{변수명}` placeholder 사용
-   - SKILL.md body에서 Read 참조 + 변수 치환 지시 작성
-   - frontmatter `allowed-tools`에 `- Agent` 추가
-   - 상세 패턴: `references/templates.md` "Agent 사용 시 참고 패턴" 섹션 참조
-
-### Step 4: 검증 (스크립트)
+## Validate
 
 ```bash
 python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py validate <name>
 ```
 
-검증 실패 항목을 수정한 후 다시 validate.
-
----
-
-## Validate 워크플로우
-
-```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py validate <name>
-```
-
-`valid: false`인 경우:
-1. 실패한 `checks` 항목 확인
-2. 각 항목 수정 (Edit/Write 도구 또는 update-frontmatter)
-3. 재검증
-
-### 성공 시
-
-`valid: true, warnings: []` 확인. warnings가 있으면 품질 개선 사항이므로 가능하면 해소.
-
-### 실패 시 체크별 수정 가이드
+`valid: true`이고 warnings가 없으면 끝이다. warnings는 품질 개선 사항이므로 가능하면 해소한다. `valid: false`면 실패한 `checks`의
+`detail`대로 고치고(Edit 또는 `update-frontmatter`) 다시 돌린다. 판단이 필요한 check:
 
 | check | 수정 방법 |
 |-------|-----------|
-| `skill_md_exists` | 스킬 디렉토리에 SKILL.md 생성 |
-| `frontmatter_present` | SKILL.md 최상단에 `---` 블록 추가 |
-| `required_fields` | frontmatter에 name/description 추가 |
 | `no_unknown_fields` | 허용: name, description, model, effort, allowed-tools, license, metadata, disable-model-invocation. 그 외 제거 |
-| `name_matches_dir` | name 값을 디렉토리명과 일치시키기 |
-| `name_format` | `^[a-z0-9]+([:-][a-z0-9]+)*$`, 최대 64자 |
-| `description_not_empty` | 사용 시점 + 트리거 키워드 포함한 설명 작성 |
-| `script_files_exist` | 스크립트 생성 또는 `update-frontmatter --remove-tool`로 경로 정리 |
-| `body_not_empty` | body에 워크플로우/내용 작성 |
+| `name_format` | `^[a-z0-9]+([:-][a-z0-9]+)*$`, 최대 64자, 디렉토리명과 일치 |
+| `script_files_exist` | 스크립트를 만들거나 `update-frontmatter --remove-tool`로 경로 정리 |
 
----
+TODO placeholder가 남아 있으면 warning이다(에러 아님).
 
-## Review 워크플로우
+## Review
 
-`validate`(구조 통과/실패)와 별개로, BP/병렬성/하네스 3개 차원의 **점수**와
-정성 평가를 산출한다.
+`validate`(구조 통과/실패)와 별개로 BP·병렬성·하네스 점수와 정성 평가를 낸다.
 
-### Step 1: 구조 점수 + 인벤토리 (스크립트)
+### Step 1: 구조 점수 + 인벤토리
 
 ```bash
 python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py review <name>
 ```
 
-출력:
-- `overall_score` / `scores.{bp,parallelism,harness,quality}` (0~100)
-- `findings_by_dimension`: 차원별 warnings/info
-- `inventory.agents`: 각 agent 파일에서 추출한 `Recommended model` (haiku/sonnet/opus/null)
-- `inventory`: body LOC, description 길이, agents/scripts/references 파일 목록
+출력: `overall_score`, `scores.{bp,parallelism,harness,quality}`(0~100), `findings_by_dimension`, `inventory`(body LOC, description 길이,
+agents/scripts/references 목록, `inventory.agents`의 `Recommended model`).
 
-### Step 1.5: Agent 모델 적합도 평가 (Claude 책임)
+### Step 1.5: Agent 모델 적합도 (Claude)
 
-`inventory.agents`에 각 agent 파일과 선언된 모델이 포함되어 있다.
-Claude는 다음 절차로 적합도를 직접 평가한다:
-
-1. 각 agent 파일을 Read하여 **역할 설명 + 절차**를 확인
-2. Create 워크플로우 Step 1의 모델 분류 rubric을 적용
-3. 선언된 모델과 권장 모델이 다르면 통합 리포트(Step 3)에 **불일치 항목**으로 명시
-   - 예: `agent-extractor.md` → 선언 `opus`, 권장 `haiku` (단순 JSON 추출 작업)
-4. `model: null`인 agent 파일 → "모델 미지정" 경고
-5. 모호한 케이스는 사용자에게 1줄 질문 후 진행
+각 agent 파일을 Read해 Create의 모델 배정 표를 적용한다. 선언과 권장이 다르면 Step 3 리포트에 불일치로 적고
+(예: `agent-extractor.md` 선언 `opus`, 권장 `haiku`), `model: null`은 "모델 미지정"으로 경고한다. 모호하면 1줄로 묻는다.
 
 ### Step 2: 정성 평가 (3개 Agent 병렬)
 
-`overall_score < 90` 또는 사용자가 "심층 리뷰"를 요청한 경우에만 진행한다.
-Step 1의 `inventory`를 입력으로 하여 아래 3개 Agent를 **단일 메시지에서 동시 호출**:
+`overall_score < 90`이거나 사용자가 "심층 리뷰"를 요청했을 때만 한다. Step 1의 `inventory` JSON을 그대로 넘기고
+단일 메시지에서 동시에 호출하며, 아래 `model` 인자를 반드시 전달한다.
 
-- **Agent A: BP 정성 평가** (subagent_type: `general-purpose`, **model: `opus`**)
-  - 이유: BP 해석 + 우선순위 판단이 필요한 정성 평가
-  - 입력: SKILL.md 본문 + Anthropic Agent Skills BP 체크리스트
-  - 출력: progressive disclosure / description 정확도 / scripts vs references 분리도
-
-- **Agent B: 컨텍스트 효율 분석** (subagent_type: `Explore`, **model: `sonnet`**)
-  - 이유: 파일 시스템 탐색 + 토큰 분포 계산 (기본 분석 작업)
-  - 입력: skill 디렉토리 전체
-  - 출력: 중복 콘텐츠, 미참조 references, body↔references 토큰 분포
-
-- **Agent C: 하네스 감사** (subagent_type: `general-purpose`, **model: `sonnet`**)
-  - 이유: 코드 패턴 매칭 + 알려진 안티패턴 검출 (기본 분석 작업)
-  - 입력: scripts/*.py + SKILL.md
-  - 출력: dry-run 누락, confirmation 부재, 멱등성 위반 가능성, allowed-tools 과대 권한
-
-각 Agent에 인벤토리 JSON을 그대로 전달하여 부모 컨텍스트 중복 로드를 회피한다.
-Agent tool 호출 시 위 명시된 `model` 인자를 반드시 전달한다.
+- **A: BP 정성 평가** (`general-purpose`, `opus`): SKILL.md + Agent Skills BP 체크리스트 → progressive disclosure, description 정확도, scripts/references 분리도
+- **B: 컨텍스트 효율** (`Explore`, `sonnet`): 스킬 디렉토리 전체 → 중복 콘텐츠, 미참조 references, body↔references 토큰 분포
+- **C: 하네스 감사** (`general-purpose`, `sonnet`): scripts/*.py + SKILL.md → dry-run 누락, confirmation 부재, 멱등성 위반, allowed-tools 과대 권한
 
 ### Step 3: 통합 리포트
 
-3개 Agent 결과 + 스크립트 점수를 표 형식으로 정리하고, 우선순위 개선안 제시.
+Agent 결과와 스크립트 점수를 표로 정리하고 우선순위 개선안을 낸다.
 
----
+## Update
 
-## Update 워크플로우
+### Frontmatter (스크립트)
 
-### Frontmatter 수정 (스크립트)
-
-`--dry-run`으로 변경 미리보기 후 적용을 권장한다.
+`--dry-run`으로 미리 본 뒤 적용한다.
 
 ```bash
-# 미리보기 (write 안 함)
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
-  --set-description "새 설명" --dry-run
-
-# 실제 적용
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
-  --set-description "새 설명"
-
-# 모델 변경
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
-  --set-model sonnet
-
-# allowed-tools 추가/제거
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
-  --add-tool "Bash(python3 /Users/changhwan/.claude/skills/<name>/scripts/new.py *)"
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> \
-  --remove-tool "Bash(old_tool *)"
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> --set-description "새 설명" --dry-run
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> --set-model sonnet
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> --add-tool "Bash(python3 /Users/changhwan/.claude/skills/<name>/scripts/new.py *)"
+python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py update-frontmatter <name> --remove-tool "Bash(old_tool *)"
 ```
 
-### Body 수정 (Claude)
+### Body (Claude)
 
-SKILL.md body는 Claude가 Edit 도구로 직접 수정한다:
-1. `show` 명령으로 현재 내용 + validation 상태 확인
-2. Read 도구로 전체 파일 읽기
-3. Edit 도구로 수정
-4. validate로 확인, warnings 0개가 될 때까지 반복
+`show`로 상태를 보고 Read → Edit → validate(warnings 0까지)를 반복한다. 기존 `##`/`###` 구조를 유지하고, 요청 범위 밖의 body 전체 리팩토링은 하지 않는다.
+스크립트 경로를 바꾸면 allowed-tools도 `update-frontmatter`로 함께 고친다.
 
-수정 범위별 가이드:
-- **섹션 추가**: 기존 구조(##/### 패턴) 유지, 워크플로우 끝에 삽입
-- **원칙/주의사항 변경**: 핵심 원칙 섹션만 수정, body 전체 리팩토링 금지
-- **스크립트 경로 변경**: frontmatter `allowed-tools`도 함께 `update-frontmatter`로 수정
+## Delete
 
----
-
-## Delete 워크플로우
-
-### Step 1: 현재 상태 확인
-
-```bash
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py show <name>
-```
-
-### Step 2: 사용자 동의 요청
-
-delete는 **hard delete (복구 불가, 백업 없음)** 이다. 사용자에게 명시적으로 확인한다:
-
-```
-스킬 '<name>'을 삭제합니다 (HARD DELETE: 복구 불가, 백업 없음).
-- 경로: <scope_dir>/<name>/
-
-계속할까요?
-```
-
-### Step 3: 삭제 실행
-
-```bash
-# 미리보기: 어떤 파일이 삭제되는지 확인 (write 안 함)
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name> --dry-run
-
-# hard delete (복구 불가)
-python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name>
-```
-
----
-
-## 주의사항
-
-- `allowed-tools`의 스크립트 경로: user scope는 **절대 경로**, project scope는 `${CLAUDE_PROJECT_DIR}/` 접두사 사용
-- TODO placeholder가 남아 있으면 validate가 warning을 출력한다 (에러는 아님)
-- 스킬 이름: `^[a-z0-9]+([:-][a-z0-9]+)*$` 형식, 최대 64자 (`manage_skill.py` 검증과 동일)
-- Python 스크립트는 `yaml`, `requests` 등 서드파티 라이브러리 사용 금지
-- delete는 hard delete: 백업 기능이 없으므로 삭제 시 영구 손실. 실행 전 사용자 동의 필수
-- `--scope` 미지정 시 CWD 기반 auto-detect: 프로젝트 디렉토리에서 user scope 작업이 필요하면 `--scope user` 명시
+1. `python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py show <name>`으로 상태를 확인한다
+2. `python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name> --dry-run`으로 지울 파일과 `referrers`(이 스킬 경로를 참조하는 다른 스킬·에이전트·docs)를 본다
+3. 사용자에게 명시적으로 확인한다:
+   ```
+   스킬 '<name>'을 삭제합니다 (HARD DELETE: 복구 불가, 백업 없음).
+   - 경로: <scope_dir>/<name>/
+   계속할까요?
+   ```
+4. 동의를 받은 뒤 `python3 /Users/changhwan/.claude/skills/skills:manage/scripts/manage_skill.py delete <name>`을 실행한다. 참조가 남아 있으면 스크립트가 거부하므로 참조를 먼저 정리한다.
+   사용자가 참조를 남긴 채 지우라고 명시한 경우에만 `--force-referenced`를 붙인다

@@ -1,13 +1,8 @@
 # SKILL.md 템플릿 모음
 
-세 가지 스킬 타입별 완성된 SKILL.md 템플릿.
-새 스킬 작성 시 해당 타입 템플릿을 기반으로 수정하세요.
-
----
+스킬 타입별 SKILL.md 골격. 타입 선택은 `skill-conventions.md` 7절.
 
 ## 타입 1: Workflow (순차 자동화)
-
-**적합한 경우**: API 호출, 파일 처리, 다단계 자동화 (eng-note, start-daily, commit 스타일)
 
 ```markdown
 ---
@@ -20,13 +15,9 @@ model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/my-workflow/scripts/main.py *)
   - Write(/tmp/my-workflow-data.json)
----
-
 # My Workflow Skill
 
 TODO: 핵심 동작 한 문장 (트리거 설명 X, description과 중복 금지)
-
----
 
 ## 핵심 원칙
 
@@ -34,8 +25,6 @@ TODO: 핵심 동작 한 문장 (트리거 설명 X, description과 중복 금지
 - 스크립트만 호출한다. 직접 API 호출 금지.
 - 토큰은 1Password 런타임 fetch.
 - 완료 후 결과 URL 또는 확인 메시지를 반드시 출력한다.
-
----
 
 ## 워크플로우
 
@@ -72,19 +61,13 @@ python3 /Users/changhwan/.claude/skills/my-workflow/scripts/main.py create \
 - URL: {url}
 ```
 
----
-
 ## 주의사항
 
 - 토큰이 없으면 스크립트가 실패한다. 1Password 로그인 상태 확인.
 - 중복 실행 방지: 같은 제목으로 두 번 생성하지 않는다.
 ```
 
----
-
 ## 타입 2: Reference (도메인 지식)
-
-**적합한 경우**: 특정 도메인 전문 지식을 Claude에게 주입 (gpu-analysis 스타일)
 
 ```markdown
 ---
@@ -97,13 +80,9 @@ model: sonnet
 allowed-tools:
   - Bash(kubectl *)
   - Bash(python3 /Users/changhwan/.claude/skills/my-reference/scripts/query.py *)
----
-
 # My Reference Skill
 
 도메인 X의 현황 분석 및 진단을 수행하는 스킬.
-
----
 
 ## 도메인 지식
 
@@ -119,8 +98,6 @@ allowed-tools:
 
 - 환경: prod / staging / dev
 - 주요 엔드포인트: ...
-
----
 
 ## 분석 워크플로우
 
@@ -146,8 +123,6 @@ python3 /Users/changhwan/.claude/skills/my-reference/scripts/query.py metrics
 - 정상: "현재 상태 양호"
 - 이상 감지: 구체적인 조치 방법 제시
 
----
-
 ## 출력 형식
 
 ```
@@ -162,19 +137,13 @@ python3 /Users/changhwan/.claude/skills/my-reference/scripts/query.py metrics
 - 조치 1
 ```
 
----
-
 ## 참고 자료
 
 - 공식 문서: https://...
 - 내부 위키: ...
 ```
 
----
-
 ## 타입 3: Tool (단순 CLI 래퍼)
-
-**적합한 경우**: 기존 스크립트나 CLI의 단순 래퍼 (send-plan 스타일)
 
 ```markdown
 ---
@@ -186,13 +155,9 @@ description: |
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/my-tool/scripts/tool.py *)
   - Read
----
-
 # My Tool
 
 특정 파일을 대상 서비스로 전송하거나 처리하는 도구.
-
----
 
 ## 사용법
 
@@ -204,8 +169,6 @@ python3 /Users/changhwan/.claude/skills/my-tool/scripts/tool.py \
   --target destination
 ```
 
----
-
 ## 옵션
 
 | 옵션 | 설명 | 기본값 |
@@ -214,8 +177,6 @@ python3 /Users/changhwan/.claude/skills/my-tool/scripts/tool.py \
 | `--target` | 전송 대상 | - |
 | `--dry-run` | 실제 전송 없이 미리보기 | false |
 
----
-
 ## 워크플로우
 
 1. Read 도구로 입력 파일 내용 확인
@@ -223,66 +184,17 @@ python3 /Users/changhwan/.claude/skills/my-tool/scripts/tool.py \
 3. 스크립트 실행
 4. 결과 URL 또는 확인 메시지 출력
 
----
-
-## 출력 예시
-
-성공:
-```json
-{
-  "success": true,
-  "url": "https://...",
-  "message": "전송 완료"
-}
-```
-
----
-
 ## 주의사항
 
 - `--input` 경로가 존재해야 한다.
 - 대상이 명확하지 않으면 사용자에게 확인한다.
 ```
 
----
-
-## 타입 선택 가이드
-
-```
-요청 분석
-    │
-    ├─ 외부 API 호출 + 다단계 처리?  → workflow
-    │
-    ├─ 도메인 지식 + 쿼리/분석?      → reference
-    │
-    └─ 단순 파일/데이터 처리?        → tool
-```
-
----
-
 ## Agent 사용 시 참고 패턴
 
-Workflow 스킬에서 병렬 데이터 수집이 필요할 때의 확장 패턴.
+독립 소스에서 동시에 수집하고 각 수집 프롬프트가 10줄 이상이면 `agents/`로 분리한다.
 
-**판단 기준**: 독립적인 소스(Notion, Obsidian, 외부 API 등)에서 데이터를 동시에 수집해야 하고, 각 수집 로직이 10줄 이상의 프롬프트를 요구할 때 → `agents/` 분리.
-
-### frontmatter 예시 (Agent 포함)
-
-```yaml
----
-name: my-workflow
-description: |
-  여러 소스에서 병렬로 데이터를 수집하는 워크플로우.
-  사용 시점: (1) 상황 1, (2) 상황 2.
-  트리거 키워드: "키워드", "/my-workflow".
-model: sonnet
-allowed-tools:
-  - Agent
-  - Bash(python3 /Users/changhwan/.claude/skills/my-workflow/scripts/main.py *)
-  - Read
-  - Write
----
-```
+frontmatter `allowed-tools`에 `- Agent`를 추가한다.
 
 ### agents/ 파일 참조 패턴 (SKILL.md body)
 
