@@ -77,7 +77,7 @@ SECTION_HEADINGS = [
 RUN_LOG_HEADING = "실행 기록"
 PLAN_SUBHEADING = "실행 계획"
 HISTORY_SUBHEADING = "진행 기록"
-# review: task:review·alfred gate 출력처럼 "### 성과 측정 / ### ...성과 문장 / ### 성장 회고"를 한 문자열로
+# review: task:review 출력처럼 "### 성과 측정 / ### ...성과 문장 / ### 성장 회고"를 한 문자열로
 # 받는 편의 키. 하위 heading으로 나눠 review_* 세 섹션에 넣는다(REVIEW_SPLIT_RULES).
 SECTION_KEYS = [key for key, _, _ in SECTION_HEADINGS] + ["plan", "history", "review"]
 REVIEW_SPLIT_RULES = [("성과 측정", "review_metrics"), ("성과 문장", "review_par"),

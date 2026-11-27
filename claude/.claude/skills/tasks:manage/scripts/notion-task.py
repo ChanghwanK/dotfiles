@@ -2,14 +2,13 @@
 """
 Notion Task CLI (Write + Query)
 
-공유 라이브러리 스크립트: alfred, tasks:capture, tasks:tech-spec,
+공유 라이브러리 스크립트: tasks:capture, tasks:tech-spec,
 daily:start, daily:retrospective 스킬에서 참조한다.
 
 Usage:
   # 조회
   python3 notion-task.py search-tasks [--status all|active]
   python3 notion-task.py tasks [--week current|previous|next] [--month YYYY-MM] [--status in-progress|upcoming|all]
-  python3 notion-task.py calendar-pending   # 개인(MY)+Due+미완료: 캘린더 동기화 대상
 
   # 생성
   python3 notion-task.py create-task --name "이름" --category "WORK" [--type Task|Project] [--due "YYYY-MM-DD"] [--description "설명"] [--sections-file PATH | --simple]
@@ -85,7 +84,7 @@ WHY_SECTION_KEYS = ("problem", "root_cause", "value")
 VALID_STATUSES = {"해야할 것", "진행 중", "완료", "대기"}
 CATEGORY_OPTIONS = {"WORK", "MY"}
 TYPE_OPTIONS = {"Task", "Project"}
-# DB 목록에서 제목만 보고 Task와 Project를 구분하는 팀 표기. 생성 경로(capture, alfred)가 모두 이
+# DB 목록에서 제목만 보고 Task와 Project를 구분하는 팀 표기. 생성 경로가 모두 이
 # 스크립트를 거치므로 여기서 한 번만 붙인다.
 TITLE_PREFIX_BY_TYPE = {"Task": "#Task - ", "Project": "#Project - "}
 # 호출자가 직접 붙였거나 표기가 흔들린 기존 접두어("#Task -  ", "[#Task]")를 떼고 다시 붙여 중복을 막는다.
@@ -301,37 +300,6 @@ def query_active_tasks(token):
     }
     resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
     return sort_tasks_by_status_then_due(_parse_page(page) for page in resp.get("results", []))
-
-
-def query_calendar_pending(token):
-    """Google Calendar 동기화 대상 Task 조회.
-
-    대상 규약: 개인(Group=MY) AND Due Date 존재 AND 미완료(상태 != 완료).
-    Due Date 없는 Task는 종일 이벤트로 표현할 수 없어 제외하고, 완료 Task는
-    캘린더에서 삭제 대상이므로 desired set에서 빠진다(Alfred reconcile이 처리).
-    """
-    body = {
-        "filter": {
-            "and": [
-                {"property": "Group", "select": {"equals": "MY"}},
-                {"property": "Due Date", "date": {"is_not_empty": True}},
-                {"property": "상태", "status": {"does_not_equal": "완료"}},
-            ]
-        },
-        "sorts": [{"property": "Due Date", "direction": "ascending"}],
-    }
-    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
-    return [_parse_page(page) for page in resp.get("results", [])]
-
-
-def cmd_calendar_pending(args):
-    """캘린더 동기화 desired set 출력: Alfred calendar 모드가 reconcile 입력으로 사용."""
-    token = get_token()
-    results = query_calendar_pending(token)
-    print(json.dumps({
-        "results": results,
-        "total": len(results),
-    }, ensure_ascii=False, indent=2))
 
 
 def cmd_search_tasks(args):
@@ -700,25 +668,6 @@ def cmd_read_page(args):
     }, ensure_ascii=False, indent=2))
 
 
-def cmd_working_note(args):
-    """Task에 연결된 Engineering Note(Working Note relation) id를 반환한다.
-
-    실행 계획·실행 기록은 Task 본문이 아니라 이 노트에 쌓이므로, 재개(task:resume)와
-    완료 게이트(alfred)가 노트를 읽거나 이어 쓰기 전에 id를 얻는 단일 경로로 쓴다.
-    연결이 없으면 note_page_id는 null이다(신규 생성 여부는 호출하는 스킬이 정한다).
-    """
-    token = get_token()
-    page = notion_request(token, "GET", f"/pages/{args.page_id}")
-    relations = page.get("properties", {}).get("Working Note", {}).get("relation", [])
-    note_ids = [r["id"] for r in relations]
-    print(json.dumps({
-        "success": True,
-        "page_id": args.page_id,
-        "note_page_id": note_ids[0] if note_ids else None,
-        "note_page_ids": note_ids,
-    }, ensure_ascii=False, indent=2))
-
-
 # ─────────────────────────────────────────────
 # 상태 변경
 # ─────────────────────────────────────────────
@@ -737,7 +686,7 @@ def cmd_update_status(args):
     # write하면 Notion이 400을 내 상태 변경까지 통째로 실패하므로(사용자가
     # UI에서 스키마를 바꾸면 CLI가 죽는 구조였다) 존재할 때만 동기화한다.
     # 출력의 done은 DB 속성이 아니라 상태에서 파생하므로, Done 유무와 무관하게
-    # 완료 여부를 정확히 보고한다(alfred 완료 게이트의 검증 계약 유지).
+    # 완료 여부를 정확히 보고한다.
     is_done = args.status == "완료"
     is_starting = args.status == "진행 중"
     properties = {"상태": {"status": {"name": args.status}}}
@@ -763,7 +712,7 @@ def cmd_update_status(args):
 
     # 진행 중으로 전환할 때(작업 착수 시점) started_at이 비어 있으면 착수일(오늘, KST)로 채운다.
     # 착수 시각이 없으면 "언제 시작했는지"가 사라져 리드타임(착수→완료) 분석이 불가능하다.
-    # Alfred resume loader의 '해야할 것' → '진행 중' 전이가 이 명령을 타므로 착수일이 자동 기록된다.
+    # '해야할 것' → '진행 중' 전이가 이 명령을 타면 착수일이 자동 기록된다.
     # '해야할 것' → '완료' 직행(진행 중 생략)도 backfill 대상이다: 착수일이 비면 완료 Task의
     # 리드타임 계산에서 통째로 누락되므로, 이 경우 완료일(오늘) = 착수일로 함께 박는다.
     # 이미 started_at이 있으면 최초 착수 시점을 보존한다(재개해도 덮어쓰지 않는다, 멱등).
@@ -1262,12 +1211,6 @@ def main():
     tasks_p.add_argument("--month", default=None, help="YYYY-MM (--week 대신 사용)")
     tasks_p.add_argument("--status", choices=["in-progress", "upcoming", "all"], default="all")
 
-    # calendar-pending
-    subparsers.add_parser(
-        "calendar-pending",
-        help="캘린더 동기화 대상(개인 MY + Due 존재 + 미완료) Task 조회",
-    )
-
     # create-task
     ct = subparsers.add_parser("create-task", help="새 Task 생성")
     ct.add_argument("--name", required=True, help="Task 이름 (Type별 접두어는 자동으로 붙으므로 빼고 넘긴다)")
@@ -1301,11 +1244,6 @@ def main():
     # read-page
     rp = subparsers.add_parser("read-page", help="페이지 본문을 Markdown으로 조회 (Task·노트 공용)")
     rp.add_argument("--page-id", required=True, help="Notion page ID")
-
-    # working-note
-    wn = subparsers.add_parser("working-note",
-                                help="Task에 연결된 Engineering Note(Working Note relation) id 조회")
-    wn.add_argument("--page-id", required=True, help="Task page ID")
 
     # link-related-task
     lr = subparsers.add_parser("link-related-task",
@@ -1349,11 +1287,9 @@ def main():
     dispatch = {
         "search-tasks": cmd_search_tasks,
         "tasks": cmd_tasks,
-        "calendar-pending": cmd_calendar_pending,
         "create-task": cmd_create_task,
         "update-why": cmd_update_why,
         "read-page": cmd_read_page,
-        "working-note": cmd_working_note,
         "update-status": cmd_update_status,
         "link-related-task": cmd_link_related_task,
         "delete-task": cmd_delete_task,

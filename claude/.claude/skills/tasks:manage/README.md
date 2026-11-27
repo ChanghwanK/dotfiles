@@ -5,7 +5,7 @@
 
 - `scripts/notion-task.py`: Task 생성·조회·상태 변경·연결. tasks:capture, daily:start, daily:retrospective,
   notion:add-engineering-note, task:review, tasks:tech-spec이 부른다
-- `scripts/task-progress.py`: Task 진행 기록 (`test_task_progress.py`가 테스트)
+- `scripts/task-progress.py`: Task 진행 조회 (daily:retrospective가 `today`를 부른다)
 
 ## 지우거나 옮기기 전에
 
