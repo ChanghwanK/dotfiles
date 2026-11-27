@@ -1,10 +1,7 @@
 ---
 name: tasks:tech-spec
 description: |
-  인프라/DevOps Tech Spec 스킬. research:deep으로 자료를 모아 1차 계획을 쓰고, codex와 Claude 서브에이전트가 자료·계획을
-  교차 리뷰한 뒤, 고정 H2 포맷(Objective 콜아웃 + Background / Goals & KeyResult / 설계 및 계획 / 예상 질문 정리 / 마일스톤)으로
-  Tech Spec을 작성한다. 결과는 HTML Artifact와 콘솔로 출력하고(Notion에는 직접 쓰지 않는다, Notion 작성은 작업자가 한다), codex·Claude 리뷰 → 반영을 수렴할 때까지 반복한다.
-  사용자 결정이 필요한 항목은 `### 결정 필요` 표로 모으고 HTML 상단에 강조한다.
+  인프라/DevOps Tech Spec 작성 스킬. research:deep 자료 조사, codex·Claude 교차 리뷰를 거쳐 고정 포맷 Tech Spec을 HTML Artifact로 낸다(Notion에는 쓰지 않는다).
   사용 시점: (1) 인프라 변경 계획 수립, (2) 설계 의사결정 구조화, (3) 새 프로젝트 킥오프, (4) 대화 내용을 스펙으로 정리,
   (5) notion:add-engineering-note가 grill-me 인터뷰 뒤 호출(eng-note 모드).
   트리거 키워드: "tech spec", "테크 스펙", "기술 스펙", "스펙 문서", "tech-spec 작성", "/tasks:tech-spec".
@@ -95,8 +92,9 @@ Quick 모드도 lint, HTML + 콘솔 출력, codex·Claude 스펙 리뷰는 생�
 | A: 클러스터 현재 상태 | sphere/circle이 특정되고 현재 Pod/Deployment 상태를 모를 때 | `$SK/agents/agent-cluster-status.md` |
 | B: 메트릭 현황 | 에러율, 지연, 리소스, 커넥션 수, 비용 수치가 필요할 때 | `$SK/agents/agent-metrics-check.md` |
 | C: 코드베이스 탐색 | values.yaml, 차트 버전, 앱 설정(드라이버·풀)을 확인해야 할 때 | `$SK/agents/agent-codebase-explore.md` |
+| D: 팀 표준 초기 검증 | 신규 리소스·Managed Service 도입, 네트워크 경로(cross-zone·NAT) 변경, dev/stg 스펙 변경 가능성이 있을 때 | `$SK/agents/agent-standard-validation.md` |
 
-- 각 Agent 프롬프트 끝에 "결과를 `{run_dir}/context/<A|B|C>-<주제>.md`에 Write하고, 모든 사실에 조회 명령·쿼리·파일 경로를 붙여라"를 덧붙인다
+- 각 Agent 프롬프트 끝에 "결과를 `{run_dir}/context/<A|B|C|D>-<주제>.md`에 Write하고, 모든 사실에 조회 명령·쿼리·파일 경로를 붙여라"를 덧붙인다
 - kubernetes 레포에서 작업 중이면 `devops-wiki/INDEX.md`에서 관련 guardrail·issue 문서를 직접 찾아 읽고 요점을 `context/wiki.md`에 쓴다
 - 대화에 이미 조회로 확보한 수치가 있으면 그 Agent는 생략하고 `context/conversation.md`에 출처와 함께 옮긴다.
   이번 세션에서 Claude가 쓴 요약 문장은 측정이 아니므로 생략 근거가 되지 않는다
@@ -162,7 +160,7 @@ kubernetes 레포에서는 `devops-wiki/03-guardrails/rca-shared-criteria.md` §
 
 ## 문제와 근거          ← 번호 목록, 근거마다 context 파일·쿼리·claim id
 ## 가설                 ← 무엇을 하면 → 어떤 동작 때문에 → 어떤 결과
-## 접근안 후보와 추천    ← 2~3개, 안정성·비용·운영 부담·되돌리기 비교, 추천과 이유
+## 접근안 후보와 추천    ← 2~3개, 안정성·비용·운영 부담·되돌리기 비교, 추천과 이유. Agent D의 ⚠️/❌ 항목은 해당 후보에 근거와 함께 적는다
 ## 미결정과 판단 기준
 ## 검증 아이디어         ← Key Result 후보와 각각을 어떻게·언제 판정할지
 ## 문제 검증 게이트      ← G1~G4 결과 표(통과 / 해당 없음 / 걸림 → 해소 / 걸림 → 미해소)
@@ -391,7 +389,7 @@ codex는 ChatGPT 플랜의 5시간 단위 한도와 주간 한도를 함께 쓴�
 - codex 모델은 모든 호출에서 `gpt-6.1-sol`이 기본값이다. reasoning effort 기본값은 리뷰(`codex_review.py`)와 수집 상호 검토(`codex_research.py cross-review`)가 `high`,
   독립 수집(`codex_research.py collect`)이 `medium`이다. 주장 검증(research:deep `codex_verify.py`)은 위 절차대로 `--effort medium`을 넘긴다
 - codex 호출은 Bash 포그라운드 한도(600초)를 넘기 쉬우므로 반드시 `run_in_background=true`로 실행한다. `codex` 셸 alias를 직접 쓰지 않는다(스크립트가 `-s read-only`로 실행)
-- 비용: Standard 1회에 research:deep(리서처 3~5개 + codex 검증), 사내 조사 Agent 0~3개, 리뷰 라운드마다 codex 1회 + Claude Agent 1개가 든다.
+- 비용: Standard 1회에 research:deep(리서처 3~5개 + codex 검증), 사내 조사 Agent 0~4개, 리뷰 라운드마다 codex 1회 + Claude Agent 1개가 든다.
   단순 운영 변경이면 Quick 모드를 권한다
 - 기존 Obsidian 스펙은 `tasks:tech-spec-ops`와 `scripts/tech-spec.py`가 다룬다(과거 문서용). 이 스킬은 Obsidian에 저장하지 않는다
 - 2026-11-23 개편 전 버전은 `~/.claude/skills-backup-tasks-tech-spec-20261123/`에 있다

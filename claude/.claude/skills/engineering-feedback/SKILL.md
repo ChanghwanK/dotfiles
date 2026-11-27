@@ -1,14 +1,10 @@
 ---
 name: engineering-feedback
 description: |
-  엔지니어링 피드백 코칭. 사용자가 이미 한 행동·의사결정·업무 방식을 Tech Coach 또는 Career Coach 서브에이전트가
-  독립적으로 평가하고(Assessment / What Went Well / What Could Be Better), 반론 토론과 Keep/Change 정리까지 잇는다.
-  사용 시점: 사용자가 자신이 내린 판단이나 한 행동에 대해 "피드백해 줘", "합리적이었는지 평가해 줘", "내가 잘한 건지 봐 줘"처럼
-  평가를 명시적으로 요청할 때, "tech coach", "career coach", "/engineering-feedback"을 부를 때.
-  격주 회고 모드: "격주 코칭", "커리어 코칭 회고", "피드백 회고", "/engineering-feedback review"로 부르면 지난 Change 점검과
-  지난 2주 일지·세션 로그에서 사례 후보 고르기로 시작한다.
-  비대상: 지금 할 작업의 설계·구현 요청, 코드·PR 리뷰, 메커니즘 가설 검증(/review), 설계 문서 스트레스 테스트(grill-me),
-  하루 회고(daily:retrospective), 성과 측정·PAR(task:review), 일반 기술 질문.
+  엔지니어링 피드백 코칭. 사용자가 이미 한 행동·의사결정을 Tech Coach 또는 Career Coach가 독립 평가하고 반론 토론, Keep/Change 정리까지 잇는다.
+  사용 시점: 자신이 내린 판단·행동의 평가를 명시적으로 요청할 때("피드백해 줘", "합리적이었는지 평가해 줘", "내가 잘한 건지 봐 줘"),
+  격주 회고("격주 코칭", "커리어 코칭 회고", "피드백 회고"). 트리거: "tech coach", "career coach", "/engineering-feedback", "/engineering-feedback review".
+  비대상: 지금 할 작업의 설계·구현, 코드·PR 리뷰, 메커니즘 검증(/review), 설계 문서 검증(grill-me), 하루 회고, 성과 문장(task:review), 일반 기술 질문.
 argument-hint: "[tech|career|both|review] <평가받을 상황과 판단>"
 ---
 

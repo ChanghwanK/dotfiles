@@ -75,17 +75,16 @@ PR 목록에서 blast radius를 판단하는 1차 신호다. 그래서 title은 
 
 ### Step 1: Pre-flight 확인
 
-병렬 실행:
+각각 별도 명령으로 실행한다(`&&`·`;`로 묶지 않는다. worktree 격리 세션은 복합 git 명령을 거부한다):
 
 ```bash
 git branch --show-current
 git status --porcelain
-git log main...HEAD --oneline
 ```
 
 **중단 조건:**
 - 브랜치 = `main` → "main 브랜치에서는 PR을 생성할 수 없습니다. feature 브랜치를 사용하세요"
-- `git log` 비어있음 → "main 대비 커밋이 없습니다. 먼저 `git:commit`으로 커밋하세요"
+- Step 2 결과의 `commit_count`가 0 → "origin/main 대비 커밋이 없습니다. 먼저 `git:commit`으로 커밋하세요"
 
 **경고 후 계속:**
 - uncommitted 파일 존재 → "⚠️ 미커밋 변경사항이 있습니다 (PR에 포함되지 않음)"
@@ -93,13 +92,18 @@ git log main...HEAD --oneline
 ### Step 2: 변경 분석
 
 ```bash
-git diff main...HEAD --name-status > /tmp/git_pr_diff.txt
-git log main...HEAD --format="%H %s" > /tmp/git_pr_log.txt
-python3 /Users/changhwan/.claude/skills/git:pr/scripts/generate_pr.py \
-  analyze /tmp/git_pr_diff.txt /tmp/git_pr_log.txt
+python3 /Users/changhwan/.claude/skills/git:pr/scripts/generate_pr.py analyze
 ```
 
+스크립트가 `origin/main`을 fetch한 뒤 diff(`origin/main...HEAD`)와 커밋(`origin/main..HEAD`)을 직접 읽는다.
+diff를 파일로 리다이렉트하거나 git 명령을 따로 조합하지 않는다.
+- 비교 기준은 로컬 `main`이 아니라 `origin/main`이다. worktree에서는 로컬 main이 뒤처져 있는 경우가 많아, 로컬 main 기준이면 남의 커밋 수백 개가 섞인다
+- base가 다른 레포는 `--base origin/<branch>`, 오프라인이면 `--no-fetch`를 붙인다
+- 비정상 종료(exit 1)면 stderr의 git 오류를 그대로 보여 주고 중단한다
+
 JSON 출력 필드:
+- `base`, `fetched`: 비교 기준과 fetch 성공 여부. `fetched: false`면 FYI 블록에 "origin/main fetch 실패: 원격 최신 상태가 아닐 수 있음"을 한 줄 덧붙인다
+- `commit_count`: origin/main 대비 이 브랜치의 커밋 수(Step 1 중단 조건에 쓴다)
 - `title_prefix`: `[env] sphere/circle` (diff에서 결정된 고정 슬롯, 그대로 사용한다)
 - `suggested_title`: `title_prefix` + `: ` + subject `<!-- FILL_ME ... -->` placeholder
 - `subject_hints`: 커밋 subject에서 `type(scope):`를 벗겨낸 목록. **title 후보가 아니라 참고 재료다** (그대로 복사하지 않는다)
@@ -117,8 +121,10 @@ JSON 출력 필드:
 최우선 설계 기준이다.
 
 ```bash
-python3 devops-wiki/scripts/verify-impact.py --changed-files "$(git diff main...HEAD --name-only)"
+python3 /Users/changhwan/.claude/skills/git:pr/scripts/generate_pr.py wiki-impact
 ```
+
+레포 루트에 `devops-wiki/scripts/verify-impact.py`가 없으면(kubernetes 외 레포) 아무것도 출력하지 않고 끝난다.
 
 출력이 있으면(비어있지 않으면) Step 4의 FYI 블록 직전에 그대로 보여준다:
 

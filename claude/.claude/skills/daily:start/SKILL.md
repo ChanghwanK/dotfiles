@@ -1,11 +1,8 @@
 ---
 name: daily:start
 description: |
-  하루 시작 스킬 (Task Manage 코치의 절차 본체). 어제 실제로 한 작업(Claude 세션 로그, GitHub PR)을
-  작업 스레드로 정리하고, 어디서 멈췄는지와 오늘 어디서부터 이어 갈지를 Top 3로 제안한다.
-  밤사이 Slack #notification_infra 알럿, Gmail, 어제 Notion 회고, Notion Task, 오늘 일정도 함께 본다.
-  긴급 대응이 필요한 이슈는 맨 앞에 둔다. 어제 일지 Tomorrow를 오늘 일지 Yesterday에 옮겨 적고, 확인을 받아 오늘 일지 할 일 칸(Today)에 덧붙이고 메일 노이즈를 보관한다.
-  결과는 날짜별 HTML Artifact로 게시한다.
+  하루 시작 스킬(Task Manage 코치의 절차 본체). 어제 한 작업(세션 로그, PR)을 스레드로 정리해 오늘 이어 갈 Top 3를 제안하고,
+  밤사이 알럿·메일·어제 회고·Task·일정을 함께 본다. 긴급 이슈를 맨 앞에 두고 결과를 날짜별 HTML Artifact로 게시하며, 확인 후 오늘 일지에 반영한다.
   사용 시점: (1) 하루 시작, (2) 어제 하던 작업 이어 가기, (3) 밤사이 이슈 확인.
   트리거 키워드: "하루 시작", "daily start", "오늘 할 것들", "오늘 할 일 정리", "밤사이 이슈",
   "어제 뭐 했지", "이어서 할 일", "업무 일지", "보드 반영해", "/daily:start".

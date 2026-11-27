@@ -28,7 +28,7 @@ EOF
 }
 
 # 기본값
-DATE=$(date -u -v-1d +%Y-%m-%d)  # 어제 (UTC 기준, macOS)
+DATE=$(date -v-1d +%Y-%m-%d)  # 어제 (로컬 시간 기준: pmset 로그 시각이 로컬 시간이다. -u를 쓰면 KST 09시 전에 그저께가 된다)
 START="00:00:00"
 END="23:59:59"
 FILTER=""

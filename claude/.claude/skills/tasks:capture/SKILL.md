@@ -1,14 +1,10 @@
 ---
 name: tasks:capture
 description: |
-  작업 중 떠오른 아이디어/할 일을 Notion Task DB에 즉시 캡처하는 스킬.
-  Task 템플릿(버튼·목차·문제/근본 원인/기대 가치/작업 Context)을 기본 적용하고, 세션 맥락에서 섹션을 합성한다.
-  사용자가 "pass" 또는 "simple"을 명시할 때만 템플릿 없이 제목만으로 만든다.
-  사용 시점: (1) 작업 중 갑자기 떠오른 아이디어 기록, (2) 나중에 할 일 빠르게 메모,
-  (3) 백로그 아이디어 적재, (4) 업무 노트를 당장 쓰지 않을 작업의 맥락 보존.
-  트리거 키워드: "캡처", "capture", "나중에 할 일", "아이디어", "메모해 둬",
-  "tasks:capture", "할 일 메모", "잊기 전에",
-  "Task 추가", "새 Task", "할 일 추가", "Task 만들어줘", "태스크 추가".
+  작업 중 떠오른 아이디어·할 일을 Notion Task DB에 즉시 캡처하는 스킬. Task 템플릿을 기본 적용하고 세션 맥락으로 섹션을 채운다("pass"/"simple"이면 제목만).
+  사용 시점: 떠오른 아이디어 기록, 나중에 할 일 메모, 백로그 적재, 당장 노트를 쓰지 않을 작업의 맥락 보존.
+  트리거 키워드: "캡처", "capture", "나중에 할 일", "아이디어", "메모해 둬", "할 일 메모", "잊기 전에",
+  "Task 추가", "새 Task", "할 일 추가", "Task 만들어줘", "태스크 추가", "/tasks:capture".
 model: sonnet
 allowed-tools:
   - Bash(python3 /Users/changhwan/.claude/skills/tasks:manage/scripts/notion-task.py create-task *)

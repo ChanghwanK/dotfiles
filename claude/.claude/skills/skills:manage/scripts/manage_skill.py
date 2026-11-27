@@ -14,6 +14,21 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+SCAFFOLD_TODO_RE = re.compile(r"\bTODO(?::|\s-\s|_)")
+
+
+def registered_agent_name(agent_file: Path):
+    """agents/*.md frontmatter의 name 값을 돌려준다. frontmatter나 name이 없으면 None."""
+    try:
+        text = agent_file.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.match(r"---\n(.*?)\n---", text, flags=re.S)
+    if not m:
+        return None
+    name = re.search(r"^name:\s*(\S+)\s*$", m.group(1), flags=re.M)
+    return name.group(1) if name else None
+
 USER_SKILLS_DIR = Path.home() / ".claude" / "skills"
 
 
@@ -48,7 +63,11 @@ def expand_project_dir(path_str: str) -> str:
 
 
 REQUIRED_FIELDS = {"name", "description"}
-ALLOWED_FIELDS = {"name", "description", "model", "effort", "allowed-tools", "license", "metadata", "disable-model-invocation"}
+# Claude Code 공식 SKILL.md frontmatter 필드(argument-hint, user-invocable, context, agent 포함).
+ALLOWED_FIELDS = {
+    "name", "description", "model", "effort", "allowed-tools", "license", "metadata",
+    "disable-model-invocation", "argument-hint", "user-invocable", "context", "agent",
+}
 NAME_PATTERN = re.compile(r"^[a-z0-9]+([:-][a-z0-9]+)*$")
 MAX_NAME_LEN = 64
 
@@ -322,7 +341,11 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
     chk("body_not_empty", bool(body.strip()), "SKILL.md body must not be empty")
 
     # Warnings (non-blocking)
-    if "TODO" in body or "TODO" in str(fm):
+    # scaffold가 남기는 꼴(TODO:, TODO -, TODO_xxx)만 잡는다. 코드 블록·인라인 코드 안의
+    # TODO는 설명용 예시라서 제외한다(skills:manage 자신이 TODO를 설명하다가 오탐되던 문제).
+    body_prose = re.sub(r"```.*?```", "", body, flags=re.S)
+    body_prose = re.sub(r"`[^`\n]*`", "", body_prose)
+    if SCAFFOLD_TODO_RE.search(body_prose) or SCAFFOLD_TODO_RE.search(desc or ""):
         warnings.append("TODO placeholders still present in SKILL.md")
     if len(desc) > 300:
         warnings.append(f"description is long ({len(desc)} chars), consider shortening")
@@ -380,14 +403,21 @@ def _validate_checks(name: str, sp: Path, fm: dict, body: str) -> tuple[list, li
     if agents_dir.exists() and agents_dir.is_dir():
         agent_files = list(agents_dir.glob("*.md"))
         has_agent_files = bool(agent_files)
-        if not agent_files:
+        # agents/openai.yaml 같은 비 .md 매니페스트만 있어도 빈 디렉토리가 아니다.
+        if not any(f.is_file() for f in agents_dir.iterdir()):
             warnings.append(
                 "agents/ 디렉토리가 비어 있음: .md 프롬프트 파일을 추가하거나 디렉토리를 삭제하세요"
             )
         else:
             # W4: agents/*.md files not referenced in body
+            # frontmatter에 name:이 있는 파일은 플러그인 서브에이전트로 등록되어
+            # subagent_type(<skill>:<name>)으로 불린다. 그 이름이 body에 있으면 참조된 것으로 본다.
             for agent_file in agent_files:
-                if agent_file.name not in body:
+                agent_name = registered_agent_name(agent_file)
+                referenced = agent_file.name in body or (
+                    agent_name is not None and f"{sp.name}:{agent_name}" in body
+                )
+                if not referenced:
                     warnings.append(
                         f"agents/{agent_file.name}가 body에서 참조되지 않음: SKILL.md에서 Read로 참조하세요"
                     )
@@ -943,12 +973,52 @@ def cmd_update_frontmatter(args):
     })
 
 
+REFERENCE_SCAN_SUFFIXES = {".md", ".py", ".sh", ".json", ".yaml", ".yml"}
+CLAUDE_HOME = Path.home() / ".claude"
+
+
+def find_external_references(sp: Path, scope: str) -> list:
+    """다른 스킬·에이전트·docs·settings가 이 스킬 디렉토리 경로(skills/<name>/)를 참조하는 파일 목록.
+
+    tasks:manage처럼 SKILL.md 없이 공용 스크립트만 담은 디렉토리를 "안 쓰는 스킬"로 보고
+    지우면 그 스크립트를 부르는 스킬이 전부 깨진다. 삭제 전에 이것을 막기 위한 검사다.
+    """
+    needle = f"skills/{sp.name}/"
+    roots = [skills_dir(scope), CLAUDE_HOME / "agents", CLAUDE_HOME / "docs"]
+    candidates = [CLAUDE_HOME / "settings.json"]
+    for root in roots:
+        if root.exists():
+            candidates.extend(
+                f for f in root.rglob("*")
+                if f.is_file() and f.suffix in REFERENCE_SCAN_SUFFIXES and "__pycache__" not in f.parts
+            )
+    sp_resolved = sp.resolve()
+    referrers = set()
+    for f in candidates:
+        try:
+            if sp_resolved in f.resolve().parents:
+                continue
+            if needle in f.read_text(encoding="utf-8", errors="ignore"):
+                referrers.add(str(f))
+        except OSError:
+            continue
+    return sorted(referrers)
+
+
 def cmd_delete(args):
     name = args.name
     scope = resolve_scope(getattr(args, "scope", None))
     sp = skill_path(name, scope)
     if not sp.exists():
         err(f"Skill '{name}' not found", scope=scope, path=str(sp))
+
+    referrers = find_external_references(sp, scope)
+    if referrers and not args.dry_run and not args.force_referenced:
+        err(
+            f"'{name}' 경로를 다른 파일 {len(referrers)}개가 참조합니다. 참조를 먼저 정리하거나 "
+            f"--force-referenced로 강제 삭제하세요.",
+            referrers=referrers[:30],
+        )
 
     # Dry-run: list what would be removed without acting
     if args.dry_run:
@@ -960,6 +1030,7 @@ def cmd_delete(args):
             "would_delete": str(sp),
             "file_count": len(files),
             "files": files[:20] + (["..."] if len(files) > 20 else []),
+            "referrers": referrers[:30],
             "message": "DRY RUN: 실제 삭제하려면 --dry-run 없이 재실행하세요.",
         })
         return
@@ -1043,6 +1114,8 @@ def main():
     p_del.add_argument("name", help="Skill name")
     p_del.add_argument("--dry-run", action="store_true",
                        help="List files that would be removed without acting")
+    p_del.add_argument("--force-referenced", action="store_true",
+                       help="다른 스킬·에이전트·docs가 참조해도 삭제한다")
     add_scope(p_del)
 
     args = parser.parse_args()

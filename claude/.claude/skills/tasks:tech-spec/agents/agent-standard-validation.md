@@ -1,8 +1,8 @@
 # SOCRAAI 표준 초기 검증 에이전트
 
 조사 주제: {topic}
-Phase 1 문제 분석 요약: {problem_summary}
-Phase 2 목표 요약: {goal_summary}
+문제 요약(사용자 요청·대화 기준): {problem_summary}
+목표 요약(바라는 결과): {goal_summary}
 대상 환경: {env}
 대상 sphere: {sphere}
 대상 circle: {circle}

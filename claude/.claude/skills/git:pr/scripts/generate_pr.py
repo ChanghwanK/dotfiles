@@ -3,13 +3,24 @@
 generate_pr.py: Analyze git diff/log and generate PR metadata for kubernetes GitOps repo.
 
 Usage:
-    python3 generate_pr.py analyze <diff_file> <log_file>
+    python3 generate_pr.py analyze [--base origin/main] [--no-fetch]
+    python3 generate_pr.py wiki-impact [--base origin/main]
 
-Output: JSON to stdout
+git 호출은 이 스크립트가 직접 한다. SKILL.md 쪽에서 리다이렉트(> /tmp/...)나
+명령 치환($(git diff ...))을 쓰지 않게 하려는 것이다: 그런 복합 명령은 worktree 격리
+세션에서 거부되고, 고정 /tmp 경로는 동시에 도는 세션끼리 서로 덮어쓴다.
+
+비교 기준은 원격 브랜치(origin/main)다. worktree는 origin/main에서 만들어지므로
+로컬 main이 뒤처져 있으면 남의 커밋이 diff에 섞여 sphere/env 판정이 틀어진다.
+
+Output: analyze는 JSON, wiki-impact는 verify-impact.py 출력(없으면 빈 출력)
 """
 
+import argparse
 import json
+import os
 import re
+import subprocess
 import sys
 
 # Path patterns for src/{sphere}/{circle}/infra-k8s-{env}/...
@@ -51,36 +62,63 @@ TITLE_SUBJECT_PLACEHOLDER = (
 )
 
 
-def parse_diff(diff_file: str) -> list:
-    entries = []
+DEFAULT_BASE = 'origin/main'
+WIKI_IMPACT_SCRIPT = os.path.join('devops-wiki', 'scripts', 'verify-impact.py')
+
+
+class GitError(RuntimeError):
+    pass
+
+
+def run_git(*args: str) -> str:
+    proc = subprocess.run(['git', *args], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise GitError(f'git {" ".join(args)} failed: {proc.stderr.strip()}')
+    return proc.stdout
+
+
+def fetch_base(base: str) -> bool:
+    """base가 'origin/main' 꼴이면 그 브랜치만 fetch한다. 실패해도 분석은 계속한다(오프라인 등)."""
+    remote, _, branch = base.partition('/')
+    if not branch:
+        return False
     try:
-        with open(diff_file) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                parts = line.split('\t', 1)
-                if len(parts) == 2:
-                    entries.append({'status': parts[0], 'path': parts[1]})
-    except (OSError, IOError):
-        pass
+        run_git('fetch', '--quiet', remote, branch)
+        return True
+    except GitError:
+        return False
+
+
+def parse_diff(diff_text: str) -> list:
+    entries = []
+    for line in diff_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split('\t', 1)
+        if len(parts) == 2:
+            entries.append({'status': parts[0], 'path': parts[1]})
     return entries
 
 
-def parse_log(log_file: str) -> list:
+def parse_log(log_text: str) -> list:
     commits = []
-    try:
-        with open(log_file) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                parts = line.split(' ', 1)
-                if len(parts) == 2:
-                    commits.append({'hash': parts[0][:7], 'subject': parts[1]})
-    except (OSError, IOError):
-        pass
+    for line in log_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(' ', 1)
+        if len(parts) == 2:
+            commits.append({'hash': parts[0][:7], 'subject': parts[1]})
     return commits
+
+
+def read_branch_changes(base: str) -> tuple:
+    # diff는 '...'(merge-base 기준: 이 브랜치가 바꾼 것만), log는 '..'(이 브랜치에만 있는 커밋).
+    # log에 '...'를 쓰면 대칭차라서 base에 새로 들어온 남의 커밋까지 섞인다.
+    diff_text = run_git('diff', f'{base}...HEAD', '--name-status')
+    log_text = run_git('log', f'{base}..HEAD', '--format=%H %s')
+    return parse_diff(diff_text), parse_log(log_text)
 
 
 def analyze_changes(entries: list) -> dict:
@@ -280,13 +318,15 @@ def check_sensitivity(circles: dict) -> dict:
     }
 
 
-def cmd_analyze(diff_file: str, log_file: str) -> None:
-    entries = parse_diff(diff_file)
-    commits = parse_log(log_file)
+def cmd_analyze(base: str, fetch: bool) -> None:
+    fetched = fetch_base(base) if fetch else False
+    entries, commits = read_branch_changes(base)
     circles = analyze_changes(entries)
     sensitivity = check_sensitivity(circles)
 
     result = {
+        'base': base,
+        'fetched': fetched,
         'suggested_title': generate_title(circles, commits),
         'title_prefix': (
             f'[{build_env_slot(circles)}] {build_scope(circles)}'.strip()
@@ -305,19 +345,44 @@ def cmd_analyze(diff_file: str, log_file: str) -> None:
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        print('Usage: generate_pr.py analyze <diff_file> <log_file>', file=sys.stderr)
-        sys.exit(1)
+def cmd_wiki_impact(base: str) -> None:
+    """kubernetes 레포에만 있는 verify-impact.py를 돌린다. 스크립트가 없거나 매치가 없으면 아무것도 출력하지 않는다."""
+    repo_root = run_git('rev-parse', '--show-toplevel').strip()
+    script = os.path.join(repo_root, WIKI_IMPACT_SCRIPT)
+    if not os.path.isfile(script):
+        return
+    changed = run_git('diff', f'{base}...HEAD', '--name-only').strip()
+    if not changed:
+        return
+    proc = subprocess.run(
+        [sys.executable, script, '--changed-files', changed],
+        cwd=repo_root, capture_output=True, text=True,
+    )
+    sys.stdout.write(proc.stdout)
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        sys.exit(proc.returncode)
 
-    cmd = sys.argv[1]
-    if cmd == 'analyze':
-        if len(sys.argv) < 4:
-            print('Usage: generate_pr.py analyze <diff_file> <log_file>', file=sys.stderr)
-            sys.exit(1)
-        cmd_analyze(sys.argv[2], sys.argv[3])
-    else:
-        print(f'Unknown command: {cmd}', file=sys.stderr)
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description='PR metadata generator for kubernetes GitOps repo')
+    sub = parser.add_subparsers(dest='cmd', required=True)
+
+    p_analyze = sub.add_parser('analyze', help='브랜치 변경을 분석해 PR 제목·본문 JSON을 출력한다')
+    p_analyze.add_argument('--base', default=DEFAULT_BASE)
+    p_analyze.add_argument('--no-fetch', action='store_true', help='base fetch를 건너뛴다')
+
+    p_wiki = sub.add_parser('wiki-impact', help='DevOps Infra Wiki recompile 후보를 출력한다')
+    p_wiki.add_argument('--base', default=DEFAULT_BASE)
+
+    args = parser.parse_args()
+    try:
+        if args.cmd == 'analyze':
+            cmd_analyze(args.base, fetch=not args.no_fetch)
+        else:
+            cmd_wiki_impact(args.base)
+    except GitError as e:
+        print(str(e), file=sys.stderr)
         sys.exit(1)
 
 
