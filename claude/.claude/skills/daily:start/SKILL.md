@@ -83,7 +83,7 @@ date '+%s'
 | 어제 작업 | `agents/agent-yesterday-work.md` | sonnet | `WORK_RESULT_START/END` |
 | 인프라 알럿 | `agents/agent-infra-channel.md` | sonnet | `INFRA_RESULT_START/END` |
 | 메일 | `agents/agent-gmail-inbox.md` | haiku | `GMAIL_RESULT_START/END` |
-| Notion 컨텍스트 | `agents/agent-notion-context.md` | sonnet | `NOTION_RESULT_START/END` |
+| Notion·Jira 컨텍스트 | `agents/agent-notion-context.md` | sonnet | `NOTION_RESULT_START/END` |
 
 - **Agent 도구를 쓸 수 없으면**(task-coach 같은 서브에이전트 안) 네 프롬프트의 수집 절차를 직접 수행한다. 독립 호출은 한 메시지에 병렬로 부르고, 결과는 같은 YAML 구조로 정리한다
 - 반환 형식(구분자와 YAML)을 지키지 않았으면 그 에이전트만 1회 재시도한다
@@ -104,6 +104,13 @@ date '+%s'
    - 회고 항목을 Top 3에 합칠 때는 미체크 하위 항목을 `next_action`이나 `done_when`에 반영한다
    - 스레드에 없는 회고 항목(Tomorrow, Try, 미체크): 그대로 남기고 `carry_days >= 2`면 "N일째"를 붙인다
    - 회고 기록(work:tracking)의 이어서 할 일: 스레드·회고 항목과 뜻이 같으면 하나로 합치고 `tracking_id`(노드 `id`)를 붙인다. 겹치지 않는 것은 Step 3 후보로 넘기고, 스레드가 어제 끝낸 일은 뺀다
+   - **프로젝트 연결**: 스레드와 남은 회고 항목마다 Notion·Jira 에이전트의 `projects`에서 상위 프로젝트를 하나 고른다. 스레드 경계를 넘어 같은 목적인 일을 한 프로젝트로 모으는 단계다. 결과는 `project_link`(`{key, title, url}` 또는 null)에 둔다. 스레드의 `project`는 어제 작업 에이전트가 쓰는 레포 이름 문자열이라 덮어쓰지 않는다(템플릿과 resolve-launch가 문자열로 읽는다)
+     - 회고 항목에 `project`(어제 일지에서 그 주제가 들어 있던 프로젝트 글)가 있으면 그 프로젝트를 먼저 쓴다
+     - `projects_partial: true`면 목록이 잘렸을 수 있다. 맞는 프로젝트를 못 찾은 항목은 결론에 "프로젝트 목록 일부만 조회"를 덧붙인다
+     - 우선순위: Jira Epic > Jira Issue(`parent_key`가 있으면 그 Epic) > Task DB Task(`same_as`가 있으면 그 Jira 키)
+     - 근거: PR 제목·본문·세션 제목·cwd에 나온 Jira 키나 프로젝트 이름, 같은 대상(컴포넌트, circle, 차트). 근거를 스레드의 `project_evidence`에 한 줄로 남긴다
+     - 맞는 프로젝트가 없으면 `project_link: null`이다. 억지로 붙이지 않는다
+     - 예: 코치 스킬, 수동 카나리, PgBouncer 차트, A12 시험 스레드는 모두 Epic `PLE-12` "Python 백엔드 pgbouncer 도입"에 연결된다
 3. **오늘 이어가기 Top 3**: Step 3 규칙
 4. **밤사이 알럿**: 인프라 `hourly`(시간축 막대) + `check`(burst를 위에)
 5. **메일**: 할 일(`todo`가 있는 항목, `due` 붙임) + 보관 결과
@@ -125,7 +132,8 @@ date '+%s'
    - 연결된 Task가 오늘 마감이거나 기한 지남: +1
 3. **스레드와 연결되지 않은 오늘 마감 Task는 Top 3에 넣지 않는다.** 마감 Task 섹션에 경고 칩으로 두고, 결론 줄에 "오늘 마감 N건은 마감 섹션 참고"를 덧붙인다
 4. 항목마다 붙인다
-   - **제목**: 그 항목의 주제 이름(Step 4 "주제로 묶기"). Top 3 한 자리는 주제 하나이고, 같은 주제의 후보는 두 자리를 차지하지 않고 하나로 합친다(점수는 큰 쪽)
+   - **제목**: 그 항목의 주제 이름(Step 4 "주제로 묶기"). Top 3 한 자리는 주제 하나이고, 같은 주제의 후보는 두 자리를 차지하지 않고 하나로 합친다(점수는 큰 쪽). 같은 프로젝트의 서로 다른 주제는 각자 자리를 받는다(순위는 주제 단위, 묶음은 표시 단위)
+   - **프로젝트**: Step 2에서 연결한 `project_link`(`{key, title, url}` 또는 null)
    - 태그: `[긴급]` / `[이어서]` / `[검토]`(리뷰 요청)
    - **어제 멈춘 곳**(`stopped_at`), **오늘 첫 행동**(`next_action`), **재개**(`resume`: PR URL 또는 `claude --resume` 명령)
    - 회고 기록에서 온 항목은 노드의 `detail` 불릿을 `next_action`·`done_when`의 근거로 쓰고, `tracking_id`·`carry_label`·`tracking_note`를 채운다(Step 5)
@@ -135,7 +143,9 @@ date '+%s'
 
 ### Step 4: 확인 후 쓰기
 
-**주제로 묶기** (질문 전에 한다). Todos 후보(Top 3와 나머지 후보)를 같은 목적끼리 주제 하나로 묶어 주제 > 하위 할 일 두 단계로 만든다.
+**주제로 묶기** (질문 전에 한다). Todos 후보(Top 3와 나머지 후보)를 같은 목적끼리 주제 하나로 묶고, 주제를 Step 2의 프로젝트 아래에 두어 프로젝트 > 주제 > 하위 할 일 세 단계로 만든다.
+- **프로젝트**(맨 위): Step 2에서 연결한 Jira Epic·Issue 또는 Task DB Task. 이름은 Jira 요약(Task DB면 접두어를 뺀 Task명)을 그대로 쓰고 `links`에 Jira 키를 넣는다. 주제가 하나뿐이어도 프로젝트 아래에 둔다. 프로젝트가 없는 주제는 맨 위 단계에 그대로 둔다
+  - 예: `Python 백엔드 pgbouncer 도입`(PLE-12) 아래에 `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`, `PgBouncer 차트 안정화`
 - **주제**(상위 할 일): 같은 프로젝트나 목적을 위한 일을 모은다. 같은 스레드에서 나온 행동, 같은 PR을 다루는 회고 항목과 스레드의 다음 행동, 같은 성격의 메일 할 일(예: 외부 서비스 공지 영향 확인)은 한 주제다
   - 이름은 `task:split` "표현" 절의 Task 제목 규칙(대상 + 행동 명사, 명사형 종결)을 따른다. PR 번호, 차트 values 키, 작업 디렉터리·브랜치·세션 이름은 넣지 않는다
   - 좋음: `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`
@@ -154,10 +164,13 @@ date '+%s'
 - Todos: dry-run 다음 실제 실행. `success: false`면 오류를 그대로 전하고 Todos만 멈춘다
   ```bash
   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos \
-    --page-id {today_page_id} --tree '[{"text": "카나리 수동 제어", "links": [], "children": [{"text": "chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인", "links": ["<PR URL>"]}]}]' --dry-run
+    --page-id {today_page_id} --tree '[{"text": "Python 백엔드 pgbouncer 도입", "links": ["PLE-12"], "children": [
+      {"text": "카나리 수동 제어", "links": [], "children": [{"text": "chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인", "links": ["<PR URL>"]}]}]}]' --dry-run
   ```
-  - 실제 실행 출력의 `blocks[]`(`text`, `id`, `skipped`)는 주제(상위) 블록만 돌려준다. 그 `id`를 그 주제인 `top3[].block_id`와, 그 주제에 합친 `tomorrow[].block_id`에 저장한다(Step 5). property에는 주제 이름만 한 줄씩 붙는다
-  - 같은 주제가 오늘 일지에 이미 있으면(`skipped: true`, 기존 id가 나온다) 빠진 하위 할 일만 `--tree '[{"text": "<하위>", "links": [...]}]' --parent-block <그 id>`로 덧붙인다
+  - 실제 실행 출력의 `blocks[]`는 맨 위 항목마다 `{text, id, skipped, children: [{text, id, children}]}`를 돌려준다. 주제 블록 id(프로젝트 아래면 `blocks[].children[].id`, 프로젝트가 없으면 `blocks[].id`)를 그 주제인 `top3[].block_id`와, 그 주제에 합친 `tomorrow[].block_id`에 저장한다(Step 5). property에는 맨 위 항목(프로젝트, 또는 프로젝트 없는 주제) 이름만 한 줄씩 붙는다
+  - 같은 프로젝트가 오늘 일지에 이미 있으면(`skipped: true`, 기존 id가 나온다) 빠진 주제만 `--tree '[{"text": "<주제>", "links": [], "children": [...]}]' --parent-block <프로젝트 id> --no-prop`로 덧붙인다. 같은 주제가 이미 있으면 빠진 하위 할 일만 `--parent-block <주제 id> --no-prop`로 덧붙인다. 부모 아래에 넣을 때는 property에 줄을 더하지 않는다(property는 맨 위 항목만 담는다)
+  - 중복 판정과 블록 id 찾기는 넣을 자리의 직계 자식끼리만 한다. 다른 프로젝트 아래의 같은 이름 주제는 별개로 본다
+  - 세 단계를 한 요청으로 넣는다(2026-11-28 실측으로 성공 확인). 한 단계의 자식이 100개를 넘으면 스크립트가 쓰기 전에 오류로 멈춘다(Notion `children` 상한). 실패하면 오류를 그대로 전하고 Todos만 멈춘다
   - `links`에는 하위 할 일의 근거 링크를 넣는다(본문과 property 줄 끝에 라벨 링크로 붙는다)
     - 메일 할 일: 그 메일의 `link`
     - Jira가 걸린 항목: 키(`PLE-6`). 메일 본문에서 나온 키면 메일 링크와 함께
@@ -183,11 +196,13 @@ date '+%s'
 - **어제 Tomorrow → 오늘 Yesterday** (질문 없이 매일): Step 1이 끝나면 위 질문과 상관없이 실행한다. `--from-date`는 Notion 에이전트의 `retro_date`. dry-run 다음 실제 실행
   ```bash
   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py carry-tomorrow \
-    --page-id {today_page_id} --from-date {retro_date} --dry-run
+    --page-id {today_page_id} --from-date {retro_date} --create-section --dry-run
   ```
   - Tomorrow 칸의 글·링크·체크 상태·하위 항목을 그대로 옮긴다. 회고 코치 추천 구역은 옮기지 않는다. 같은 최상위 글은 `skipped`로 건너뛰어 재실행해도 안전하다
-  - `today_page_id`나 `retro_date`가 null이거나 `success: false`면 건너뛴다
-  - 결과는 바닥글 `env.carry`에 한 줄로 쓴다("어제 Tomorrow N건을 Yesterday에 옮김" / "이미 옮겨 둠" / 건너뛴 이유). `unsupported`가 있으면 그 블록 종류도 적는다
+  - `--create-section`: 오늘 페이지에 Yesterday 칸이 없으면(기본 템플릿 "@Today 업무 일지"가 아닌 경로로 미리 만든 페이지) 할 일 구역 끝 다음에 구분선과 "☑️ Yesterday" 제목을 새로 만들어 옮긴다. 기존 블록은 고치지 않는다. API가 특정 블록 뒤에만 끼울 수 있어 새 칸은 오늘 할 일 아래에 놓인다
+  - 출력의 `created_section: true`는 페이지 구조가 템플릿과 다르다는 신호다. 바닥글뿐 아니라 콘솔 `**정리**`에도 "예전 구조 페이지라 Yesterday 칸을 새로 만듦"을 쓴다
+  - `today_page_id`나 `retro_date`가 null이거나 그 밖의 이유로 `success: false`면 건너뛰되, 바닥글에만 두지 않고 콘솔 `**정리**`에 이유와 직접 고칠 방법을 한 줄로 쓴다(조용히 빠지지 않게)
+  - 결과는 바닥글 `env.carry`에 한 줄로 쓴다("어제 Tomorrow N건을 Yesterday에 옮김" / "Yesterday 칸을 새로 만들고 N건 옮김" / "이미 옮겨 둠" / 건너뛴 이유). `unsupported`가 있으면 그 블록 종류도 적는다
 - **아침 계획 남기기** (work:tracking 되먹임): Todos에 넣은 항목을 `~/.claude/work-tracking/{today_date}.plan.json`에 Write한다. 고른 것이 없으면 쓰지 않고, 재실행하면 덮어쓴다
   ```json
   {"date": "{today_date}", "source": "daily:start", "artifact_url": null,
@@ -201,6 +216,7 @@ date '+%s'
    - `headline`: 문자열 배열 3~5개, 명사형 종결. 순서는 밤사이 알럿, 긴급, 오늘 첫 작업, 참고 섹션(마감·메일·일정)
    - `top3[].added`: Step 4에서 Todos에 넣었으면 true
    - `top3[].thread_id`: 어제 스레드에서 왔으면 그 스레드 `id`
+   - `top3[].project_link`, `yesterday.threads[].project_link`: Step 2에서 연결한 `{key, title, url}` 또는 null. 스레드에는 `project_evidence`도 둔다. 스레드의 `project`(레포 이름 문자열)는 그대로 둔다
    - `top3[].ticktick_id`: Step 4에서 TickTick에 만들었거나 이미 있던 할 일의 id. 넣지 않았으면 null
    - `top3[].tracking_id`, `carry_label`, `tracking_note`: 회고 기록에서 왔거나 합친 항목만. `carry_label`은 이월이면 "이월 N일째"(N = 오늘 - since + 1), 아니면 null. `tracking_note`는 노드의 `sub`
    - `tracking`: 회고 기록이 있으면 `{date, artifact_url, next_count, carried_count}`, 없으면 키를 두지 않는다
@@ -224,7 +240,7 @@ date '+%s'
    - 고정이 성공하면 전날 페이지 고정을 푼다. `~/.claude/tmp/daily-start/`에서 오늘보다 앞선 가장 최근 `{date}.json`의 `artifact_url`이 있고 오늘 URL과 다르면 Artifact `action: "unpin"`을 부른다(주말·휴가로 비어도 가장 최근 하나만). 없거나 실패해도 계속하고 실패만 콘솔에 한 줄로 알린다
    - `capabilities: {db: {}, user: {}, mcp: {servers: [{server: "host:notion-personal", tools: ["API-update-a-block"]}]}}`를 넘긴다. `mcp`는 데스크톱 앱 `claude_desktop_config.json`의 `mcpServers.notion-personal`(command `~/.claude/scripts/mcp-notion-personal.sh`, `env.PATH`에 `/opt/homebrew/bin`)이 있어야 보인다. 없으면(브라우저 포함) pending 방식으로 동작한다
    - 게시 결과의 URL을 브리핑 JSON의 `artifact_url`에 저장한다. 아침 계획 파일이 있으면 그 `artifact_url`에도 쓴다
-4. 콘솔 응답은 결론 한 줄, 주제별 목록, Artifact 링크 순으로 쓴다. 주제별 목록은 아래 "출력 형식: 주제별 목록"을 따르고, Top 3 주제를 순위대로 앞에 둔 뒤 Todos로 고른 나머지 주제를 잇는다. 하위 할 일 끝에 근거 링크(PR, 메일, Jira)를 붙인다
+4. 콘솔 응답은 결론 한 줄, 주제별 목록, Artifact 링크 순으로 쓴다. 주제별 목록은 아래 "출력 형식: 주제별 목록"을 따른다. 하위 할 일 끝에 근거 링크(PR, 메일, Jira)를 붙인다
 
 ### 출력 형식: 주제별 목록
 
@@ -233,14 +249,24 @@ date '+%s'
 ```markdown
 **주제별 할 일**
 
-1. **PgBouncer AI 마이그레이션 코치 개발**
+**Python 백엔드 pgbouncer 도입** ([PLE-12](<Jira URL>))
+
+1. **PgBouncer AI 마이그레이션 코치 개발** (1순위)
    - 코치 스킬 PR 리뷰 요청하기 ([#7](<PR URL>))
    - TYPES 수정 방식(A/B)과 담당 정해 1차 공지 초안 쓰기
-2. **카나리 수동 제어**
+2. **카나리 수동 제어** (2순위)
    - chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인 ([#156](<PR URL>))
+
+**그 밖의 일**
+
+3. **외부 서비스 변경 영향 확인**
+   - Okta IoC 보호 기본 활성화 영향 확인하기 ([메일](<메일 URL>))
 ```
 
-- 주제는 번호와 굵은 글씨로, 하위 항목은 불릿으로 쓴다. 주제 이름과 하위 할 일 문구는 Step 4 "주제로 묶기"를 따른다
+- 프로젝트는 굵은 글씨 한 줄과 Jira 링크로 쓰고, 그 아래 주제를 둔다. 프로젝트가 없는 주제는 맨 끝 `**그 밖의 일**` 아래에 둔다
+- 주제는 번호와 굵은 글씨로, 하위 항목은 불릿으로 쓴다. 번호는 목록 전체에서 이어 매긴다. Top 3 주제에는 `(N순위)`를 붙인다
+- 프로젝트 순서는 그 프로젝트에 속한 주제의 가장 높은 순위로 정하고, 같은 프로젝트 안에서는 순위 순, 순위가 없는 주제는 그 뒤에 둔다
+- 주제 이름과 하위 할 일 문구는 Step 4 "주제로 묶기"를 따른다
 - 목록 위 한 줄은 결론, 목록 아래 `**정리**` 불릿은 한 것과 정하실 것만 쓴다
 
 페이지 DB 컬렉션(템플릿이 쓰고, 보드 반영과 daily:retrospective가 읽는다):
@@ -259,7 +285,11 @@ date '+%s'
 | `threads[].stopped_at`, `next_action`, `resume` | 어제 작업 에이전트 | 템플릿, task:resume |
 | `threads[].source`, `tomorrow_ref` | 어제 작업 에이전트(어제 일지 Tomorrow의 PR 링크, `notion-daily.py read`의 `tomorrow_items[].links`) | Step 2 합성 |
 | `top3[].thread_id`, `cwd` | Step 2 합성 | resolve-launch, task:resume, 템플릿 |
-| `top3[].block_id` | Step 4 (`append-todos` 출력 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
+| `projects` (`source`, `key`, `type`, `parent_key`, `same_as`) | Notion·Jira 컨텍스트 에이전트(Task DB 진행 중 Task, Jira PLE Epic·내 이슈) | Step 2 프로젝트 연결 |
+| `top3[].project_link`, `threads[].project_link`, `project_evidence` | Step 2 합성 | Step 4 주제로 묶기, 콘솔 출력, 상태 동기화 3번 |
+| `threads[].project` (레포 이름 문자열) | 어제 작업 에이전트 | 템플릿(스레드 카드 "프로젝트" 칸), resolve-launch(`repo_name_for`) |
+| `continue_items[].project`, `projects_partial` | Notion·Jira 컨텍스트 에이전트 | Step 2 프로젝트 연결 |
+| `top3[].block_id` | Step 4 (`append-todos` 출력의 주제 블록 id: `blocks[].children[].id` 또는 `blocks[].id`) | 템플릿(상태 반영하기가 `pending.block`에 싣는다), 보드 반영 7번 |
 | `top3[].ticktick_id`, `tomorrow[].ticktick_id`, `env.ticktick` | Step 4 (TickTick `batch_add_tasks` 결과, 또는 이미 있던 할 일 id), 상태 동기화 2번(뜻으로 맞춘 할 일 id) | 템플릿 바닥글(`env.ticktick`), 상태 동기화 2번 |
 | `item_state.pending` | 템플릿(상태 반영하기 확정) | 보드 반영 7번 |
 | `tomorrow[]` (`subs`, `related_top`, `block_id`) | Step 5 합성 (Notion 컨텍스트 에이전트의 `continue_items.detail`) | 템플릿 |
@@ -282,9 +312,9 @@ date '+%s'
 5. **일지 쓰기**: dry-run으로 위치·property 전후를 보이고 이어서 실행한다(3번 선택이 승인이다)
    ```bash
    python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos --page-id <page_id> \
-     --tree '[{"text": "<상위>", "links": ["<PLE-키>", "<메일·PR URL>"], "children": [{"text": "<하위>", "links": []}]}]' [--parent-block <상위 항목 id>] --dry-run
+     --tree '[{"text": "<상위>", "links": ["<PLE-키>", "<메일·PR URL>"], "children": [{"text": "<하위>", "links": []}]}]' [--parent-block <상위 항목 id> --no-prop] --dry-run
    ```
-   `links`에는 4번의 Jira 키와 항목 `text`의 https 링크(메일, PR, Jira)를 넣는다. `skipped`는 이미 일지에 있는 항목이다
+   `links`에는 4번의 Jira 키와 항목 `text`의 https 링크(메일, PR, Jira)를 넣는다. `skipped`는 이미 일지에 있는 항목이다. `--parent-block`으로 기존 항목 아래에 넣을 때는 반드시 `--no-prop`을 함께 쓴다(property는 맨 위 항목만 담는다)
 6. **반영 상태 되돌려 적기**: 성공한 항목마다 `ArtifactData` `update`(`collection: board_items`, list에서 본 `version`을 `if_version`으로)로 `ledger: {daily: true, jira: <키 | null>, at: <ISO 시각>}`을 쓴다(재게시 불필요)
 7. **완료 체크 반영**: 같은 `artifact_url`의 `item_state`를 `ArtifactData` `list`로 읽는다. `board_items`가 0건이어도 한다
    - 대상: `done: true`인데 `ledger.daily`가 없는 문서(체크), `done: false`인데 `ledger.daily`가 true인 문서(체크 해제)
@@ -312,7 +342,7 @@ date '+%s'
    - Notion 일지: `notion-daily.py list-todos --page-id <page_id>`(모든 깊이, 체크 상태와 id)
    - 보드: 브리핑 JSON `artifact_url`의 `item_state`와 `board_items`를 `ArtifactData` `list`로
 2. **같은 일 맞추기**: id가 있으면 id로 맞춘다(`top3[].ticktick_id`·`tomorrow[].ticktick_id`는 TickTick, `block_id`는 Notion, `thread-`/`top-`/`tomorrow-` 키는 보드). id가 없으면 글자가 달라도 뜻이 같은 일을 같은 항목으로 본다. 뜻으로 맞춘 TickTick id는 브리핑 JSON에 적어 다음 동기화부터 id로 찾는다
-3. **결과 출력**: "출력 형식: 주제별 목록"을 따른다. 주제마다 하위 불릿으로 각 시스템의 이름과 상태를 쓴다(없으면 "없음"). Top 3 주제를 순위대로 앞에 둔다
+3. **결과 출력**: "출력 형식: 주제별 목록"을 따른다. 주제마다 하위 불릿으로 각 시스템의 이름과 상태를 쓴다(없으면 "없음"). 프로젝트로 묶고 Top 3 주제에 `(N순위)`를 붙인다(브리핑 JSON의 `top3[].project_link`)
    ```markdown
    1. **카나리 수동 제어**
       - TickTick: "카나리 수동 제어 - webserver chart 리뷰 및 기능 파악하기", 완료

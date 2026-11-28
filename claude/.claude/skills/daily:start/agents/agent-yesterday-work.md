@@ -42,6 +42,7 @@ allowed-tools:
    - 고른 PR(최대 8건)마다 `gh pr view <url> --json number,title,state,mergedAt,updatedAt,url`
    - 일지가 없거나(`error`) Tomorrow가 비면 이 단계를 건너뛴다. 조회 실패는 `errors`에 남긴다
 - open PR이 있으면 `gh pr view <url> --json reviewDecision,statusCheckRollup,mergeable`로 막힌 곳(리뷰 대기, CI 실패, 충돌)을 확인한다. 최대 5건
+- 어제 merged된 PR은 `gh pr view <url> --json body,mergedAt`로 본문을 읽는다. 최대 5건. 본문의 결정·근거·감수하는 것 절이 상태 판정의 근거다
 
 ## 스레드로 묶기
 
@@ -60,6 +61,8 @@ allowed-tools:
 위에서부터 처음 맞는 하나로 정한다.
 
 - **완료**: 스레드의 PR이 모두 merged 또는 closed이고, 마지막 `last_assistant`나 사용자 메시지에 남은 할 일·다음 단계 언급이 없다
+  - 세션의 미결 언급("시험을 끝내지 못했다", "판정할지 정하기")이 PR 머지 시각보다 앞서고, 머지된 PR 본문이 그 미결을 결정과 근거로 다룬다면 해소된 것으로 본다. 이때 그 언급은 남은 할 일이 아니다
+  - 판정이 PR 본문에 기댄 경우 `evidence`에 "#<n> 본문에 결정 기록"을 남긴다
 - **진행 중**: open PR이 있거나, 마지막 발화가 다음 할 일·남은 단계·사용자 결정 대기를 말한다
 - **중단**: 세션이 질문이나 작업 도중에 끝났고(마지막이 사용자 메시지이거나 assistant가 작업 중간 보고), 이후 같은 주제 세션이 없다
 - 판정 근거를 `evidence`에 남긴다 (PR 번호와 상태, 마지막 발화 요지)
@@ -73,7 +76,12 @@ allowed-tools:
 - `resume`: 재개 수단. 우선순위는 open PR URL > 세션 재개 명령 `cd {cwd} && claude --resume {session_id}` (가장 최근 세션)
 - `done_when`: 이 스레드를 오늘 끝냈다고 볼 관찰 가능한 상태 한 줄
 
-완료 스레드에도 `follow_up`이 있으면 쓴다 (예: dev merged → stg/prod 적용 남음). 후속이 있으면 상태를 진행 중으로 올린다. `tomorrow_pr` 스레드는 Tomorrow 항목이 남은 단계이므로 PR이 merged·closed여도 진행 중이다.
+완료 스레드에도 `follow_up`이 있으면 쓴다. 후속이 있으면 상태를 진행 중으로 올린다. 후속은 근거가 있을 때만 쓰고 근거를 `evidence`에 적는다.
+- 근거가 되는 것: 세션·PR 본문·어제 일지 Tomorrow에 다음 단계로 적힌 일, 다음 환경(stg/prod)이 그 컴포넌트를 이미 쓰고 있어 같은 변경이 필요하다는 확인(매니페스트에서 같은 차트·버전 키를 찾음)
+- 단, 상태 판정에서 머지된 PR 본문의 결정으로 해소된 미결은 후속 근거로 다시 쓰지 않는다. 세션·Tomorrow의 언급은 가장 최근 결정(머지된 PR 본문, 그 뒤 세션 발화)과 비교해 아직 해소되지 않은 것만 후속으로 남긴다
+- 근거가 되지 않는 것: PR 제목의 `[dev]` 같은 환경 접두어만 보고 stg/prod 적용이 남았다고 추정하는 것. 다음 환경에 아직 그 컴포넌트가 없으면 후속이 아니라 별도 도입 일정이다
+
+`tomorrow_pr` 스레드는 Tomorrow 항목이 남은 단계이므로 PR이 merged·closed여도 진행 중이다.
 
 ## 반환 형식
 

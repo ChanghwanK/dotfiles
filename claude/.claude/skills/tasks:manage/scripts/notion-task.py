@@ -289,7 +289,27 @@ def query_tasks_by_period(token, start_date, end_date):
     return tasks
 
 
-def query_active_tasks(token):
+QUERY_MAX_PAGES = 10  # 페이지당 최대 100건, 1,000건에서 멈춘다
+
+
+def query_all_pages(token, body):
+    """has_more/next_cursor를 따라 끝까지 읽는다. 상한에 걸리면 truncated=True를 함께 돌려준다.
+
+    Notion은 다음 페이지가 있어도 요청 개수보다 적게 돌려줄 수 있어, 건수가 아니라 has_more로 판단한다.
+    """
+    url = f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query"
+    pages, cursor = [], None
+    for _ in range(QUERY_MAX_PAGES):
+        req = dict(body, page_size=100, **({"start_cursor": cursor} if cursor else {}))
+        resp = notion_request(token, "POST", url, req)
+        pages.extend(resp.get("results", []))
+        if not resp.get("has_more"):
+            return pages, False
+        cursor = resp.get("next_cursor")
+    return pages, True
+
+
+def query_active_tasks(token, with_truncated=False):
     """완료 제외 모든 활성 Task 조회 (Due Date 유무 무관)."""
     body = {
         "filter": {
@@ -298,8 +318,9 @@ def query_active_tasks(token):
         },
         "sorts": TASK_API_SORTS,
     }
-    resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
-    return sort_tasks_by_status_then_due(_parse_page(page) for page in resp.get("results", []))
+    pages, truncated = query_all_pages(token, body)
+    tasks = sort_tasks_by_status_then_due(_parse_page(page) for page in pages)
+    return (tasks, truncated) if with_truncated else tasks
 
 
 def cmd_search_tasks(args):
@@ -308,17 +329,15 @@ def cmd_search_tasks(args):
     status_filter = getattr(args, "status", "active")
 
     if status_filter == "all":
-        body = {
-            "sorts": TASK_API_SORTS,
-        }
-        resp = notion_request(token, "POST", f"/data_sources/{resolve_ds_id(token, TASK_DB_ID)}/query", body)
-        results = sort_tasks_by_status_then_due(_parse_page(page) for page in resp.get("results", []))
+        pages, truncated = query_all_pages(token, {"sorts": TASK_API_SORTS})
+        results = sort_tasks_by_status_then_due(_parse_page(page) for page in pages)
     else:
-        results = query_active_tasks(token)
+        results, truncated = query_active_tasks(token, with_truncated=True)
 
     print(json.dumps({
         "results": results,
         "total": len(results),
+        "truncated": truncated,  # true면 QUERY_MAX_PAGES 상한에서 멈춰 뒤의 Task가 빠졌다
     }, ensure_ascii=False, indent=2))
 
 

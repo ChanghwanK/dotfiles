@@ -447,9 +447,34 @@ def cmd_carry_tomorrow(args):
         sys.exit(1)
     _, sections = parse_body(fetch_tree(token, args.page_id))
     yesterday = sections.get("Yesterday")
+    created_section = False
     if not yesterday:
-        print(json.dumps({"success": False, "error": "오늘 일지 본문에 Yesterday 칸이 없습니다"}, ensure_ascii=False))
-        sys.exit(1)
+        # 예전 템플릿(Yesterday 칸 없음)으로 만든 페이지. --create-section이면 할 일 구역 끝 다음에
+        # 구분선과 Yesterday 제목을 새로 만든다(API는 특정 블록 뒤에만 끼울 수 있어 칸 맨 앞에는 못 둔다)
+        todos_sec = sections.get("Todos")
+        if not (args.create_section and todos_sec):
+            reason = "오늘 일지 본문에 Yesterday 칸이 없습니다"
+            if args.create_section:
+                reason += "(할 일 칸도 없어 새로 만들 자리를 찾지 못했습니다)"
+            print(json.dumps({"success": False, "error": reason, "missing_section": "Yesterday"}, ensure_ascii=False))
+            sys.exit(1)
+        created_section = True
+        if args.dry_run:
+            print(json.dumps({"success": True, "dry_run": True, "created_section": True,
+                              "section_parent": todos_sec["parent_id"], "insert_after_block": todos_sec["last_block_id"],
+                              "would_append": [n["text"].strip() for n in tomorrow["nodes"] if n["text"].strip()]},
+                             ensure_ascii=False, indent=2))
+            return
+        heading = {"object": "block", "type": "heading_2",
+                   "heading_2": {"rich_text": [{"type": "text", "text": {"content": "☑️ Yesterday"}}]}}
+        notion_request(token, "PATCH", f"/blocks/{todos_sec['parent_id']}/children",
+                       {"children": [{"object": "block", "type": "divider", "divider": {}}, heading],
+                        "after": todos_sec["last_block_id"]})
+        _, sections = parse_body(fetch_tree(token, args.page_id))
+        yesterday = sections.get("Yesterday")
+        if not yesterday:
+            print(json.dumps({"success": False, "error": "Yesterday 칸을 만들었지만 다시 읽지 못했습니다"}, ensure_ascii=False))
+            sys.exit(1)
 
     already = {norm(n["text"]) for n in yesterday["nodes"] if n["text"].strip()}
     items = [n for n in tomorrow["nodes"] if n["text"].strip()]
@@ -479,6 +504,7 @@ def cmd_carry_tomorrow(args):
         after = new_id
 
     print(json.dumps({"success": True, "dry_run": args.dry_run, "from_page_id": src_page["id"],
+                      "created_section": created_section,
                       "insert_after_block": yesterday["last_block_id"],
                       "appended": [n["text"].strip() for n in new_items], "skipped": skipped,
                       "blocks_created": created, "unsupported": sorted(set(unsupported))},
@@ -545,8 +571,8 @@ def todo_block_rich(text, link=None, children=None, checked=False, links=None):
     ls = entry_links({"link": link, "links": links})
     rich = [{"type": "text", "text": {"content": text}}] + link_segments(ls)
     block = {"object": "block", "type": "to_do", "to_do": {"rich_text": rich, "checked": bool(checked)}}
-    if children:
-        block["to_do"]["children"] = [todo_block_rich(c["text"], c.get("link"), links=c.get("links"))
+    if children:  # 하위의 하위까지 재귀로 만든다(프로젝트 > 주제 > 하위 할 일)
+        block["to_do"]["children"] = [todo_block_rich(c["text"], c.get("link"), c.get("children"), links=c.get("links"))
                                       for c in children if c.get("text", "").strip()]
     return block
 
@@ -617,9 +643,45 @@ def cmd_append_todos(args):
 
     # 글 끝에 링크 라벨("  PLE-27 · #10315")이 붙어 저장되므로, 라벨을 붙인 글로도 비교한다(재실행 중복 방지)
     def written_keys(e):
-        return {norm(e["text"]), norm(e["text"] + "".join(l["label"] for l in entry_links(e)))}
+        # 링크(Jira 키 등)가 있는 항목은 글+라벨로만 맞춘다. 이름이 같고 키가 다른 프로젝트(PLE-1, PLE-2)를 같은 것으로 보지 않는다
+        labeled = norm(e["text"] + "".join(l["label"] for l in entry_links(e)))
+        return {labeled} if entry_links(e) else {norm(e["text"])}
 
-    already_written = {norm(t["text"]) for t in flatten_todos(todos["nodes"])}
+    # Notion API는 children 배열 하나에 100개까지 받는다. 쓰기 전에(dry-run 포함) 모든 단계를 검사한다
+    def over_limit(items, path="최상위"):
+        if len(items) > 100:
+            return f"{path}의 하위 항목이 {len(items)}개로 Notion children 상한 100개를 넘습니다"
+        for x in items:
+            msg = over_limit([c for c in x.get("children") or [] if str(c.get("text", "")).strip()],
+                             x.get("text", "")[:30])
+            if msg:
+                return msg
+        return None
+
+    limit_error = over_limit(entries)
+    if limit_error:
+        print(json.dumps({"success": False, "error": limit_error}, ensure_ascii=False))
+        sys.exit(1)
+
+    # 중복 비교와 블록 id 찾기는 넣을 자리(--parent-block의 직계 자식, 없으면 Todos 칸 최상위)로 한정한다.
+    # 일지 전체 글로 비교하면 다른 프로젝트 아래의 같은 이름 주제를 이미 있는 것으로 보거나 그 id를 돌려준다
+    def find_node(nodes, block_id):
+        for n in nodes:
+            if n.get("id", "").replace("-", "") == block_id.replace("-", ""):
+                return n
+            hit = find_node(n.get("children", []), block_id)
+            if hit:
+                return hit
+        return None
+
+    def siblings_of(nodes):
+        if not args.parent_block:
+            return nodes
+        parent = find_node(nodes, args.parent_block)
+        return parent.get("children", []) if parent else []
+
+    already_written = {norm(n["text"]) for n in siblings_of(todos["nodes"])
+                       if n["type"] == "to_do" and n["text"].strip()}
     new_entries, skipped = [], []
     for e in entries:
         keys = written_keys(e)
@@ -628,11 +690,23 @@ def cmd_append_todos(args):
 
     blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked, e.get("links"))
               for e in new_entries]
-    if args.parent_block:
-        top_ids = {n["id"].replace("-", "") for n in todos["nodes"] if n["type"] == "to_do"}
-        if args.parent_block.replace("-", "") not in top_ids:
+
+    # 요청 하나의 상한: 블록 1,000개, 본문 500KB(Notion request limits). 넘으면 쓰기 전에 멈춘다
+    def count_blocks(bs):
+        return sum(1 + count_blocks(b["to_do"].get("children", [])) for b in bs)
+
+    total_blocks = count_blocks(blocks)
+    payload_bytes = len(json.dumps({"children": blocks}, ensure_ascii=False).encode("utf-8"))
+    if total_blocks > 1000 or payload_bytes > 500_000:
+        print(json.dumps({"success": False,
+                          "error": f"요청 하나에 블록 {total_blocks}개, {payload_bytes}바이트로 Notion 상한(1,000개, 500KB)을 넘습니다. 나눠서 넣으십시오"},
+                         ensure_ascii=False))
+        sys.exit(1)
+    if args.parent_block:  # 어느 깊이의 할 일이든 부모로 받는다(프로젝트 아래 주제, 주제 아래 하위 할 일)
+        parent = find_node(todos["nodes"], args.parent_block)
+        if not parent or parent["type"] != "to_do":
             print(json.dumps({"success": False,
-                              "error": f"--parent-block {args.parent_block}가 Todos 칸의 최상위 할 일이 아닙니다"},
+                              "error": f"--parent-block {args.parent_block}가 Todos 칸의 할 일이 아닙니다"},
                              ensure_ascii=False))
             sys.exit(1)
         target, body = args.parent_block, {"children": blocks}
@@ -664,15 +738,23 @@ def cmd_append_todos(args):
 
     # 항목마다 블록 id를 돌려준다(하루 시작 보드의 상태 반영 버튼이 이 id의 checked만 바꾼다).
     # 쓰기 뒤 Todos를 다시 읽어 글로 맞춘다. dry-run에서 새 항목은 아직 블록이 없어 id가 null이다
-    by_key = {}
-    for t in todo_nodes_with_ids(load_todos_section(token, args.page_id)["nodes"]):
-        by_key.setdefault(norm(t["text"]), t["id"])
     skipped_ids = {id(e) for e in skipped}
 
-    def block_id_of(e):
-        return next((by_key[k] for k in written_keys(e) if k in by_key), None)
+    def match(nodes, e):  # 같은 부모의 직계 자식 중에서만 글로 맞춘다
+        keys = written_keys(e)
+        return next((n for n in nodes if n["type"] == "to_do" and norm(n["text"]) in keys), None)
 
-    blocks = [{"text": e["text"], "id": block_id_of(e), "skipped": id(e) in skipped_ids} for e in entries]
+    def describe(e, nodes):  # 하위 항목의 블록 id도 돌려준다(Top 3 카드가 주제 블록 id를 쓴다)
+        node = match(nodes, e)
+        out = {"text": e["text"], "id": node["id"] if node else None}
+        kids = [c for c in e.get("children") or [] if str(c.get("text", "")).strip()]
+        if kids:
+            child_nodes = node.get("children", []) if node else []
+            out["children"] = [describe(dict(c, text=c["text"].strip()), child_nodes) for c in kids]
+        return out
+
+    container = siblings_of(load_todos_section(token, args.page_id)["nodes"])
+    blocks = [dict(describe(e, container), skipped=id(e) in skipped_ids) for e in entries]
 
     print(json.dumps({"success": True, "dry_run": args.dry_run,
                       "insert_after_block": insert_after, "parent_block": args.parent_block,
@@ -847,6 +929,8 @@ def main():
     carry_parser.add_argument("--page-id", required=True, help="오늘 일지 page_id (read 출력)")
     carry_parser.add_argument("--from-date", required=True, help="Tomorrow를 가져올 일지 날짜 (YYYY-MM-DD 또는 yesterday)")
     carry_parser.add_argument("--dry-run", action="store_true", help="Notion에 쓰지 않고 옮길 항목만 출력한다")
+    carry_parser.add_argument("--create-section", action="store_true",
+                              help="Yesterday 칸이 없으면(예전 템플릿 페이지) 할 일 구역 끝 다음에 구분선과 Yesterday 제목을 만든다")
 
     todos_parser = subparsers.add_parser(
         "append-todos", help="Todos 칸 끝에 할 일을 덧붙인다 (daily:start 아침 코치용)")
