@@ -460,11 +460,11 @@ def cmd_carry_tomorrow(args):
             sys.exit(1)
         created_section = True
         if args.dry_run:
-            print(json.dumps({"success": True, "dry_run": True, "created_section": True,
-                              "section_parent": todos_sec["parent_id"], "insert_after_block": todos_sec["last_block_id"],
-                              "would_append": [n["text"].strip() for n in tomorrow["nodes"] if n["text"].strip()]},
-                             ensure_ascii=False, indent=2))
-            return
+            # 쓰지 않고, 새로 만들 Yesterday 칸(빈 칸, 할 일 구역 끝 다음)을 가정해 아래 공통 복사 계획을 그대로 돌린다.
+            # dry-run과 실제 실행이 같은 항목·제외 사유(unsupported)·블록 수를 돌려준다
+            yesterday = {"parent_id": todos_sec["parent_id"], "last_block_id": todos_sec["last_block_id"], "nodes": []}
+    if created_section and not args.dry_run:
+        todos_sec = sections["Todos"]
         heading = {"object": "block", "type": "heading_2",
                    "heading_2": {"rich_text": [{"type": "text", "text": {"content": "☑️ Yesterday"}}]}}
         notion_request(token, "PATCH", f"/blocks/{todos_sec['parent_id']}/children",
@@ -641,13 +641,35 @@ def cmd_append_todos(args):
                          ensure_ascii=False))
         sys.exit(1)
 
-    # 글 끝에 링크 라벨("  PLE-27 · #10315")이 붙어 저장되므로, 라벨을 붙인 글로도 비교한다(재실행 중복 방지)
-    def written_keys(e):
-        # 링크(Jira 키 등)가 있는 항목은 글+라벨로만 맞춘다. 이름이 같고 키가 다른 프로젝트(PLE-1, PLE-2)를 같은 것으로 보지 않는다
-        labeled = norm(e["text"] + "".join(l["label"] for l in entry_links(e)))
-        return {labeled} if entry_links(e) else {norm(e["text"])}
+    # 항목 식별. key(Jira 키 또는 Notion page id)가 있는 항목(프로젝트)은 블록에 걸린 링크 주소로 맞춘다.
+    # 이름이 같아도 키가 다르면 다른 항목이다. key가 없는 항목은 링크 라벨을 뺀 글로 맞춘다
+    # (기존 항목에 링크만 더해 다시 넣어도 같은 항목으로 보고, 빠진 링크는 missing_links로 돌려준다)
+    def key_of(e):
+        return str(e.get("key") or "").strip()
 
-    # Notion API는 children 배열 하나에 100개까지 받는다. 쓰기 전에(dry-run 포함) 모든 단계를 검사한다
+    def node_has_key(n, key):
+        hrefs = n.get("links", [])
+        if JIRA_KEY_RE.match(key):
+            return any(h.rstrip("/").endswith("/browse/" + key) for h in hrefs)
+        kid = key.replace("-", "").lower()
+        return any(kid in h.replace("-", "").lower() for h in hrefs)
+
+    def node_base_text(n):  # 저장된 글 끝의 링크 라벨("  PLE-27 · #10315")을 뗀 글
+        labels = norm("".join(l["label"] for l in (normalize_link(h) for h in n.get("links", [])) if l))
+        t = norm(n["text"])
+        return t[:-len(labels)] if labels and t.endswith(labels) else t
+
+    def node_matches(n, e):
+        if n["type"] != "to_do" or not n["text"].strip():
+            return False
+        if key_of(e):
+            return node_has_key(n, key_of(e))
+        return node_base_text(n) == norm(e["text"]) or norm(n["text"]) == norm(e["text"])
+
+    def identity(e):
+        return ("key", key_of(e)) if key_of(e) else ("text", norm(e["text"]))
+
+    # Notion API는 children 배열 하나에 100개까지 받는다. 중복을 뺀 뒤 실제로 보낼 항목으로 검사한다
     def over_limit(items, path="최상위"):
         if len(items) > 100:
             return f"{path}의 하위 항목이 {len(items)}개로 Notion children 상한 100개를 넘습니다"
@@ -657,11 +679,6 @@ def cmd_append_todos(args):
             if msg:
                 return msg
         return None
-
-    limit_error = over_limit(entries)
-    if limit_error:
-        print(json.dumps({"success": False, "error": limit_error}, ensure_ascii=False))
-        sys.exit(1)
 
     # 중복 비교와 블록 id 찾기는 넣을 자리(--parent-block의 직계 자식, 없으면 Todos 칸 최상위)로 한정한다.
     # 일지 전체 글로 비교하면 다른 프로젝트 아래의 같은 이름 주제를 이미 있는 것으로 보거나 그 id를 돌려준다
@@ -680,28 +697,20 @@ def cmd_append_todos(args):
         parent = find_node(nodes, args.parent_block)
         return parent.get("children", []) if parent else []
 
-    already_written = {norm(n["text"]) for n in siblings_of(todos["nodes"])
-                       if n["type"] == "to_do" and n["text"].strip()}
-    new_entries, skipped = [], []
+    existing = siblings_of(todos["nodes"])
+    seen_ids, new_entries, skipped = set(), [], []
     for e in entries:
-        keys = written_keys(e)
-        (skipped if keys & already_written else new_entries).append(e)
-        already_written |= keys
+        dup = identity(e) in seen_ids or any(node_matches(n, e) for n in existing)
+        (skipped if dup else new_entries).append(e)
+        seen_ids.add(identity(e))
+
+    limit_error = over_limit(new_entries)
+    if limit_error:
+        print(json.dumps({"success": False, "error": limit_error}, ensure_ascii=False))
+        sys.exit(1)
 
     blocks = [todo_block_rich(e["text"], e.get("link"), e.get("children"), args.checked, e.get("links"))
               for e in new_entries]
-
-    # 요청 하나의 상한: 블록 1,000개, 본문 500KB(Notion request limits). 넘으면 쓰기 전에 멈춘다
-    def count_blocks(bs):
-        return sum(1 + count_blocks(b["to_do"].get("children", [])) for b in bs)
-
-    total_blocks = count_blocks(blocks)
-    payload_bytes = len(json.dumps({"children": blocks}, ensure_ascii=False).encode("utf-8"))
-    if total_blocks > 1000 or payload_bytes > 500_000:
-        print(json.dumps({"success": False,
-                          "error": f"요청 하나에 블록 {total_blocks}개, {payload_bytes}바이트로 Notion 상한(1,000개, 500KB)을 넘습니다. 나눠서 넣으십시오"},
-                         ensure_ascii=False))
-        sys.exit(1)
     if args.parent_block:  # 어느 깊이의 할 일이든 부모로 받는다(프로젝트 아래 주제, 주제 아래 하위 할 일)
         parent = find_node(todos["nodes"], args.parent_block)
         if not parent or parent["type"] != "to_do":
@@ -714,6 +723,19 @@ def cmd_append_todos(args):
     else:
         insert_after = todos["last_block_id"]
         target, body = todos["parent_id"], {"children": blocks, "after": insert_after}
+
+    # 요청 하나의 상한: 블록 1,000개, 본문 500KB(Notion request limits). 실제로 보낼 body를
+    # notion_request와 같은 방식(json.dumps 기본값, ASCII 이스케이프)으로 직렬화해 잰다
+    def count_blocks(bs):
+        return sum(1 + count_blocks(b["to_do"].get("children", [])) for b in bs)
+
+    total_blocks = count_blocks(blocks)
+    payload_bytes = len(json.dumps(body).encode())
+    if total_blocks > 1000 or payload_bytes > 500_000:
+        print(json.dumps({"success": False,
+                          "error": f"요청 하나에 블록 {total_blocks}개, {payload_bytes}바이트로 Notion 상한(1,000개, 500KB)을 넘습니다. 나눠서 넣으십시오"},
+                         ensure_ascii=False))
+        sys.exit(1)
 
     # property: 기존 rich_text 조각(링크 포함)을 그대로 두고 끝에 "  • 글  라벨 · 라벨" 줄을 덧붙인다
     prop_before = prop_after = None
@@ -740,13 +762,17 @@ def cmd_append_todos(args):
     # 쓰기 뒤 Todos를 다시 읽어 글로 맞춘다. dry-run에서 새 항목은 아직 블록이 없어 id가 null이다
     skipped_ids = {id(e) for e in skipped}
 
-    def match(nodes, e):  # 같은 부모의 직계 자식 중에서만 글로 맞춘다
-        keys = written_keys(e)
-        return next((n for n in nodes if n["type"] == "to_do" and norm(n["text"]) in keys), None)
+    def match(nodes, e):  # 같은 부모의 직계 자식 중에서만 맞춘다(키 있으면 링크, 없으면 글)
+        return next((n for n in nodes if node_matches(n, e)), None)
 
     def describe(e, nodes):  # 하위 항목의 블록 id도 돌려준다(Top 3 카드가 주제 블록 id를 쓴다)
         node = match(nodes, e)
         out = {"text": e["text"], "id": node["id"] if node else None}
+        if node:  # 이미 있던 항목에 빠진 링크. 호출자가 add-links --map으로 이 id에 붙인다
+            have = set(node.get("links", []))
+            missing = [l["url"] for l in entry_links(e) if l["url"] not in have]
+            if missing:
+                out["missing_links"] = missing
         kids = [c for c in e.get("children") or [] if str(c.get("text", "")).strip()]
         if kids:
             child_nodes = node.get("children", []) if node else []

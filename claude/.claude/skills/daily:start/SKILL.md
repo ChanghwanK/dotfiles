@@ -144,7 +144,7 @@ date '+%s'
 ### Step 4: 확인 후 쓰기
 
 **주제로 묶기** (질문 전에 한다). Todos 후보(Top 3와 나머지 후보)를 같은 목적끼리 주제 하나로 묶고, 주제를 Step 2의 프로젝트 아래에 두어 프로젝트 > 주제 > 하위 할 일 세 단계로 만든다.
-- **프로젝트**(맨 위): Step 2에서 연결한 Jira Epic·Issue 또는 Task DB Task. 이름은 Jira 요약(Task DB면 접두어를 뺀 Task명)을 그대로 쓰고 `links`에 Jira 키를 넣는다. 주제가 하나뿐이어도 프로젝트 아래에 둔다. 프로젝트가 없는 주제는 맨 위 단계에 그대로 둔다
+- **프로젝트**(맨 위): Step 2에서 연결한 Jira Epic·Issue 또는 Task DB Task. 이름은 Jira 요약(Task DB면 접두어를 뺀 Task명)을 그대로 쓴다. 트리 항목에 `key`(`projects[].key`: Jira 키 또는 Task page id)를 넣고, `links`에는 그 키의 링크(Jira면 키, Task면 `{"url": "https://www.notion.so/<page_id에서 - 뺀 값>", "label": "Task"}`)를 넣는다. 스크립트는 `key`가 있는 항목을 블록에 걸린 링크로 식별하므로, 이름이 같은 프로젝트도 키가 다르면 따로 넣는다. 주제가 하나뿐이어도 프로젝트 아래에 둔다. 프로젝트가 없는 주제는 맨 위 단계에 그대로 둔다
   - 예: `Python 백엔드 pgbouncer 도입`(PLE-12) 아래에 `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`, `PgBouncer 차트 안정화`
 - **주제**(상위 할 일): 같은 프로젝트나 목적을 위한 일을 모은다. 같은 스레드에서 나온 행동, 같은 PR을 다루는 회고 항목과 스레드의 다음 행동, 같은 성격의 메일 할 일(예: 외부 서비스 공지 영향 확인)은 한 주제다
   - 이름은 `task:split` "표현" 절의 Task 제목 규칙(대상 + 행동 명사, 명사형 종결)을 따른다. PR 번호, 차트 values 키, 작업 디렉터리·브랜치·세션 이름은 넣지 않는다
@@ -164,10 +164,11 @@ date '+%s'
 - Todos: dry-run 다음 실제 실행. `success: false`면 오류를 그대로 전하고 Todos만 멈춘다
   ```bash
   python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py append-todos \
-    --page-id {today_page_id} --tree '[{"text": "Python 백엔드 pgbouncer 도입", "links": ["PLE-12"], "children": [
+    --page-id {today_page_id} --tree '[{"text": "Python 백엔드 pgbouncer 도입", "key": "PLE-12", "links": ["PLE-12"], "children": [
       {"text": "카나리 수동 제어", "links": [], "children": [{"text": "chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인", "links": ["<PR URL>"]}]}]}]' --dry-run
   ```
   - 실제 실행 출력의 `blocks[]`는 맨 위 항목마다 `{text, id, skipped, children: [{text, id, children}]}`를 돌려준다. 주제 블록 id(프로젝트 아래면 `blocks[].children[].id`, 프로젝트가 없으면 `blocks[].id`)를 그 주제인 `top3[].block_id`와, 그 주제에 합친 `tomorrow[].block_id`에 저장한다(Step 5). property에는 맨 위 항목(프로젝트, 또는 프로젝트 없는 주제) 이름만 한 줄씩 붙는다
+  - `key`가 없는 항목(주제, 하위 할 일)은 링크 라벨을 뺀 글로 식별한다. 이미 있는 항목에 링크만 더해 넣으면 새로 만들지 않고 건너뛰며, 그 항목에 빠진 링크를 `blocks[].missing_links`(하위는 `children[].missing_links`)로 돌려준다. 있으면 `add-links --page-id {today_page_id} --map '[{"block_id": "<그 id>", "links": [<missing_links>]}]'`로 붙인다(dry-run 먼저)
   - 같은 프로젝트가 오늘 일지에 이미 있으면(`skipped: true`, 기존 id가 나온다) 빠진 주제만 `--tree '[{"text": "<주제>", "links": [], "children": [...]}]' --parent-block <프로젝트 id> --no-prop`로 덧붙인다. 같은 주제가 이미 있으면 빠진 하위 할 일만 `--parent-block <주제 id> --no-prop`로 덧붙인다. 부모 아래에 넣을 때는 property에 줄을 더하지 않는다(property는 맨 위 항목만 담는다)
   - 중복 판정과 블록 id 찾기는 넣을 자리의 직계 자식끼리만 한다. 다른 프로젝트 아래의 같은 이름 주제는 별개로 본다
   - 세 단계를 한 요청으로 넣는다(2026-11-28 실측으로 성공 확인). 한 단계의 자식이 100개를 넘으면 스크립트가 쓰기 전에 오류로 멈춘다(Notion `children` 상한). 실패하면 오류를 그대로 전하고 Todos만 멈춘다
