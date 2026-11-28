@@ -42,7 +42,7 @@ allowed-tools:
 - **어제를 이어 간다.** 오늘 순위는 마감일이 아니라 어제 작업 스레드의 상태(진행 중, 중단)로 정한다. 마감일은 가산점과 경고로만 쓴다
 - **실제로 한 일이 계획보다 우선이다.** 회고 문서(Notion)와 세션 로그·PR이 다르면 세션 로그·PR을 사실로 본다
 - **쓰기는 네 가지다. 기존 블록은 고치거나 지우지 않는다.**
-  - 어제 일지 Tomorrow 칸을 오늘 일지 Yesterday 칸에 옮겨 적기(`carry-tomorrow`, 묻지 않고 매일)
+  - 어제 일지 Today(할 일) 칸을 오늘 일지 Yesterday 칸에 옮겨 적기(`carry-yesterday`, 묻지 않고 매일)
   - 오늘 일지 할 일 칸(본문 제목 "Today", 예전 템플릿은 "Todo's")과 `Todo's` property에 고른 항목 덧붙이기(`append-todos`, 확인 후)
   - Gmail 보관 후보 중 사용자가 승인한 스레드만 보관(`unlabel_thread`로 `INBOX` 제거). 삭제·읽음 처리는 하지 않는다
   - TickTick `Work` 프로젝트에 Todos로 고른 Top 3를 오늘 할 일로 추가(`batch_add_tasks`, 확인 후). 기존 할 일은 고치거나 완료 처리하지 않는다. Notion 일지는 기록, TickTick은 오늘 실행 목록이다
@@ -148,8 +148,8 @@ date '+%s'
   - 예: `Python 백엔드 pgbouncer 도입`(PLE-12) 아래에 `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`, `PgBouncer 차트 안정화`
 - **주제**(상위 할 일): 같은 프로젝트나 목적을 위한 일을 모은다. 같은 스레드에서 나온 행동, 같은 PR을 다루는 회고 항목과 스레드의 다음 행동, 같은 성격의 메일 할 일(예: 외부 서비스 공지 영향 확인)은 한 주제다
   - 이름은 `task:split` "표현" 절의 Task 제목 규칙(대상 + 행동 명사, 명사형 종결)을 따른다. PR 번호, 차트 values 키, 작업 디렉터리·브랜치·세션 이름은 넣지 않는다
-  - 좋음: `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`
-  - 나쁨: `webserver 차트 #156 manualPromoteWeights`(PR 번호와 키), `pgbouncer-ai-migration-kit: 키트 초안`(디렉터리 이름)
+  - 좋음: `PgBouncer AI 마이그레이션 코치 개발`, `카나리 수동 제어`, `정산`(법인카드 정산·지출결의서처럼 하는 일 자체)
+  - 나쁨: `webserver 차트 #156 manualPromoteWeights`(PR 번호와 키), `pgbouncer-ai-migration-kit: 키트 초안`(디렉터리 이름), `행정`(하는 일이 아니라 넓은 범주 이름)
 - **하위 할 일**: 주제 아래에 바로 시작할 수 있는 행동을 하나씩, 동사(`~하기`)로 끝낸다. 근거 PR·메일·Jira는 글에 쓰지 않고 그 하위 할 일의 `links`에 넣는다
   - 좋음: `chart 리뷰하기: 템플릿 코드를 이해하고 codex 리뷰 반영 확인`, `코치 스킬 PR 리뷰 요청하기`
 - 행동이 하나뿐인 일도 주제 아래 하위 할 일 하나로 둔다. 주제만 있고 행동이 없는 항목은 만들지 않는다
@@ -194,16 +194,20 @@ date '+%s'
   - TickTick 도구가 없거나 실패하면 건너뛰고 나머지 쓰기는 계속한다. 결과는 바닥글 `env.ticktick`에 한 줄로 쓴다("Top 3 N건 추가, M건은 이미 있음" / 건너뛴 이유)
   - 이 단계는 완료 상태를 맞추지 않는다. TickTick에서 체크한 것을 일지에 옮기는 일은 "상태 동기화" 서브 모드가 한다
 - 메일 보관: 승인했으면 후보마다 `mcp__claude_ai_Gmail__unlabel_thread(threadId, labelIds=["INBOX"])`를 한 메시지에 병렬로 부른다. 실패한 thread id는 HTML 바닥글에 남긴다. 잘못 보관한 메일은 `label_thread(threadId, ["INBOX"])`로 되돌린다
-- **어제 Tomorrow → 오늘 Yesterday** (질문 없이 매일): Step 1이 끝나면 위 질문과 상관없이 실행한다. `--from-date`는 Notion 에이전트의 `retro_date`. dry-run 다음 실제 실행
+- **어제 Today → 오늘 Yesterday** (질문 없이 매일): Step 1이 끝나면 위 질문과 상관없이 실행한다. `--from-date`는 Notion 에이전트의 `retro_date`. dry-run 다음 실제 실행
   ```bash
-  python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py carry-tomorrow \
+  python3 /Users/changhwan/.claude/skills/daily:retrospective/scripts/notion-daily.py carry-yesterday \
     --page-id {today_page_id} --from-date {retro_date} --create-section --dry-run
   ```
-  - Tomorrow 칸의 글·링크·체크 상태·하위 항목을 그대로 옮긴다. 회고 코치 추천 구역은 옮기지 않는다. 같은 최상위 글은 `skipped`로 건너뛰어 재실행해도 안전하다
-  - `--create-section`: 오늘 페이지에 Yesterday 칸이 없으면(기본 템플릿 "@Today 업무 일지"가 아닌 경로로 미리 만든 페이지) 할 일 구역 끝 다음에 구분선과 "☑️ Yesterday" 제목을 새로 만들어 옮긴다. 기존 블록은 고치지 않는다. API가 특정 블록 뒤에만 끼울 수 있어 새 칸은 오늘 할 일 아래에 놓인다
-  - 출력의 `created_section: true`는 페이지 구조가 템플릿과 다르다는 신호다. 바닥글뿐 아니라 콘솔 `**정리**`에도 "예전 구조 페이지라 Yesterday 칸을 새로 만듦"을 쓴다
+  - Yesterday 칸은 어제 실제로 한 일의 기록이다. 원천은 어제 일지 Today(할 일) 칸이고, 어제 Tomorrow(계획)가 아니다. 어제 Tomorrow는 Top 3·주제 후보로만 쓴다
+  - Today 칸의 글·링크·체크 상태·하위 항목을 그대로 옮긴다(미완료 항목도 체크 해제 상태로 옮긴다). 글 없는 자리 표시 항목은 옮기지 않는다. 같은 최상위 글은 `skipped`로 건너뛰어 재실행해도 안전하다
+  - 이미지·코드처럼 다시 만들 수 없는 블록은 `unsupported`로 빠진다(Notion이 올린 이미지 URL은 1시간 뒤 만료되어 복사해도 깨진다)
+  - `--create-section`: 오늘 페이지에 Yesterday 칸이 없으면(기본 템플릿 "@Today 업무 일지"가 아닌 경로로 미리 만든 할 일 | Tomorrow 두 칸 페이지) 템플릿과 같은 Yesterday | Today | Tomorrow 세 칸으로 다시 만든 뒤 옮긴다(`layout: three_columns`)
+    - API는 기존 칸 묶음 맨 앞에 칸을 끼울 수 없어, 세 칸 묶음을 기존 묶음 바로 뒤에 새로 만들고 할 일·Tomorrow 내용을 옮긴 다음, 글·체크·링크·하위 항목이 똑같은지 검증하고 나서만 기존 묶음을 지운다. 다르면 새 묶음을 지우고 기존 칸은 그대로 둔다. 할 일 블록 id는 바뀐다(carry는 Todos 쓰기보다 먼저 돌아 영향이 없다)
+    - 칸 구성이 다르거나(두 칸이 아님) 옮길 수 없는 블록 종류가 있으면 세 칸으로 바꾸지 않고 할 일 구역 끝 다음에 Yesterday 칸을 넣는다(`layout: below_today`, 이유는 `layout_fallback_reason`)
+  - 출력의 `created_section: true`는 페이지 구조가 템플릿과 다르다는 신호다. 바닥글뿐 아니라 콘솔 `**정리**`에도 "예전 구조 페이지라 세 칸으로 다시 만듦"(또는 below_today와 그 이유)을 쓴다
   - `today_page_id`나 `retro_date`가 null이거나 그 밖의 이유로 `success: false`면 건너뛰되, 바닥글에만 두지 않고 콘솔 `**정리**`에 이유와 직접 고칠 방법을 한 줄로 쓴다(조용히 빠지지 않게)
-  - 결과는 바닥글 `env.carry`에 한 줄로 쓴다("어제 Tomorrow N건을 Yesterday에 옮김" / "Yesterday 칸을 새로 만들고 N건 옮김" / "이미 옮겨 둠" / 건너뛴 이유). `unsupported`가 있으면 그 블록 종류도 적는다
+  - 결과는 바닥글 `env.carry`에 한 줄로 쓴다("어제 Today N건을 Yesterday에 옮김" / "Yesterday 칸을 새로 만들고 N건 옮김" / "이미 옮겨 둠" / 건너뛴 이유). `unsupported`가 있으면 그 블록 종류도 적는다
 - **아침 계획 남기기** (work:tracking 되먹임): Todos에 넣은 항목을 `~/.claude/work-tracking/{today_date}.plan.json`에 Write한다. 고른 것이 없으면 쓰지 않고, 재실행하면 덮어쓴다
   ```json
   {"date": "{today_date}", "source": "daily:start", "artifact_url": null,
